@@ -1,5 +1,11 @@
 # Session History
 
+## Session 4 -- 2026-03-15
+
+Troubleshot launch.ps1: positional argument `claude "Hi, ready to continue?"` was launching Claude but the greeting never appeared.
+Switched to `claude -c` which resumes the most recent conversation directly -- confirmed working.
+Content creation project still not started -- next session.
+
 ## Session 3 -- 2026-03-15
 
 Fixed launch.ps1: `claude --message` is not a valid flag; corrected to `claude "Hi, ready to continue?"` (positional argument).
