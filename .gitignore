@@ -1,0 +1,25 @@
+# Secrets -- NEVER commit these
+.env
+*.key
+*.pem
+config/secrets/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs and runtime data
+logs/
+*.log
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# CC session data (lives in ~/.claude, not here)
