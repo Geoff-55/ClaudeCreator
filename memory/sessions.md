@@ -1,5 +1,11 @@
 # Session History
 
+## Session 3 -- 2026-03-15
+
+Fixed launch.ps1: `claude --message` is not a valid flag; corrected to `claude "Hi, ready to continue?"` (positional argument).
+Created "full wrap" hook system: .claude/hooks/wrap_detector.py detects "full wrap" phrase (case insensitive) and injects auto-proceed instructions. Registered via .claude/settings.json. Hook confirmed working this session.
+Content creation project still not started -- next session.
+
 ## Session 2 -- 2026-03-15
 
 Updated desktop shortcut to auto-send "Hi, ready to continue?" on launch.
