@@ -1,5 +1,14 @@
 # Session History
 
+## Session 5 -- 2026-03-15
+
+Scrapped launch script and wrap hook system -- deleted scripts/launch.ps1, .claude/hooks/wrap_detector.py, and .claude/settings.json.
+Added Permission Tier System to CLAUDE.md (T1 default, T2/T3/T4 tiers with matrix). Updated session protocol and How I Work accordingly.
+Started website setup: goal is corecreate.dev hosted on Cloudflare Pages, deployed via GitHub push.
+Created placeholder src/website/index.html.
+Installed GitHub CLI (gh) via winget. Shell needs to reload before gh is available.
+Next session: restart terminal, run `gh auth login`, create GitHub repo, connect to Cloudflare Pages.
+
 ## Session 4 -- 2026-03-15
 
 Troubleshot launch.ps1: positional argument `claude "Hi, ready to continue?"` was launching Claude but the greeting never appeared.

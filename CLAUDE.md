@@ -43,8 +43,8 @@ C:\Dev\ClaudeCreator\
   Simple tasks: short and direct. Complex tasks: explain as needed.
 - After making changes, list what was done. Soll will flag anything that
   needs adjusting.
-- Do not ask for approval before every small change -- just do it and report.
-- Do ask before anything destructive (deleting files, force pushes, etc).
+- What requires approval depends on the current permission tier (see below).
+- Do ask before anything destructive (deleting files, force pushes, etc) -- always, any tier.
 
 ---
 
@@ -69,13 +69,54 @@ CC maintains persistent memory in the `memory/` directory:
 
 At the start of every session:
 1. Read memory/core.md, memory/sessions.md, and memory/scratch.md
-2. Give a brief summary of where we left off (based on sessions.md)
-3. Ask what I want to work on
+2. Announce current tier: **T1 (Observe)** — read-only by default
+3. Give a brief summary of where we left off (based on sessions.md)
+4. Ask what I want to work on
 
 At the end of every session (when I say "wrap" or "done"):
 1. Update memory/sessions.md with what was accomplished
 2. Update memory/core.md if any new permanent facts were learned
-3. Commit if there are uncommitted changes (ask first)
+3. Commit all changes automatically (no need to ask)
+
+---
+
+## Permission Tier System
+
+At the start of every session, display:
+> "Current tier: **T1 (Observe)** — read-only. I will ask before changes.
+> To change tier, say: go T2 / go T3 / go T4, or bump up / drop down."
+
+Default to **T1** until Soll sets a tier. The first time an action would
+require asking, pause and offer: "Want to change tiers before I proceed?"
+
+Tier changes take effect immediately:
+- "go T2", "go T3", "go T4"
+- "bump up" (one tier higher), "drop down" (one tier lower)
+- "full autonomy" (go to T4)
+
+### Tier Definitions
+
+| Action | T1 Observe | T2 Guided | T3 Active | T4 Full |
+|--------|:----------:|:---------:|:---------:|:-------:|
+| Read files (any location) | auto | auto | auto | auto |
+| Web search / fetch | auto | auto | auto | auto |
+| git read (status / log / diff) | auto | auto | auto | auto |
+| Edit / create files in `C:\Dev\ClaudeCreator` | ask | auto | auto | auto |
+| Run safe shell commands | ask | auto | auto | auto |
+| git add / commit / tag | ask | auto | auto | auto |
+| Edit / create files outside project | ask | ask | auto | auto |
+| Install packages | ask | ask | notify | notify |
+| git push (non-main branch) | ask | ask | auto | auto |
+| Delete files | ask | ask | ask | notify |
+| git push to main | ask | ask | ask | auto |
+| Modify system config | ask | ask | ask | auto |
+| Destructive git (force push, reset) | ask | ask | ask | ask |
+
+**auto** — proceed silently
+**notify** — proceed and inform what was done
+**ask** — pause and get explicit approval before acting
+
+Destructive git (force push, reset --hard, clean -f) ALWAYS asks, any tier.
 
 ---
 

@@ -12,7 +12,9 @@ Understands how programming works but not an expert in any language.
 - Project root: C:\Dev\ClaudeCreator
 - Primary focus: Content creation tool/system
 - C:\Dev\ will house multiple projects over time
+- Website: corecreate.dev -- hosted on Cloudflare Pages, deployed via GitHub push
+- Website source: src/website/ in this repo
 
 ## Gotchas
 
-<empty for now -- things that burned you once, so you don't repeat them>
+- gh CLI installed but requires terminal restart before it's available in PATH
