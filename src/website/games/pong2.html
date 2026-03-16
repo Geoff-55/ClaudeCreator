@@ -118,7 +118,7 @@ function playModActivated() {
   }
 }
 
-document.addEventListener('click', initAudio, { once: true });
+document.addEventListener('click', () => { initAudio(); startMusic(); }, { once: true });
 
 // ===================== GAME =====================
 const canvas = document.getElementById('c');
@@ -157,6 +157,9 @@ let field, p1, p2, ball, obstacles, modifiers, modTimer, totalTime;
 let modQueued = false, pendingMod = null;
 let countdown = 0, countdownTimer = 0;
 let fieldPulse = 0, fieldPulseColor = '#a855f7';
+let roundTime = 0;
+
+function currentInterval() { return Math.max(1, MOD_INTERVAL - Math.floor(roundTime / 20)); }
 
 function makeField() { return { x: PANEL_W + 10, y: 50, w: W - PANEL_W - 30, h: H - 70 }; }
 
@@ -167,7 +170,7 @@ function resetGame() {
   ball = { x: field.x + field.w / 2, y: field.y + field.h / 2, r: BALL_R_BASE, speed: BALL_SPEED_BASE, vx: 0, vy: 0 };
   obstacles = []; modifiers = [];
   modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
-  totalTime = 0; fieldPulse = 0;
+  totalTime = 0; roundTime = 0; fieldPulse = 0;
   startCountdown();
 }
 
@@ -180,6 +183,7 @@ function resetRound() {
   ball.x = field.x + field.w / 2; ball.y = field.y + field.h / 2;
   obstacles = []; modifiers = [];
   modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
+  roundTime = 0;
   startCountdown();
 }
 
@@ -239,7 +243,7 @@ function applyMod() {
       break;
     }
   }
-  modTimer = MOD_INTERVAL;
+  modTimer = currentInterval();
 }
 
 function clamp(p) {
@@ -279,9 +283,12 @@ function update(dt) {
   }
 
   totalTime += dt;
+  roundTime += dt;
   if (fieldPulse > 0) fieldPulse = Math.max(0, fieldPulse - dt * 1.8);
 
   if (!modQueued) {
+    const interval = currentInterval();
+    if (modTimer > interval) modTimer = interval;
     modTimer -= dt;
     if (modTimer <= 0) queueMod();
   } else {
@@ -606,7 +613,6 @@ canvas.addEventListener('click', () => {
     targetScore = SCORE_OPTS[scoreHover];
     resetGame();
     state = 'playing';
-    startMusic();
   } else if (state === 'win') {
     state = 'menu'; menuHover = -1;
   }
