@@ -35,7 +35,6 @@
   <canvas id="c"></canvas>
 
 <script>
-// --- Back button ---
 (function() {
   const p = new URLSearchParams(window.location.search);
   document.getElementById('backBtn').href =
@@ -43,27 +42,199 @@
 })();
 
 // ===================== CONSTANTS =====================
-const W           = 880;
-const H           = 490;
-const TILE        = 42;
-const FLOOR_Y     = H - 90;
-const GROUND_Y    = FLOOR_Y - TILE / 2;
-const CUBE_X      = 180;
-const CUBE_SIZE   = TILE;
-const INNER_SIZE  = 17;   // visual
-const INNER_HB    = 14;   // hitbox — slightly smaller than visual
-const SPEED       = 230;  // world scroll px/s
-const GRAVITY     = 1900;
-const JUMP_VEL    = 620;
-const ROT_RATE    = (Math.PI / 2) / TILE * SPEED;
+const W          = 880;
+const H          = 490;
+const TILE       = 42;
+const FLOOR_Y    = H - 90;
+const GROUND_Y   = FLOOR_Y - TILE / 2;
+const CUBE_X     = 180;
+const CUBE_SIZE  = TILE;
+const INNER_SIZE = 17;
+const INNER_HB   = 14;
+const SPEED      = 230;
+const GRAVITY    = 1900;
+const JUMP_VEL   = 620;
+const ROT_RATE   = (Math.PI / 2) / TILE * SPEED;
 const DEATH_PAUSE = 0.65;
-const ROYGBIV     = ['#ff2424','#ff7700','#ffe600','#00ee44','#00bbff','#3355ff','#cc00ff'];
+const ROYGBIV    = ['#ff2424','#ff7700','#ffe600','#00ee44','#00bbff','#3355ff','#cc00ff'];
 
-// ===================== CANVAS =====================
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 canvas.width  = W;
 canvas.height = H;
+
+// ===================== AUDIO =====================
+let audioCtx = null, masterGain = null, musicStarted = false;
+let hihatBuf = null;
+let nextStepTime = 0, stepIdx = 0;
+let schedTimer = null;
+
+const BPM      = 110;
+const STEP_DUR = 60 / BPM / 2; // 8th note
+const LOOKAHEAD = 0.15;
+
+// 16-step patterns (2 bars of 4/4, 8th notes)
+const PAT_KICK  = [1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,0,1];
+const PAT_SNARE = [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0];
+const PAT_HIHAT = [0,1,0,1, 0,1,0,0, 0,1,0,1, 0,1,0,0];
+// Bass note frequencies (null = rest): E2 G2 A2 B2 pentatonic
+const PAT_BASS  = [82.41,null,null,null, 98.00,null,110.00,null,
+                   82.41,null,null,null, 123.47,null,98.00,null];
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.20;
+  masterGain.connect(audioCtx.destination);
+
+  // Noise buffer for drums (created once, reused)
+  hihatBuf = audioCtx.createBuffer(1, 4096, audioCtx.sampleRate);
+  const d = hihatBuf.getChannelData(0);
+  for (let i = 0; i < 4096; i++) d[i] = Math.random() * 2 - 1;
+
+  // Ambient sub-bass drone
+  for (const detune of [-4, 4]) {
+    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 41.2; osc.detune.value = detune;
+    g.gain.value = 0.055;
+    osc.connect(g); g.connect(masterGain); osc.start();
+  }
+}
+
+function startMusic() {
+  if (musicStarted || !audioCtx) return;
+  musicStarted = true;
+  nextStepTime = audioCtx.currentTime + 0.05;
+  scheduleSteps();
+}
+
+function scheduleSteps() {
+  if (!audioCtx || !musicStarted) return;
+  while (nextStepTime < audioCtx.currentTime + LOOKAHEAD) {
+    const step = stepIdx % 16;
+    const t    = nextStepTime;
+    if (PAT_KICK[step])             schedKick(t);
+    if (PAT_SNARE[step])            schedSnare(t);
+    if (PAT_HIHAT[step])            schedHihat(t, 0.20);
+    if (PAT_BASS[step] !== null)    schedBass(t, PAT_BASS[step]);
+    nextStepTime += STEP_DUR;
+    stepIdx++;
+  }
+  schedTimer = setTimeout(scheduleSteps, 40);
+}
+
+function schedKick(t) {
+  const osc = audioCtx.createOscillator(), env = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(160, t);
+  osc.frequency.exponentialRampToValueAtTime(0.001, t + 0.45);
+  env.gain.setValueAtTime(0.85, t);
+  env.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  osc.connect(env); env.connect(masterGain);
+  osc.start(t); osc.stop(t + 0.5);
+}
+
+function schedSnare(t) {
+  // Noise layer
+  const src = audioCtx.createBufferSource(), env = audioCtx.createGain();
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 0.8;
+  src.buffer = hihatBuf;
+  env.gain.setValueAtTime(0.45, t);
+  env.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+  src.connect(filt); filt.connect(env); env.connect(masterGain);
+  src.start(t); src.stop(t + 0.2);
+  // Tone body
+  const osc = audioCtx.createOscillator(), oenv = audioCtx.createGain();
+  osc.type = 'sine'; osc.frequency.value = 190;
+  oenv.gain.setValueAtTime(0.28, t);
+  oenv.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(oenv); oenv.connect(masterGain);
+  osc.start(t); osc.stop(t + 0.12);
+}
+
+function schedHihat(t, vol) {
+  const src = audioCtx.createBufferSource(), env = audioCtx.createGain();
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'highpass'; filt.frequency.value = 8000;
+  src.buffer = hihatBuf;
+  env.gain.setValueAtTime(vol, t);
+  env.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  src.connect(filt); filt.connect(env); env.connect(masterGain);
+  src.start(t); src.stop(t + 0.08);
+}
+
+function schedBass(t, freq) {
+  const osc = audioCtx.createOscillator(), env = audioCtx.createGain();
+  osc.type = 'sawtooth'; osc.frequency.value = freq;
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(0.24, t + 0.015);
+  env.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+  osc.connect(env); env.connect(masterGain);
+  osc.start(t); osc.stop(t + 0.32);
+}
+
+function playDeath() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = 'square'; osc.frequency.value = 120;
+  g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+initAudio();
+audioCtx.resume().then(() => startMusic());
+const unlockAudio = () => audioCtx.resume().then(() => startMusic());
+document.addEventListener('click',      unlockAudio, { once: true });
+document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+
+// ===================== LEVEL GENERATION =====================
+function randColor() { return ROYGBIV[Math.floor(Math.random() * ROYGBIV.length)]; }
+
+function genLevel() {
+  const blocks = [], spikes = [];
+  // Give the player a clear run-up before first obstacle
+  let wx = TILE * (Math.ceil(W / TILE) + 10);
+
+  while (wx < 35000) {
+    const roll = Math.random();
+
+    if (roll < 0.52) {
+      // ── BLOCK GROUP ──
+      // 1–3 columns; each column stacks from floor up (no floating)
+      const cols   = 1 + Math.floor(Math.random() * 3);
+      const color  = randColor();
+      for (let c = 0; c < cols; c++) {
+        const colH = Math.random() < 0.38 ? 2 : 1; // 38% chance of 2-high
+        for (let h = 0; h < colH; h++) {
+          blocks.push({ worldX: wx + c * TILE, y: FLOOR_Y - TILE * (h + 1), color });
+        }
+      }
+      wx += cols * TILE;
+      wx += TILE * (5 + Math.floor(Math.random() * 5)); // gap after group
+
+    } else if (roll < 0.88) {
+      // ── SPIKE GROUP ──
+      const count = Math.random() < 0.48 ? 1 : 2;
+      for (let i = 0; i < count; i++) {
+        const tall  = Math.random() < 0.5; // tall vs half
+        const color = randColor();
+        spikes.push({ worldX: wx + i * TILE, tall, color });
+      }
+      wx += count * TILE;
+      wx += TILE * (5 + Math.floor(Math.random() * 5)); // gap after group
+
+    } else {
+      // ── EMPTY SECTION ── (breathing room)
+      wx += TILE * (6 + Math.floor(Math.random() * 4));
+    }
+  }
+
+  return { blocks, spikes };
+}
 
 // ===================== STATE =====================
 let worldOffset = 0;
@@ -73,48 +244,15 @@ let cubeVY      = 0;
 let grounded    = true;
 let isDead      = false;
 let deathTimer  = 0;
-let obstacles   = [];
+let blocks      = [];
+let spikes      = [];
 
-// ===================== STARS (fixed to screen) =====================
 const STARS = Array.from({ length: 120 }, () => ({
   x: Math.random() * W,
   y: Math.random() * (FLOOR_Y - 10),
   r: Math.random() * 0.9 + 0.2,
   o: Math.random() * 0.4 + 0.1,
 }));
-
-// ===================== OBSTACLES =====================
-function genObstacles() {
-  const obs = [];
-  let wx = TILE * (Math.ceil(W / TILE) + 5); // start off-screen right
-  while (wx < 28000) {
-    const color = ROYGBIV[Math.floor(Math.random() * ROYGBIV.length)];
-    const roll  = Math.random();
-    if (roll < 0.35) {
-      // Single floor block
-      obs.push({ worldX: wx, y: FLOOR_Y - TILE, color });
-    } else if (roll < 0.58) {
-      // Two-high stack
-      obs.push({ worldX: wx, y: FLOOR_Y - TILE,     color });
-      obs.push({ worldX: wx, y: FLOOR_Y - TILE * 2, color });
-    } else if (roll < 0.74) {
-      // Two adjacent floor blocks
-      obs.push({ worldX: wx,        y: FLOOR_Y - TILE, color });
-      obs.push({ worldX: wx + TILE, y: FLOOR_Y - TILE, color });
-      wx += TILE;
-    } else if (roll < 0.88) {
-      // Floating platform (one tile up)
-      obs.push({ worldX: wx, y: FLOOR_Y - TILE * 2, color });
-    } else {
-      // Step: floor block + floating block one tile right and one up
-      obs.push({ worldX: wx,        y: FLOOR_Y - TILE,     color });
-      obs.push({ worldX: wx + TILE, y: FLOOR_Y - TILE * 2, color });
-      wx += TILE;
-    }
-    wx += TILE * (3 + Math.floor(Math.random() * 4));
-  }
-  return obs;
-}
 
 // ===================== HELPERS =====================
 function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
@@ -129,11 +267,15 @@ function jump() {
 
 function die() {
   if (isDead) return;
-  isDead    = true;
+  isDead     = true;
   deathTimer = DEATH_PAUSE;
+  playDeath();
 }
 
 function respawn() {
+  const level = genLevel();
+  blocks      = level.blocks;
+  spikes      = level.spikes;
   worldOffset = 0;
   cubeY       = GROUND_Y;
   cubeVY      = 0;
@@ -141,7 +283,6 @@ function respawn() {
   cubeAngle   = 0;
   isDead      = false;
   deathTimer  = 0;
-  obstacles   = genObstacles();
 }
 
 function resolveCollisions() {
@@ -149,20 +290,19 @@ function resolveCollisions() {
 
   // Floor
   if (cubeY + CUBE_SIZE / 2 >= FLOOR_Y) {
-    cubeY  = FLOOR_Y - CUBE_SIZE / 2;
-    cubeVY = 0;
+    cubeY = FLOOR_Y - CUBE_SIZE / 2;
+    cubeVY   = 0;
     grounded = true;
   }
 
-  // Obstacle tops — land only when falling/level (cubeVY >= 0)
+  // Block tops — land only while falling/level
   if (cubeVY >= 0) {
-    for (const obs of obstacles) {
-      const sx = obs.worldX - worldOffset;
+    for (const b of blocks) {
+      const sx = b.worldX - worldOffset;
       if (sx + TILE <= CUBE_X - CUBE_SIZE / 2 || sx >= CUBE_X + CUBE_SIZE / 2) continue;
-      // Cube bottom has reached obs top and cube top is still above obs top
-      if (cubeY + CUBE_SIZE / 2 >= obs.y && cubeY - CUBE_SIZE / 2 < obs.y) {
-        cubeY  = obs.y - CUBE_SIZE / 2;
-        cubeVY = 0;
+      if (cubeY + CUBE_SIZE / 2 >= b.y && cubeY - CUBE_SIZE / 2 < b.y) {
+        cubeY    = b.y - CUBE_SIZE / 2;
+        cubeVY   = 0;
         grounded = true;
       }
     }
@@ -174,11 +314,19 @@ function checkDeath() {
   const hb = INNER_HB / 2;
   const il = CUBE_X - hb, ir = CUBE_X + hb;
   const it = cubeY   - hb, ib = cubeY   + hb;
-  for (const obs of obstacles) {
-    const sx = obs.worldX - worldOffset;
-    if (ir > sx && il < sx + TILE && ib > obs.y && it < obs.y + TILE) {
-      die(); return;
-    }
+
+  // Block sides / underside
+  for (const b of blocks) {
+    const sx = b.worldX - worldOffset;
+    if (ir > sx && il < sx + TILE && ib > b.y && it < b.y + TILE) { die(); return; }
+  }
+
+  // Spikes — always lethal (no landing)
+  for (const s of spikes) {
+    const sx = s.worldX - worldOffset;
+    const sh = s.tall ? TILE : TILE / 2;
+    const sy = FLOOR_Y - sh;
+    if (ir > sx && il < sx + TILE && ib > sy && it < FLOOR_Y) { die(); return; }
   }
 }
 
@@ -213,9 +361,7 @@ function drawFloor() {
   for (let x = -ox; x < W; x += TILE) {
     ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, H); ctx.stroke();
   }
-  ctx.beginPath();
-  ctx.moveTo(0, FLOOR_Y + TILE * 0.5); ctx.lineTo(W, FLOOR_Y + TILE * 0.5);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, FLOOR_Y + TILE * 0.5); ctx.lineTo(W, FLOOR_Y + TILE * 0.5); ctx.stroke();
 
   neon('#a855f7', 10);
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
@@ -223,15 +369,37 @@ function drawFloor() {
   noNeon();
 }
 
-function drawObstacles() {
-  for (const obs of obstacles) {
-    const sx = obs.worldX - worldOffset;
+function drawBlocks() {
+  for (const b of blocks) {
+    const sx = b.worldX - worldOffset;
     if (sx + TILE < 0 || sx > W) continue;
-    ctx.fillStyle = obs.color + '18';
-    ctx.fillRect(sx, obs.y, TILE, TILE);
-    neon(obs.color, 12);
-    ctx.strokeStyle = obs.color; ctx.lineWidth = 1.5;
-    ctx.strokeRect(sx, obs.y, TILE, TILE);
+    ctx.fillStyle = b.color + '18';
+    ctx.fillRect(sx, b.y, TILE, TILE);
+    neon(b.color, 12);
+    ctx.strokeStyle = b.color; ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx, b.y, TILE, TILE);
+    noNeon();
+  }
+}
+
+function drawSpikes() {
+  for (const s of spikes) {
+    const sx = s.worldX - worldOffset;
+    if (sx + TILE < 0 || sx > W) continue;
+    const sh = s.tall ? TILE : TILE / 2;
+    const ty = FLOOR_Y - sh; // tip Y
+
+    ctx.beginPath();
+    ctx.moveTo(sx,            FLOOR_Y); // bottom-left
+    ctx.lineTo(sx + TILE,     FLOOR_Y); // bottom-right
+    ctx.lineTo(sx + TILE / 2, ty);      // tip
+    ctx.closePath();
+
+    ctx.fillStyle = s.color + '1a';
+    ctx.fill();
+    neon(s.color, 14);
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+    ctx.stroke();
     noNeon();
   }
 }
@@ -241,13 +409,11 @@ function drawCube() {
   ctx.translate(CUBE_X, cubeY);
   ctx.rotate(cubeAngle);
 
-  // Outer — neon green
   neon('#39ff14', 18);
   ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2;
   ctx.strokeRect(-CUBE_SIZE / 2, -CUBE_SIZE / 2, CUBE_SIZE, CUBE_SIZE);
   noNeon();
 
-  // Inner — neon blue (slightly shrunk)
   neon('#00d4ff', 14);
   ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5;
   ctx.strokeRect(-INNER_SIZE / 2, -INNER_SIZE / 2, INNER_SIZE, INNER_SIZE);
@@ -257,9 +423,8 @@ function drawCube() {
 }
 
 function drawDeathOverlay() {
-  const t = deathTimer / DEATH_PAUSE; // 1.0 → 0.0
-  const alpha = t > 0.6 ? 0.5 : t * 0.3;
-  ctx.fillStyle = `rgba(255, 20, 20, ${alpha})`;
+  const t = deathTimer / DEATH_PAUSE;
+  ctx.fillStyle = `rgba(255,20,20,${t > 0.6 ? 0.48 : t * 0.28})`;
   ctx.fillRect(0, 0, W, H);
 }
 
@@ -270,27 +435,24 @@ document.addEventListener('keydown', e => {
 canvas.addEventListener('mousedown', () => jump());
 
 // ===================== LOOP =====================
-obstacles = genObstacles();
-let last = 0;
+const level = genLevel();
+blocks = level.blocks;
+spikes = level.spikes;
 
+let last = 0;
 function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
 
   if (isDead) {
     deathTimer -= dt;
-    if (deathTimer <= 0) { respawn(); }
-    drawBackground();
-    drawFloor();
-    drawObstacles();
-    drawCube();
-    drawDeathOverlay();
+    if (deathTimer <= 0) respawn();
+    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawCube(); drawDeathOverlay();
   } else {
     worldOffset += SPEED * dt;
     cubeVY      += GRAVITY * dt;
     cubeY       += cubeVY * dt;
-
-    grounded = false;
+    grounded     = false;
     resolveCollisions();
 
     if (!grounded) {
@@ -300,16 +462,11 @@ function loop(ts) {
     }
 
     checkDeath();
-
-    drawBackground();
-    drawFloor();
-    drawObstacles();
-    drawCube();
+    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawCube();
   }
 
   requestAnimationFrame(loop);
 }
-
 requestAnimationFrame(loop);
 </script>
 </body>
