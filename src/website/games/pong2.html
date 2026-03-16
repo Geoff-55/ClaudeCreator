@@ -150,8 +150,12 @@ function playModActivated() {
   }
 }
 
-document.addEventListener('click',      () => { initAudio(); startMusic(); }, { once: true });
-document.addEventListener('touchstart', () => { initAudio(); startMusic(); }, { once: true, passive: true });
+// Try to autoplay immediately; fall back to first interaction if browser blocks it
+initAudio();
+audioCtx.resume().then(() => startMusic());
+const unlockAudio = () => audioCtx.resume().then(() => startMusic());
+document.addEventListener('click',      unlockAudio, { once: true });
+document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
 
 // ===================== GAME =====================
 const canvas = document.getElementById('c');
@@ -451,10 +455,78 @@ function resolveObs(obs) {
   }
 }
 
+// ===================== SPACE BACKGROUND =====================
+const BG = { stars: [], brightStars: [], conLines: [] };
+
+function initBg() {
+  for (let i = 0; i < 140; i++) {
+    BG.stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.0 + 0.2, o: Math.random() * 0.45 + 0.1 });
+  }
+  for (let i = 0; i < 18; i++) {
+    BG.brightStars.push({ x: Math.random() * W, y: Math.random() * H });
+  }
+  for (let i = 0; i < BG.brightStars.length; i++) {
+    for (let j = i + 1; j < BG.brightStars.length; j++) {
+      const a = BG.brightStars[i], b = BG.brightStars[j];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < 180 && Math.random() < 0.45) {
+        BG.conLines.push([a, b]);
+      }
+    }
+  }
+}
+
 // ===================== DRAWING =====================
 function drawBg() {
-  ctx.fillStyle = '#0d0d0f';
+  // Deep space base
+  ctx.fillStyle = '#07060f';
   ctx.fillRect(0, 0, W, H);
+
+  // Nebula blobs
+  const neb1 = ctx.createRadialGradient(W * 0.68, H * 0.32, 0, W * 0.68, H * 0.32, 230);
+  neb1.addColorStop(0, 'rgba(110, 50, 210, 0.10)');
+  neb1.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = neb1; ctx.fillRect(0, 0, W, H);
+
+  const neb2 = ctx.createRadialGradient(W * 0.18, H * 0.28, 0, W * 0.18, H * 0.28, 160);
+  neb2.addColorStop(0, 'rgba(25, 55, 200, 0.08)');
+  neb2.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = neb2; ctx.fillRect(0, 0, W, H);
+
+  // Distant planet (bottom-left)
+  const px = 95, py = H - 55, pr = 36;
+  const pGrad = ctx.createRadialGradient(px - 10, py - 10, 3, px, py, pr);
+  pGrad.addColorStop(0, 'rgba(90, 45, 140, 0.45)');
+  pGrad.addColorStop(0.7, 'rgba(40, 15, 80, 0.25)');
+  pGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fillStyle = pGrad; ctx.fill();
+  ctx.strokeStyle = 'rgba(130, 65, 200, 0.22)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  // Large geometric shapes (faint)
+  ctx.strokeStyle = 'rgba(75, 35, 130, 0.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(130, 18); ctx.lineTo(310, 72); ctx.lineTo(185, 165); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(810, 28); ctx.lineTo(995, 58); ctx.lineTo(905, 205); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(490, 340); ctx.lineTo(558, 418); ctx.lineTo(490, 496); ctx.lineTo(422, 418); ctx.closePath(); ctx.stroke();
+
+  // Constellation lines
+  ctx.strokeStyle = 'rgba(100, 55, 170, 0.18)'; ctx.lineWidth = 0.5;
+  for (const [a, b] of BG.conLines) {
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+
+  // Bright stars
+  for (const s of BG.brightStars) {
+    ctx.beginPath(); ctx.arc(s.x, s.y, 1.4, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(210, 190, 255, 0.75)'; ctx.fill();
+  }
+
+  // Small stars
+  for (const s of BG.stars) {
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200, 200, 255, ${s.o})`; ctx.fill();
+  }
+
+  // Grid on top
   ctx.strokeStyle = '#131320'; ctx.lineWidth = 0.5;
   for (let x = 0; x < W; x += 45) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
   for (let y = 0; y < H; y += 45) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
@@ -707,6 +779,7 @@ canvas.addEventListener('click', () => {
 });
 
 // --- Loop ---
+initBg();
 let last = 0;
 function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
