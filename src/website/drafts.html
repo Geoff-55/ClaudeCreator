@@ -34,28 +34,67 @@
 
   <div style="position:relative; z-index:1; padding: 6rem 3rem 2rem; display:flex; flex-wrap:wrap; gap:1.5rem;">
 
-    <!-- GeoDash card -->
+    <!-- GeoDash (DNF) card -->
     <a href="games/geodash.html?from=drafts" style="text-decoration:none;">
-      <div style="width:160px; border:1px solid #7c3aed; background:#0d0d0f; cursor:pointer; transition: box-shadow 0.2s;"
-           onmouseover="this.style.boxShadow='0 0 18px #7c3aed'" onmouseout="this.style.boxShadow='none'">
+      <div style="width:160px; border:1px solid #3b1a6b; background:#0d0d0f; cursor:pointer; transition: box-shadow 0.2s;"
+           onmouseover="this.style.boxShadow='0 0 18px #3b1a6b'" onmouseout="this.style.boxShadow='none'">
         <div style="width:100%; height:100px; background:#080010; overflow:hidden;">
           <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
             <defs>
               <filter id="gg"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             </defs>
             <rect width="160" height="100" fill="#080010"/>
-            <!-- Ground line -->
-            <line x1="0" y1="72" x2="160" y2="72" stroke="#7c3aed" stroke-width="1" opacity="0.5"/>
-            <!-- Player cube -->
-            <rect x="28" y="54" width="16" height="16" fill="none" stroke="#a855f7" stroke-width="1.5" filter="url(#gg)"/>
-            <!-- Obstacle spike -->
-            <polygon points="80,72 92,72 86,60" fill="none" stroke="#f472b6" stroke-width="1.2" filter="url(#gg)"/>
+            <line x1="0" y1="72" x2="160" y2="72" stroke="#3b1a6b" stroke-width="1" opacity="0.5"/>
+            <rect x="28" y="54" width="16" height="16" fill="none" stroke="#4b2a6b" stroke-width="1.5" filter="url(#gg)"/>
+            <polygon points="80,72 92,72 86,60" fill="none" stroke="#6b2a4b" stroke-width="1.2" filter="url(#gg)"/>
+            <line x1="0" y1="62" x2="18" y2="62" stroke="#4b2a6b" stroke-width="0.8" opacity="0.4"/>
+            <line x1="0" y1="67" x2="22" y2="67" stroke="#4b2a6b" stroke-width="0.8" opacity="0.3"/>
+            <text x="80" y="38" text-anchor="middle" font-family="monospace" font-size="11" font-weight="900"
+              fill="none" stroke="#4b2a6b" stroke-width="0.7" letter-spacing="1" filter="url(#gg)">GeoDash</text>
+            <text x="80" y="54" text-anchor="middle" font-family="monospace" font-size="9"
+              fill="#3b1a5b">(DNF)</text>
+          </svg>
+        </div>
+        <div style="padding:0.5rem 0.7rem; border-top:1px solid #1e0f38;">
+          <p style="color:#4b2a6b; font-family:monospace; font-size:0.8rem; font-weight:600; letter-spacing:0.05em;">GeoDash (DNF)</p>
+          <p style="color:#2a1040; font-family:monospace; font-size:0.65rem; margin-top:2px;">Draft</p>
+        </div>
+      </div>
+    </a>
+
+    <!-- GeoDash (new) card -->
+    <a href="games/geodash2.html?from=drafts" style="text-decoration:none;">
+      <div style="width:160px; border:1px solid #7c3aed; background:#0d0d0f; cursor:pointer; transition: box-shadow 0.2s;"
+           onmouseover="this.style.boxShadow='0 0 18px #7c3aed'" onmouseout="this.style.boxShadow='none'">
+        <div style="width:100%; height:100px; background:#07060f; overflow:hidden;">
+          <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+              <filter id="gd2"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <rect width="160" height="100" fill="#07060f"/>
+            <!-- Grid -->
+            <g stroke="#0d0720" stroke-width="0.4" opacity="0.8">
+              <line x1="0" y1="25" x2="160" y2="25"/><line x1="0" y1="50" x2="160" y2="50"/>
+              <line x1="0" y1="75" x2="160" y2="75"/>
+              <line x1="40" y1="0" x2="40" y2="100"/><line x1="80" y1="0" x2="80" y2="100"/>
+              <line x1="120" y1="0" x2="120" y2="100"/>
+            </g>
+            <!-- Floor -->
+            <line x1="0" y1="76" x2="160" y2="76" stroke="#a855f7" stroke-width="1" opacity="0.6" filter="url(#gd2)"/>
+            <!-- Cube mid-jump -->
+            <rect x="38" y="46" width="18" height="18" fill="none" stroke="#39ff14" stroke-width="1.8" filter="url(#gd2)"/>
+            <rect x="43" y="51" width="8" height="8" fill="none" stroke="#00d4ff" stroke-width="1.2" filter="url(#gd2)"/>
+            <!-- Spike on floor -->
+            <polygon points="90,76 102,76 96,62" fill="none" stroke="#ff2424" stroke-width="1.2" filter="url(#gd2)"/>
             <!-- Speed lines -->
-            <line x1="0" y1="62" x2="18" y2="62" stroke="#a855f7" stroke-width="0.8" opacity="0.4"/>
-            <line x1="0" y1="67" x2="22" y2="67" stroke="#a855f7" stroke-width="0.8" opacity="0.3"/>
-            <!-- Title -->
-            <text x="80" y="42" text-anchor="middle" font-family="monospace" font-size="13" font-weight="900"
-              fill="none" stroke="#a855f7" stroke-width="0.8" letter-spacing="1" filter="url(#gg)">GeoDash</text>
+            <line x1="0" y1="58" x2="28" y2="58" stroke="#39ff14" stroke-width="0.9" opacity="0.45" filter="url(#gd2)"/>
+            <line x1="0" y1="64" x2="22" y2="64" stroke="#39ff14" stroke-width="0.7" opacity="0.3"/>
+            <!-- GEO -->
+            <text x="80" y="30" text-anchor="middle" font-family="monospace" font-size="12" font-weight="900"
+              fill="none" stroke="#39ff14" stroke-width="0.7" letter-spacing="1" filter="url(#gd2)">GEO</text>
+            <!-- DASH -->
+            <text x="80" y="44" text-anchor="middle" font-family="monospace" font-size="12" font-weight="900"
+              fill="none" stroke="#a855f7" stroke-width="0.7" letter-spacing="1" filter="url(#gd2)">DASH</text>
           </svg>
         </div>
         <div style="padding:0.5rem 0.7rem; border-top:1px solid #3b1a6b;">

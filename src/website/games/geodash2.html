@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoDash</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #07060f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+    .back-btn {
+      position: fixed;
+      top: 1rem; right: 1.2rem;
+      padding: 0.35rem 1rem;
+      border: 1px solid #a855f7;
+      color: #a855f7;
+      font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.08em;
+      text-decoration: none; text-transform: uppercase;
+      font-family: monospace;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .back-btn:hover { background: #a855f720; box-shadow: 0 0 10px #a855f7; }
+  </style>
+</head>
+<body>
+  <a class="back-btn" id="backBtn" href="#">Back</a>
+  <canvas id="c"></canvas>
+
+<script>
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  document.getElementById('backBtn').href =
+    p.get('from') === 'published' ? '../published.html' : '../drafts.html';
+})();
+
+const W = 880, H = 490, TILE = 42;
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+canvas.width  = W;
+canvas.height = H;
+
+function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function noNeon()           { ctx.shadowBlur = 0; }
+
+const STARS = Array.from({ length: 120 }, () => ({
+  x: Math.random() * W,
+  y: Math.random() * H * 0.82,
+  r: Math.random() * 0.9 + 0.2,
+  o: Math.random() * 0.4 + 0.1,
+}));
+
+let t = 0;
+function loop(ts) {
+  t = ts / 1000;
+
+  // Background
+  ctx.fillStyle = '#07060f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
+  for (let x = 0; x < W; x += TILE) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += TILE) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Stars
+  for (const s of STARS) {
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(210,210,255,${s.o})`; ctx.fill();
+  }
+
+  // Floor
+  const FLOOR_Y = H - 90;
+  neon('#a855f7', 10);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
+  noNeon();
+
+  ctx.textAlign = 'center';
+
+  // Title
+  ctx.font = 'bold 80px monospace';
+  neon('#39ff14', 28);
+  ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2.5;
+  ctx.strokeText('GEO', W / 2, H / 2 - 80);
+  noNeon();
+
+  neon('#a855f7', 28);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2.5;
+  ctx.strokeText('DASH', W / 2, H / 2 - 5);
+  noNeon();
+
+  // Tagline
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#2a1a4b';
+  ctx.fillText('run  ·  jump  ·  survive', W / 2, H / 2 + 22);
+
+  // Coming soon button (disabled)
+  const bx = W / 2 - 150, by = H / 2 + 45, bw = 300, bh = 46;
+  ctx.fillStyle = 'transparent';
+  ctx.strokeStyle = '#1e0f38'; ctx.lineWidth = 1.5;
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeRect(bx, by, bw, bh);
+  ctx.font = 'bold 15px monospace';
+  ctx.fillStyle = '#2a1040';
+  ctx.fillText('Coming Soon', W / 2, by + 30);
+
+  // Hint
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#1e0f38';
+  ctx.fillText('in development', W / 2, H - 22);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
