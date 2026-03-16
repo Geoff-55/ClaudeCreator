@@ -11,17 +11,27 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
+      min-height: 100dvh;
       overflow: hidden;
       touch-action: none;
+      padding: env(safe-area-inset-top, 0px)
+               env(safe-area-inset-right, 0px)
+               env(safe-area-inset-bottom, 0px)
+               env(safe-area-inset-left, 0px);
     }
     canvas {
       display: block;
       cursor: default;
-      max-width: 100vw;
-      max-height: 100vh;
+      max-width: 100%;
+      max-height: 100%;
       width: auto;
       height: auto;
+    }
+    @media (max-width: 900px) {
+      body {
+        padding-bottom: max(env(safe-area-inset-bottom, 0px), 18px);
+        padding-left:   max(env(safe-area-inset-left,   0px), 12px);
+      }
     }
     #portrait-warn {
       display: none;
@@ -191,6 +201,7 @@ let targetScore = 10;
 let menuHover = -1, scoreHover = -1, winner = '';
 
 let field, p1, p2, ball, obstacles, modifiers, modTimer, totalTime;
+let ballTrail = [];
 let modQueued = false, pendingMod = null;
 let countdown = 0, countdownTimer = 0;
 let fieldPulse = 0, fieldPulseColor = '#a855f7';
@@ -205,7 +216,7 @@ function resetGame() {
   p1 = { x: field.x + field.w - 18, y: field.y + field.h / 2, w: PADDLE_W, h: PADDLE_H_BASE, score: 0 };
   p2 = { x: field.x + 6,            y: field.y + field.h / 2, w: PADDLE_W, h: PADDLE_H_BASE, score: 0 };
   ball = { x: field.x + field.w / 2, y: field.y + field.h / 2, r: BALL_R_BASE, speed: BALL_SPEED_BASE, vx: 0, vy: 0 };
-  obstacles = []; modifiers = [];
+  obstacles = []; modifiers = []; ballTrail = [];
   modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
   totalTime = 0; roundTime = 0; fieldPulse = 0;
   startCountdown();
@@ -218,7 +229,7 @@ function resetRound() {
   ball.r = BALL_R_BASE; ball.speed = BALL_SPEED_BASE;
   ball.vx = 0; ball.vy = 0;
   ball.x = field.x + field.w / 2; ball.y = field.y + field.h / 2;
-  obstacles = []; modifiers = [];
+  obstacles = []; modifiers = []; ballTrail = [];
   modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
   roundTime = 0;
   startCountdown();
@@ -401,6 +412,8 @@ function update(dt) {
 
   ball.x += ball.vx * 60 * dt;
   ball.y += ball.vy * 60 * dt;
+  ballTrail.push({ x: ball.x, y: ball.y, r: ball.r });
+  if (ballTrail.length > 10) ballTrail.shift();
 
   if (ball.y - ball.r < field.y) {
     ball.y = field.y + ball.r; ball.vy = Math.abs(ball.vy); playHit(200);
@@ -622,6 +635,12 @@ function drawGame() {
 
   for (const obs of obstacles) drawObstacle(obs);
 
+  for (let i = 0; i < ballTrail.length; i++) {
+    const t = ballTrail[i];
+    const alpha = (i / ballTrail.length) * 0.28;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
+  }
   ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
   ctx.fillStyle = '#ffffff'; neon('#ffffff', 18); ctx.fill(); noNeon();
 
