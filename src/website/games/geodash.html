@@ -201,101 +201,152 @@ document.addEventListener('touchstart', unlockAudio, { once: true, passive: true
 function randColor() { return ROYGBIV[Math.floor(Math.random() * ROYGBIV.length)]; }
 
 function genLevel() {
-  const blocks = [], spikes = [], arrows = [];
-  // Wide clear run-in at the start
-  let wx      = TILE * (Math.ceil(W / TILE) + 10);
-  let isFull  = false; // first section is always half-speed
+  const blocks = [], spikes = [], arrows = [], jumpPads = [];
+  let wx     = TILE * (Math.ceil(W / TILE) + 10);
+  let isFull = false;
+  let sectionsSinceJumpPad = 0;
+
+  // ── Structured block patterns: [colOffset, stackHeight] ──
+  const BLOCK_PATS = [
+    [[0,1]],
+    [[0,1],[1,1]],
+    [[0,2]],
+    [[0,1],[1,2]],         // step up
+    [[0,2],[1,1]],         // step down
+    [[0,1],[1,1],[2,1]],   // flat row of 3
+    [[0,2],[1,2]],         // twin tall
+    [[0,2],[1,1],[2,2]],   // dip middle
+  ];
+
+  // ── Structured spike patterns: [colOffset, isTall] ──
+  const SPIKE_PATS_HALF = [
+    [[0,true]],
+    [[0,false]],
+    [[0,false],[1,false]],
+    [[0,true],[1,false]],
+    [[0,false],[1,true]],
+    [[0,true],[1,true]],
+  ];
+  const SPIKE_PATS_FULL = [
+    ...SPIKE_PATS_HALF,
+    [[0,true],[1,false],[2,true]],
+    [[0,true],[1,true],[2,false]],
+    [[0,false],[1,true],[2,true]],
+  ];
 
   while (wx < 45000) {
-    // ── Generate one section ──
-    const sectionTiles = 28 + Math.floor(Math.random() * 16); // longer sections = less frequent speed changes
+    const sectionTiles = 28 + Math.floor(Math.random() * 16);
     const sectionEnd   = wx + TILE * sectionTiles;
     let ox = wx;
 
+    // ── Occasional jump pad sequence (roughly every 5–8 sections) ──
+    if (sectionsSinceJumpPad >= 5 && Math.random() < 0.35) {
+      sectionsSinceJumpPad = 0;
+      const jx = ox + TILE * 2;               // 2-tile lead-in
+      jumpPads.push({ worldX: jx, activated: false });
+      // 3 pink spikes right after the pad
+      for (let i = 0; i < 3; i++) {
+        spikes.push({ worldX: jx + TILE*(i+1), tall: true, color: '#ff00cc', floorY: FLOOR_Y });
+      }
+      // Challenge after the landing zone (tiles 4-5 are clear)
+      const afterX = jx + TILE * 6;
+      if (Math.random() < 0.5) {
+        // Long grounded platform to navigate
+        const lw = 4 + Math.floor(Math.random() * 2);
+        const lh = 1 + Math.floor(Math.random() * 2);
+        const lc = randColor();
+        for (let c = 0; c < lw; c++) {
+          for (let h = 1; h <= lh; h++) {
+            blocks.push({ worldX: afterX + c*TILE, y: FLOOR_Y - TILE*h, color: lc });
+          }
+        }
+        ox = afterX + lw*TILE + TILE*3;
+      } else {
+        // Spike group to jump over after landing
+        const sc = 3 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < sc; i++) {
+          spikes.push({ worldX: afterX + i*TILE, tall: i%2===0, color: '#ff2424', floorY: FLOOR_Y });
+        }
+        ox = afterX + sc*TILE + TILE*3;
+      }
+    } else {
+      sectionsSinceJumpPad++;
+    }
+
+    // ── Normal section obstacles ──
     while (ox < sectionEnd) {
       const roll = Math.random();
 
-      if (roll < 0.36) {
-        // ── Floor block group: 1–3 columns, grounded stacks ──
-        const cols  = 1 + Math.floor(Math.random() * 3);
+      if (roll < 0.35) {
+        // Structured block pattern
+        const pat   = BLOCK_PATS[Math.floor(Math.random() * BLOCK_PATS.length)];
         const color = randColor();
-        for (let c = 0; c < cols; c++) {
-          const colH = Math.random() < 0.35 ? 2 : 1;
-          for (let h = 0; h < colH; h++) {
-            blocks.push({ worldX: ox + c * TILE, y: FLOOR_Y - TILE * (h + 1), color });
+        let maxCol  = 0;
+        for (const [col, h] of pat) {
+          for (let hh = 1; hh <= h; hh++) {
+            blocks.push({ worldX: ox + col*TILE, y: FLOOR_Y - TILE*hh, color });
           }
+          maxCol = Math.max(maxCol, col);
         }
-        ox += cols * TILE;
+        ox += (maxCol + 1) * TILE;
 
-      } else if (roll < 0.62) {
-        // ── Grounded platform: 2–5 tiles wide, 1–3 tiles tall ──
-        // All columns filled from floor up to platform top
+      } else if (roll < 0.58) {
+        // Grounded platform: all columns filled floor-to-top
         const pWidth  = 2 + Math.floor(Math.random() * 4);
         const pHeight = Math.random() < 0.55 ? 1 : Math.random() < 0.82 ? 2 : 3;
-        const pY      = FLOOR_Y - TILE * pHeight; // top surface
+        const pY      = FLOOR_Y - TILE * pHeight;
         const pColor  = randColor();
         for (let c = 0; c < pWidth; c++) {
           for (let h = 1; h <= pHeight; h++) {
-            blocks.push({ worldX: ox + c * TILE, y: FLOOR_Y - TILE * h, color: pColor });
+            blocks.push({ worldX: ox + c*TILE, y: FLOOR_Y - TILE*h, color: pColor });
           }
         }
-
-        // Platform-top content (only when tall enough to be interesting)
-        if (pHeight >= 1) {
-          const pRoll = Math.random();
-          if (pRoll < 0.32 && pWidth >= 2) {
-            // Spikes on top (not at left edge so there's a landing zone)
-            const sStart = 1 + Math.floor(Math.random() * Math.max(1, pWidth - 2));
-            const sCount = Math.min(pWidth - sStart, Math.random() < 0.45 ? 2 : 1);
-            for (let i = 0; i < sCount; i++) {
-              spikes.push({ worldX: ox + (sStart + i) * TILE, tall: Math.random() < 0.5,
-                            color: randColor(), floorY: pY });
-            }
-          } else if (pRoll < 0.50 && pWidth >= 3) {
-            // Speed arrow floating above platform
-            const aTile = 1 + Math.floor(Math.random() * (pWidth - 2));
-            arrows.push({ worldX: ox + aTile * TILE + TILE / 2,
-                          type: Math.random() < 0.5 ? 'full' : 'half',
-                          collected: false, floatY: pY - TILE * 0.85 });
-          } else if (pRoll < 0.68 && pWidth >= 4) {
-            // Jump-off spike at right end of long platform
-            spikes.push({ worldX: ox + (pWidth - 1) * TILE, tall: true,
-                          color: '#ff3030', floorY: pY });
+        const pRoll = Math.random();
+        if (pRoll < 0.30 && pWidth >= 2) {
+          const sStart = 1 + Math.floor(Math.random() * Math.max(1, pWidth - 2));
+          const sCount = Math.min(pWidth - sStart, Math.random() < 0.45 ? 2 : 1);
+          for (let i = 0; i < sCount; i++) {
+            spikes.push({ worldX: ox + (sStart+i)*TILE, tall: Math.random() < 0.5,
+                          color: randColor(), floorY: pY });
           }
+        } else if (pRoll < 0.50 && pWidth >= 3) {
+          const aTile = 1 + Math.floor(Math.random() * (pWidth - 2));
+          // Never spawn a full arrow while already at full speed
+          const aType = isFull ? 'half' : (Math.random() < 0.5 ? 'full' : 'half');
+          arrows.push({ worldX: ox + aTile*TILE + TILE/2,
+                        type: aType, collected: false, floatY: pY - TILE*0.85 });
+        } else if (pRoll < 0.68 && pWidth >= 4) {
+          spikes.push({ worldX: ox + (pWidth-1)*TILE, tall: true, color: '#ff3030', floorY: pY });
         }
         ox += pWidth * TILE;
 
       } else if (roll < 0.90) {
-        // ── Floor spike group: 1–2 in half, 1–3 in full ──
-        const maxCount = isFull ? 3 : 2;
-        const count    = 1 + Math.floor(Math.random() * maxCount);
-        for (let i = 0; i < count; i++) {
-          spikes.push({ worldX: ox + i * TILE, tall: Math.random() < 0.5,
-                        color: randColor(), floorY: FLOOR_Y });
+        // Structured spike pattern
+        const pats  = isFull ? SPIKE_PATS_FULL : SPIKE_PATS_HALF;
+        const pat   = pats[Math.floor(Math.random() * pats.length)];
+        const color = ROYGBIV[Math.floor(Math.random() * ROYGBIV.length)];
+        let maxCol  = 0;
+        for (const [col, tall] of pat) {
+          spikes.push({ worldX: ox + col*TILE, tall, color, floorY: FLOOR_Y });
+          maxCol = Math.max(maxCol, col);
         }
-        ox += count * TILE;
+        ox += (maxCol + 1) * TILE;
 
       } else {
-        // Empty breathing gap
-        ox += TILE * 3;
+        ox += TILE * 3; // breathing gap
       }
 
-      // Gap between groups within the section
       ox += TILE * (4 + Math.floor(Math.random() * 4));
     }
 
-    // Clear gap after section before the arrow
     wx = sectionEnd + TILE * 7;
-
-    // ── Place transition arrow ──
     isFull = !isFull;
+    // Transition arrow — from full speed can only go to half
     arrows.push({ worldX: wx, type: isFull ? 'full' : 'half', collected: false });
-
-    // Clear gap after arrow before the next section
     wx += TILE * 8;
   }
 
-  return { blocks, spikes, arrows };
+  return { blocks, spikes, arrows, jumpPads };
 }
 
 // ===================== STATE =====================
@@ -314,6 +365,7 @@ const JUMP_BUF   = 0.12;     // 120 ms — tap just before landing still counts
 let blocks       = [];
 let spikes       = [];
 let arrows       = [];
+let jumpPads     = [];
 
 const STARS = Array.from({ length: 120 }, () => ({
   x: Math.random() * W,
@@ -323,7 +375,7 @@ const STARS = Array.from({ length: 120 }, () => ({
 }));
 
 function getSpeed()   { return currentMode === 'half' ? SPEED_HALF : SPEED_FULL; }
-function getRotRate() { return (Math.PI / 2) / TILE * getSpeed() * 0.28; }
+function getRotRate() { return (Math.PI / 2) / TILE * getSpeed() * 0.56; }
 
 // ===================== HELPERS =====================
 function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
@@ -352,6 +404,7 @@ function respawn() {
   blocks      = level.blocks;
   spikes      = level.spikes;
   arrows      = level.arrows;
+  jumpPads    = level.jumpPads;
   worldOffset = 0;
   cubeY       = GROUND_Y;
   cubeVY      = 0;
@@ -412,6 +465,22 @@ function checkDeath() {
   }
 }
 
+function checkJumpPads() {
+  if (isDead) return;
+  for (const jp of jumpPads) {
+    if (jp.activated) continue;
+    const sx = jp.worldX - worldOffset;
+    if (sx + TILE < 0 || sx > W + TILE) continue;
+    // Launch when cube is grounded and overlaps the pad horizontally
+    if (grounded && sx <= CUBE_X + CUBE_SIZE/2 && sx + TILE >= CUBE_X - CUBE_SIZE/2) {
+      cubeVY   = -JUMP_VEL * 1.6;   // ~60% higher than normal jump
+      grounded = false;
+      jumpBuffer = 0;
+      jp.activated = true;
+    }
+  }
+}
+
 // ===================== DRAW =====================
 function drawBackground() {
   ctx.fillStyle = '#07060f';
@@ -445,6 +514,39 @@ function drawFloor() {
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
   noNeon();
+}
+
+function drawJumpPads() {
+  for (const jp of jumpPads) {
+    if (jp.activated) continue;
+    const sx = jp.worldX - worldOffset;
+    if (sx + TILE < 0 || sx > W) continue;
+    const color = '#ff44cc';
+    // Base pad sits on floor
+    ctx.fillStyle = color + '38';
+    ctx.fillRect(sx, FLOOR_Y - 8, TILE, 8);
+    neon(color, 18);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx, FLOOR_Y - 8, TILE, 8);
+    noNeon();
+    // Two upward chevrons floating above pad
+    const cx = sx + TILE / 2;
+    neon(color, 12);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    for (let ay = 0; ay < 2; ay++) {
+      const by = FLOOR_Y - 16 - ay * 9;
+      ctx.beginPath();
+      ctx.moveTo(cx - 7, by + 5);
+      ctx.lineTo(cx,     by);
+      ctx.lineTo(cx + 7, by + 5);
+      ctx.stroke();
+    }
+    noNeon();
+    ctx.font = 'bold 7px monospace';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText('PAD', cx, FLOOR_Y - 36);
+  }
 }
 
 function drawBlocks() {
@@ -570,9 +672,10 @@ canvas.addEventListener('touchend',   () => { jumpHeld = false; });
 
 // ===================== LOOP =====================
 const firstLevel = genLevel();
-blocks = firstLevel.blocks;
-spikes = firstLevel.spikes;
-arrows = firstLevel.arrows;
+blocks   = firstLevel.blocks;
+spikes   = firstLevel.spikes;
+arrows   = firstLevel.arrows;
+jumpPads = firstLevel.jumpPads;
 
 let last = 0;
 function loop(ts) {
@@ -582,7 +685,7 @@ function loop(ts) {
   if (isDead) {
     deathTimer -= dt;
     if (deathTimer <= 0) respawn();
-    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawArrows(); drawCube(); drawDeathOverlay();
+    drawBackground(); drawFloor(); drawJumpPads(); drawBlocks(); drawSpikes(); drawArrows(); drawCube(); drawDeathOverlay();
   } else {
     gameTime    += dt;
     worldOffset += getSpeed() * dt;
@@ -590,6 +693,7 @@ function loop(ts) {
     cubeY       += cubeVY * dt;
     grounded     = false;
     resolveCollisions();
+    checkJumpPads();   // pad launches override manual jump
     if (jumpBuffer > 0) jumpBuffer -= dt;
     // Fire jump the moment we're grounded: held input OR buffered tap
     if (grounded && (jumpHeld || jumpBuffer > 0)) {
@@ -606,7 +710,7 @@ function loop(ts) {
     }
 
     checkDeath();
-    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawArrows(); drawCube();
+    drawBackground(); drawFloor(); drawJumpPads(); drawBlocks(); drawSpikes(); drawArrows(); drawCube();
     drawSpeedIndicator();
   }
 
