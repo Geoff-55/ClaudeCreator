@@ -17,16 +17,13 @@
     canvas { display: block; cursor: default; }
     .back-btn {
       position: fixed;
-      top: 1rem;
-      right: 1.2rem;
+      top: 1rem; right: 1.2rem;
       padding: 0.35rem 1rem;
       border: 1px solid #a855f7;
       color: #a855f7;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.8rem; font-weight: 600;
       letter-spacing: 0.08em;
-      text-decoration: none;
-      text-transform: uppercase;
+      text-decoration: none; text-transform: uppercase;
       font-family: monospace;
       transition: background 0.2s, box-shadow 0.2s;
     }
@@ -38,10 +35,10 @@
   <canvas id="c"></canvas>
 
 <script>
-// --- Back button: go to wherever we came from ---
+// --- Back button context ---
 (function() {
-  const params = new URLSearchParams(window.location.search);
-  const from = params.get('from') || 'drafts';
+  const p = new URLSearchParams(window.location.search);
+  const from = p.get('from') || 'drafts';
   document.getElementById('backBtn').href = from === 'published' ? '../published.html' : '../drafts.html';
 })();
 
@@ -59,30 +56,23 @@ function initAudio() {
 function startMusic() {
   if (musicStarted || !audioCtx) return;
   musicStarted = true;
-  // Low ambient drone — two detuned sines
   for (const detune of [-4, 4]) {
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 65.41; // C2
-    osc.detune.value = detune;
-    g.gain.value = 0.10;
-    osc.connect(g); g.connect(masterGain);
-    osc.start();
+    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 65.41; osc.detune.value = detune;
+    g.gain.value = 0.09;
+    osc.connect(g); g.connect(masterGain); osc.start();
   }
   scheduleMelody();
 }
 
-const PENTATONIC = [130.81, 164.81, 196.00, 246.94, 261.63, 329.63, 392.00];
+const PENTA = [130.81, 164.81, 196.00, 246.94, 261.63, 329.63, 392.00];
 function scheduleMelody() {
   if (!audioCtx || !musicStarted) return;
-  const freq = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
   osc.type = 'sine';
-  osc.frequency.value = freq;
+  osc.frequency.value = PENTA[Math.floor(Math.random() * PENTA.length)];
   g.gain.setValueAtTime(0, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(0.055, audioCtx.currentTime + 0.4);
+  g.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 0.4);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.8);
   osc.connect(g); g.connect(masterGain);
   osc.start(); osc.stop(audioCtx.currentTime + 2.8);
@@ -91,28 +81,59 @@ function scheduleMelody() {
 
 function playHit(freq) {
   if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  osc.type = 'square';
-  osc.frequency.value = freq;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = 'square'; osc.frequency.value = freq;
   g.gain.setValueAtTime(0.15, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
   osc.connect(g); g.connect(masterGain);
   osc.start(); osc.stop(audioCtx.currentTime + 0.06);
 }
 
-document.addEventListener('click', () => { initAudio(); }, { once: true });
+function playModQueued() {
+  if (!audioCtx) return;
+  // Gentle rising sine chime
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(660, audioCtx.currentTime + 0.35);
+  g.gain.setValueAtTime(0, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(0.10, audioCtx.currentTime + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.55);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.55);
+}
+
+function playModActivated() {
+  if (!audioCtx) return;
+  // Two-note bright chord — enthusiastic but not loud
+  for (const [freq, delay] of [[523.25, 0], [783.99, 0.04]]) {
+    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+    g.gain.linearRampToValueAtTime(0.13, audioCtx.currentTime + delay + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + 0.45);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(audioCtx.currentTime + delay);
+    osc.stop(audioCtx.currentTime + delay + 0.45);
+  }
+}
+
+document.addEventListener('click', initAudio, { once: true });
 
 // ===================== GAME =====================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const W = 900, H = 580;
+
+// Canvas: wider to give left panel room
+const W = 1020, H = 580;
 canvas.width = W; canvas.height = H;
 
+// Left panel width + field layout
+const PANEL_W = 170;
 const PADDLE_W = 12, PADDLE_H_BASE = 80, BALL_R_BASE = 10;
-const BALL_SPEED_BASE = 4.5, MOD_INTERVAL = 5, WIN_SCORE = 10;
-const OBS_SIZE = 42; // slightly bigger than before
-
+const BALL_SPEED_BASE = 4.5, MOD_INTERVAL = 5;
+const OBS_SIZE = 42;
+const OBS_SHAPES = ['square', 'triangle', 'circle', 'diamond'];
 const MOD_TYPES = ['SPEED_UP', 'BALL_SHRINK', 'PADDLE_SHRINK', 'OBSTACLE', 'FIELD_SHRINK'];
 const MOD_LABELS = {
   SPEED_UP:      '⚡ Speed +25%',
@@ -121,19 +142,23 @@ const MOD_LABELS = {
   OBSTACLE:      '◆ Random Object',
   FIELD_SHRINK:  '⬜ Field -10%',
 };
-const OBS_SHAPES = ['square', 'triangle', 'circle', 'diamond'];
 const AI_CFG = {
   'ai-easy':   { speed: 180, error: 55 },
   'ai-medium': { speed: 290, error: 18 },
   'ai-hard':   { speed: 430, error: 4  },
 };
 
-let state = 'menu', mode = null, menuHover = -1, winner = '';
+// States: menu | score-select | playing | win
+let state = 'menu', mode = null, pendingMode = null;
+let targetScore = 10;
+let menuHover = -1, scoreHover = -1, winner = '';
+
 let field, p1, p2, ball, obstacles, modifiers, modTimer, totalTime;
 let modQueued = false, pendingMod = null;
 let countdown = 0, countdownTimer = 0;
+let fieldPulse = 0, fieldPulseColor = '#a855f7';
 
-function makeField() { return { x: 20, y: 50, w: W - 40, h: H - 70 }; }
+function makeField() { return { x: PANEL_W + 10, y: 50, w: W - PANEL_W - 30, h: H - 70 }; }
 
 function resetGame() {
   field = makeField();
@@ -142,7 +167,7 @@ function resetGame() {
   ball = { x: field.x + field.w / 2, y: field.y + field.h / 2, r: BALL_R_BASE, speed: BALL_SPEED_BASE, vx: 0, vy: 0 };
   obstacles = []; modifiers = [];
   modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
-  totalTime = 0;
+  totalTime = 0; fieldPulse = 0;
   startCountdown();
 }
 
@@ -178,12 +203,16 @@ function normBall() {
 function queueMod() {
   pendingMod = MOD_TYPES[Math.floor(Math.random() * MOD_TYPES.length)];
   modQueued = true;
+  fieldPulse = 1; fieldPulseColor = '#818cf8';
+  playModQueued();
 }
 
 function applyMod() {
   const type = pendingMod;
   modQueued = false; pendingMod = null;
   modifiers.push(type);
+  fieldPulse = 1; fieldPulseColor = '#f472b6';
+  playModActivated();
   switch (type) {
     case 'SPEED_UP':
       ball.speed *= 1.25; normBall(); break;
@@ -230,8 +259,9 @@ function updateAI(dt) {
   const cfg = AI_CFG[mode];
   const target = ball.y + (Math.random() - 0.5) * cfg.error;
   const dist = target - p2.y;
-  const move = Math.min(Math.abs(dist), cfg.speed * dt);
-  p2.y += dist > 0 ? move : -move;
+  p2.y += dist > 0
+    ? Math.min(dist, cfg.speed * dt)
+    : Math.max(dist, -cfg.speed * dt);
   clamp(p2);
 }
 
@@ -244,10 +274,12 @@ function update(dt) {
       if (countdown === 0) launchBall();
       else countdownTimer = 0.75;
     }
+    if (fieldPulse > 0) fieldPulse = Math.max(0, fieldPulse - dt * 1.8);
     return;
   }
 
   totalTime += dt;
+  if (fieldPulse > 0) fieldPulse = Math.max(0, fieldPulse - dt * 1.8);
 
   if (!modQueued) {
     modTimer -= dt;
@@ -271,17 +303,12 @@ function update(dt) {
   ball.x += ball.vx * 60 * dt;
   ball.y += ball.vy * 60 * dt;
 
-  // Wall bounce
   if (ball.y - ball.r < field.y) {
-    ball.y = field.y + ball.r; ball.vy = Math.abs(ball.vy);
-    playHit(200);
+    ball.y = field.y + ball.r; ball.vy = Math.abs(ball.vy); playHit(200);
   }
   if (ball.y + ball.r > field.y + field.h) {
-    ball.y = field.y + field.h - ball.r; ball.vy = -Math.abs(ball.vy);
-    playHit(200);
+    ball.y = field.y + field.h - ball.r; ball.vy = -Math.abs(ball.vy); playHit(200);
   }
-
-  // Paddle collisions
   if (hitsPaddle(p1) && ball.vx > 0) {
     ball.vx = -Math.abs(ball.vx);
     ball.vy += ((ball.y - p1.y) / (p1.h / 2)) * 1.5;
@@ -292,18 +319,19 @@ function update(dt) {
     ball.vy += ((ball.y - p2.y) / (p2.h / 2)) * 1.5;
     normBall(); playHit(330);
   }
-
-  // Obstacle collisions
   for (const obs of obstacles) resolveObs(obs);
 
-  // Scoring
   if (ball.x - ball.r < field.x) {
     p1.score++;
-    if (p1.score >= WIN_SCORE) { winner = mode === 'pvp' ? 'Player 1' : 'Player'; state = 'win'; return; }
+    if (targetScore !== Infinity && p1.score >= targetScore) {
+      winner = mode === 'pvp' ? 'Player 1' : 'Player'; state = 'win'; return;
+    }
     resetRound();
   } else if (ball.x + ball.r > field.x + field.w) {
     p2.score++;
-    if (p2.score >= WIN_SCORE) { winner = mode === 'pvp' ? 'Player 2' : 'AI'; state = 'win'; return; }
+    if (targetScore !== Infinity && p2.score >= targetScore) {
+      winner = mode === 'pvp' ? 'Player 2' : 'AI'; state = 'win'; return;
+    }
     resetRound();
   }
 }
@@ -328,12 +356,11 @@ function resolveObs(obs) {
   }
 }
 
-// --- Drawing ---
+// ===================== DRAWING =====================
 function drawBg() {
   ctx.fillStyle = '#0d0d0f';
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#131320';
-  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = '#131320'; ctx.lineWidth = 0.5;
   for (let x = 0; x < W; x += 45) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
   for (let y = 0; y < H; y += 45) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 }
@@ -343,38 +370,67 @@ function noNeon() { ctx.shadowBlur = 0; }
 
 function drawObstacle(obs) {
   const cx = obs.x + obs.w / 2, cy = obs.y + obs.h / 2, r = obs.w / 2;
-  ctx.fillStyle = '#3b0764';
-  ctx.strokeStyle = '#a855f7';
-  ctx.lineWidth = 1.5;
+  ctx.fillStyle = '#3b0764'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
   neon('#7c3aed', 14);
   ctx.beginPath();
   switch (obs.shape) {
-    case 'square':
-      ctx.rect(obs.x, obs.y, obs.w, obs.h); break;
-    case 'circle':
-      ctx.arc(cx, cy, r, 0, Math.PI * 2); break;
+    case 'square':   ctx.rect(obs.x, obs.y, obs.w, obs.h); break;
+    case 'circle':   ctx.arc(cx, cy, r, 0, Math.PI * 2); break;
     case 'triangle':
-      ctx.moveTo(cx, obs.y);
-      ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
-      ctx.lineTo(obs.x, obs.y + obs.h);
-      ctx.closePath(); break;
+      ctx.moveTo(cx, obs.y); ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+      ctx.lineTo(obs.x, obs.y + obs.h); ctx.closePath(); break;
     case 'diamond':
-      ctx.moveTo(cx, obs.y);
-      ctx.lineTo(obs.x + obs.w, cy);
-      ctx.lineTo(cx, obs.y + obs.h);
-      ctx.lineTo(obs.x, cy);
-      ctx.closePath(); break;
+      ctx.moveTo(cx, obs.y); ctx.lineTo(obs.x + obs.w, cy);
+      ctx.lineTo(cx, obs.y + obs.h); ctx.lineTo(obs.x, cy); ctx.closePath(); break;
   }
-  ctx.fill(); ctx.stroke();
-  noNeon();
+  ctx.fill(); ctx.stroke(); noNeon();
+}
+
+function drawLeftPanel() {
+  // Panel background
+  ctx.fillStyle = '#0a0a12';
+  ctx.fillRect(0, 0, PANEL_W, H);
+  ctx.strokeStyle = '#1e1040'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PANEL_W, 0); ctx.lineTo(PANEL_W, H); ctx.stroke();
+
+  // Section label
+  ctx.textAlign = 'left'; ctx.font = 'bold 10px monospace';
+  ctx.fillStyle = '#3b2060';
+  ctx.fillText('ACTIVE MODIFIERS', 10, 30);
+
+  if (modifiers.length === 0) {
+    ctx.fillStyle = '#2a1a40'; ctx.font = '11px monospace';
+    ctx.fillText('none yet', 10, 50);
+    return;
+  }
+
+  const counts = {};
+  for (const m of modifiers) counts[m] = (counts[m] || 0) + 1;
+  ctx.font = '11px monospace';
+  let ly = 50;
+  for (const [k, v] of Object.entries(counts)) {
+    ctx.fillStyle = '#5b3a8b';
+    ctx.fillText(`${MOD_LABELS[k]}`, 10, ly);
+    if (v > 1) {
+      ctx.fillStyle = '#a855f7';
+      ctx.fillText(`  x${v}`, 10, ly + 13);
+      ly += 13;
+    }
+    ly += 18;
+  }
 }
 
 function drawGame() {
   drawBg();
+  drawLeftPanel();
 
-  // Field border
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
-  neon('#a855f7', 8);
+  // Field border with pulse
+  const pulseGlow = 8 + fieldPulse * 28;
+  const borderColor = fieldPulse > 0
+    ? lerpColor('#a855f7', fieldPulseColor, fieldPulse)
+    : '#a855f7';
+  ctx.strokeStyle = borderColor; ctx.lineWidth = 1.5;
+  neon(borderColor, pulseGlow);
   ctx.strokeRect(field.x, field.y, field.w, field.h);
   noNeon();
 
@@ -386,32 +442,36 @@ function drawGame() {
   // Paddles
   for (const p of [p1, p2]) {
     ctx.fillStyle = '#a855f7'; neon('#a855f7', 14);
-    ctx.fillRect(p.x, p.y - p.h/2, p.w, p.h);
-    noNeon();
+    ctx.fillRect(p.x, p.y - p.h/2, p.w, p.h); noNeon();
   }
 
-  // Obstacles
   for (const obs of obstacles) drawObstacle(obs);
 
-  // Ball
   ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
   ctx.fillStyle = '#ffffff'; neon('#ffffff', 18); ctx.fill(); noNeon();
 
   drawHUD();
 
-  // Countdown
   if (countdown > 0) {
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 100px monospace';
+    ctx.textAlign = 'center'; ctx.font = 'bold 100px monospace';
     ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
     neon('#a855f7', 35);
-    ctx.strokeText(countdown, W / 2, field.y + field.h / 2 + 36);
+    ctx.strokeText(countdown, field.x + field.w / 2, field.y + field.h / 2 + 36);
     noNeon();
   }
 }
 
+function lerpColor(a, b, t) {
+  const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+  const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+  const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+
 function drawHUD() {
-  // Scores
   const mid = field.x + field.w / 2;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#d8b4fe'; ctx.font = 'bold 28px monospace';
@@ -423,44 +483,34 @@ function drawHUD() {
   ctx.fillText(mode === 'pvp' ? 'P2' : 'AI', mid - 50, 48);
   ctx.fillText('P1', mid + 50, 48);
 
-  // Timer
+  // Score goal
+  ctx.font = '11px monospace'; ctx.fillStyle = '#3b2060';
+  ctx.fillText(targetScore === Infinity ? 'Endless' : `First to ${targetScore}`, mid, 60);
+
   const mm = String(Math.floor(totalTime / 60)).padStart(2, '0');
   const ss = String(Math.floor(totalTime % 60)).padStart(2, '0');
   ctx.textAlign = 'right'; ctx.fillStyle = '#4b4b6b'; ctx.font = '13px monospace';
   ctx.fillText(`${mm}:${ss}`, W - 8, 20);
 
-  // Mod status
   ctx.textAlign = 'left'; ctx.font = '13px monospace';
   if (modQueued) {
     ctx.fillStyle = Math.floor(Date.now() / 300) % 2 === 0 ? '#f472b6' : '#f87171';
-    ctx.fillText('MOD QUEUED!', 8, 20);
+    ctx.fillText('MOD QUEUED!', field.x + 8, 20);
   } else {
     const flash = modTimer < 2 && Math.floor(modTimer * 4) % 2 === 0;
     ctx.fillStyle = flash ? '#f472b6' : modTimer < 2 ? '#f87171' : '#6b6b9b';
-    ctx.fillText(`mod in: ${Math.ceil(modTimer)}s`, 8, 20);
-  }
-
-  // Active modifier list
-  if (modifiers.length > 0) {
-    const counts = {};
-    for (const m of modifiers) counts[m] = (counts[m] || 0) + 1;
-    ctx.textAlign = 'left'; ctx.font = '11px monospace';
-    let ly = H - 8;
-    for (const [k, v] of Object.entries(counts).reverse()) {
-      ctx.fillStyle = '#4b3a6b';
-      ctx.fillText(`${MOD_LABELS[k]}${v > 1 ? ' x' + v : ''}`, 3, ly);
-      ly -= 15;
-    }
+    ctx.fillText(`mod in: ${Math.ceil(modTimer)}s`, field.x + 8, 20);
   }
 }
 
+// --- Menu screens ---
 function drawMenu() {
   drawBg();
   ctx.textAlign = 'center';
   ctx.font = 'bold 80px monospace'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
   neon('#a855f7', 25); ctx.strokeText('PONG 2', W/2, H/2 - 140); noNeon();
   ctx.font = '14px monospace'; ctx.fillStyle = '#4b2a6b';
-  ctx.fillText('modifiers · chaos · first to 10', W/2, H/2 - 100);
+  ctx.fillText('modifiers · chaos', W/2, H/2 - 100);
 
   const items = ['vs AI — Easy', 'vs AI — Medium', 'vs AI — Hard', 'vs Player 2'];
   items.forEach((label, i) => {
@@ -479,6 +529,33 @@ function drawMenu() {
   ctx.fillText('P1: ↑ ↓   P2: W S', W/2, H - 20);
 }
 
+function drawScoreSelect() {
+  drawBg();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 32px monospace'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
+  neon('#a855f7', 15); ctx.strokeText('First to...', W/2, H/2 - 110); noNeon();
+  ctx.font = '13px monospace'; ctx.fillStyle = '#4b2a6b';
+  ctx.fillText('or choose Endless for no win condition', W/2, H/2 - 78);
+
+  const opts = [
+    { label: '3', value: 3 },
+    { label: '5', value: 5 },
+    { label: '10', value: 10 },
+    { label: 'Endless', value: Infinity },
+  ];
+  opts.forEach((opt, i) => {
+    const bx = W/2 - 140, by = H/2 - 40 + i * 52, bw = 280, bh = 42;
+    const hov = scoreHover === i;
+    ctx.strokeStyle = hov ? '#d8b4fe' : '#7c3aed'; ctx.lineWidth = 1;
+    ctx.fillStyle = hov ? '#a855f715' : 'transparent';
+    neon('#a855f7', hov ? 12 : 0);
+    ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh); noNeon();
+    ctx.fillStyle = hov ? '#d8b4fe' : '#a855f7';
+    ctx.font = `${hov ? 'bold ' : ''}18px monospace`;
+    ctx.fillText(opt.label, W/2, by + 28);
+  });
+}
+
 function drawWin() {
   drawGame();
   ctx.fillStyle = '#0d0d0fbb'; ctx.fillRect(0, 0, W, H);
@@ -493,26 +570,40 @@ function drawWin() {
   ctx.fillText('click to return to menu', W/2, H/2 + 50);
 }
 
-// --- Menu interaction ---
+// --- Interaction ---
 const MENU_MODES = ['ai-easy', 'ai-medium', 'ai-hard', 'pvp'];
-function menuItemBox(i) { return { x: W/2-160, y: H/2-55+i*52, w: 320, h: 40 }; }
+const SCORE_OPTS  = [3, 5, 10, Infinity];
+
+function menuBox(i)  { return { x: W/2-160, y: H/2-55+i*52,  w: 320, h: 40 }; }
+function scoreBox(i) { return { x: W/2-140, y: H/2-40+i*52,  w: 280, h: 42 }; }
 
 canvas.addEventListener('mousemove', e => {
-  if (state !== 'menu') return;
   const r = canvas.getBoundingClientRect();
   const mx = (e.clientX - r.left) * (W / r.width);
   const my = (e.clientY - r.top) * (H / r.height);
-  menuHover = -1;
-  for (let i = 0; i < 4; i++) {
-    const b = menuItemBox(i);
-    if (mx >= b.x && mx <= b.x+b.w && my >= b.y && my <= b.y+b.h) { menuHover = i; break; }
+  menuHover = scoreHover = -1;
+  if (state === 'menu') {
+    for (let i = 0; i < 4; i++) {
+      const b = menuBox(i);
+      if (mx >= b.x && mx <= b.x+b.w && my >= b.y && my <= b.y+b.h) { menuHover = i; break; }
+    }
+  } else if (state === 'score-select') {
+    for (let i = 0; i < 4; i++) {
+      const b = scoreBox(i);
+      if (mx >= b.x && mx <= b.x+b.w && my >= b.y && my <= b.y+b.h) { scoreHover = i; break; }
+    }
   }
 });
 
 canvas.addEventListener('click', () => {
   initAudio();
   if (state === 'menu' && menuHover >= 0) {
-    mode = MENU_MODES[menuHover];
+    pendingMode = MENU_MODES[menuHover];
+    state = 'score-select';
+    scoreHover = -1;
+  } else if (state === 'score-select' && scoreHover >= 0) {
+    mode = pendingMode;
+    targetScore = SCORE_OPTS[scoreHover];
     resetGame();
     state = 'playing';
     startMusic();
@@ -526,9 +617,10 @@ let last = 0;
 function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
-  if (state === 'menu')         drawMenu();
-  else if (state === 'playing') { update(dt); drawGame(); }
-  else if (state === 'win')     drawWin();
+  if      (state === 'menu')         drawMenu();
+  else if (state === 'score-select') drawScoreSelect();
+  else if (state === 'playing')      { update(dt); drawGame(); }
+  else if (state === 'win')          drawWin();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
