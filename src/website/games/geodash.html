@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoDash</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0d0f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: monospace;
+      color: #a855f7;
+    }
+    .back-btn {
+      position: fixed;
+      top: 1rem; right: 1.2rem;
+      padding: 0.35rem 1rem;
+      border: 1px solid #a855f7;
+      color: #a855f7;
+      font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.08em;
+      text-decoration: none; text-transform: uppercase;
+      font-family: monospace;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .back-btn:hover { background: #a855f720; box-shadow: 0 0 10px #a855f7; }
+  </style>
+</head>
+<body>
+  <a class="back-btn" id="backBtn" href="#">Back</a>
+  <p style="opacity:0.3; letter-spacing:0.15em;">— coming soon —</p>
+  <script>
+    const p = new URLSearchParams(window.location.search);
+    const from = p.get('from') || 'drafts';
+    document.getElementById('backBtn').href = from === 'published' ? '../published.html' : '../drafts.html';
+  </script>
+</body>
+</html>
