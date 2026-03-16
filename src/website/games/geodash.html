@@ -42,21 +42,24 @@
 })();
 
 // ===================== CONSTANTS =====================
-const W          = 880;
-const H          = 490;
-const TILE       = 42;
-const FLOOR_Y    = H - 90;
-const GROUND_Y   = FLOOR_Y - TILE / 2;
-const CUBE_X     = 180;
-const CUBE_SIZE  = TILE;
-const INNER_SIZE = 17;
-const INNER_HB   = 14;
-const SPEED      = 230;
-const GRAVITY    = 1900;
-const JUMP_VEL   = 620;
-const ROT_RATE   = (Math.PI / 2) / TILE * SPEED;
+const W           = 880;
+const H           = 490;
+const TILE        = 42;
+const FLOOR_Y     = H - 90;
+const GROUND_Y    = FLOOR_Y - TILE / 2;
+const CUBE_X      = 180;
+const CUBE_SIZE   = TILE;
+const INNER_SIZE  = 17;
+const INNER_HB    = 14;
+const SPEED_HALF  = 230;
+const SPEED_FULL  = 390;
+const GRAVITY     = 1900;
+const JUMP_VEL    = 620;
 const DEATH_PAUSE = 0.65;
-const ROYGBIV    = ['#ff2424','#ff7700','#ffe600','#00ee44','#00bbff','#3355ff','#cc00ff'];
+const ROYGBIV     = ['#ff2424','#ff7700','#ffe600','#00ee44','#00bbff','#3355ff','#cc00ff'];
+const ARROW_Y     = FLOOR_Y - TILE * 1.4;   // center Y for floating arrows
+const ARROW_W     = 30;
+const ARROW_H     = 22;
 
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
@@ -65,38 +68,36 @@ canvas.height = H;
 
 // ===================== AUDIO =====================
 let audioCtx = null, masterGain = null, musicStarted = false;
-let hihatBuf = null;
+let hihatBuf  = null;
 let nextStepTime = 0, stepIdx = 0;
-let schedTimer = null;
+let schedTimer   = null;
 
-const BPM      = 110;
-const STEP_DUR = 60 / BPM / 2; // 8th note
+const BPM       = 110;
+const STEP_DUR  = 60 / BPM / 2;  // 8th note ≈ 0.2727 s
 const LOOKAHEAD = 0.15;
 
-// 16-step patterns (2 bars of 4/4, 8th notes)
+// 16-step (2-bar) patterns — snare toggled by mode
 const PAT_KICK  = [1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,0,1];
 const PAT_SNARE = [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0];
 const PAT_HIHAT = [0,1,0,1, 0,1,0,0, 0,1,0,1, 0,1,0,0];
-// Bass note frequencies (null = rest): E2 G2 A2 B2 pentatonic
 const PAT_BASS  = [82.41,null,null,null, 98.00,null,110.00,null,
                    82.41,null,null,null, 123.47,null,98.00,null];
 
 function initAudio() {
   if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.20;
   masterGain.connect(audioCtx.destination);
 
-  // Noise buffer for drums (created once, reused)
   hihatBuf = audioCtx.createBuffer(1, 4096, audioCtx.sampleRate);
-  const d = hihatBuf.getChannelData(0);
+  const d  = hihatBuf.getChannelData(0);
   for (let i = 0; i < 4096; i++) d[i] = Math.random() * 2 - 1;
 
-  // Ambient sub-bass drone
-  for (const detune of [-4, 4]) {
+  // Sub-bass drone
+  for (const det of [-4, 4]) {
     const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-    osc.type = 'sine'; osc.frequency.value = 41.2; osc.detune.value = detune;
+    osc.type = 'sine'; osc.frequency.value = 41.2; osc.detune.value = det;
     g.gain.value = 0.055;
     osc.connect(g); g.connect(masterGain); osc.start();
   }
@@ -109,15 +110,22 @@ function startMusic() {
   scheduleSteps();
 }
 
+function restartMusic() {
+  if (schedTimer) { clearTimeout(schedTimer); schedTimer = null; }
+  stepIdx      = 0;
+  nextStepTime = audioCtx ? audioCtx.currentTime + 0.1 : 0;
+  if (musicStarted) scheduleSteps();
+}
+
 function scheduleSteps() {
   if (!audioCtx || !musicStarted) return;
   while (nextStepTime < audioCtx.currentTime + LOOKAHEAD) {
     const step = stepIdx % 16;
     const t    = nextStepTime;
-    if (PAT_KICK[step])             schedKick(t);
-    if (PAT_SNARE[step])            schedSnare(t);
-    if (PAT_HIHAT[step])            schedHihat(t, 0.20);
-    if (PAT_BASS[step] !== null)    schedBass(t, PAT_BASS[step]);
+    if (PAT_KICK[step])                             schedKick(t);
+    if (PAT_SNARE[step] && currentMode === 'full')  schedSnare(t);
+    if (PAT_HIHAT[step])                            schedHihat(t, 0.20);
+    if (PAT_BASS[step] !== null)                    schedBass(t, PAT_BASS[step]);
     nextStepTime += STEP_DUR;
     stepIdx++;
   }
@@ -136,8 +144,7 @@ function schedKick(t) {
 }
 
 function schedSnare(t) {
-  // Noise layer
-  const src = audioCtx.createBufferSource(), env = audioCtx.createGain();
+  const src  = audioCtx.createBufferSource(), env  = audioCtx.createGain();
   const filt = audioCtx.createBiquadFilter();
   filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 0.8;
   src.buffer = hihatBuf;
@@ -145,7 +152,6 @@ function schedSnare(t) {
   env.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
   src.connect(filt); filt.connect(env); env.connect(masterGain);
   src.start(t); src.stop(t + 0.2);
-  // Tone body
   const osc = audioCtx.createOscillator(), oenv = audioCtx.createGain();
   osc.type = 'sine'; osc.frequency.value = 190;
   oenv.gain.setValueAtTime(0.28, t);
@@ -155,7 +161,7 @@ function schedSnare(t) {
 }
 
 function schedHihat(t, vol) {
-  const src = audioCtx.createBufferSource(), env = audioCtx.createGain();
+  const src  = audioCtx.createBufferSource(), env  = audioCtx.createGain();
   const filt = audioCtx.createBiquadFilter();
   filt.type = 'highpass'; filt.frequency.value = 8000;
   src.buffer = hihatBuf;
@@ -195,57 +201,77 @@ document.addEventListener('touchstart', unlockAudio, { once: true, passive: true
 function randColor() { return ROYGBIV[Math.floor(Math.random() * ROYGBIV.length)]; }
 
 function genLevel() {
-  const blocks = [], spikes = [];
-  // Give the player a clear run-up before first obstacle
-  let wx = TILE * (Math.ceil(W / TILE) + 10);
+  const blocks = [], spikes = [], arrows = [];
+  // Wide clear run-in at the start
+  let wx      = TILE * (Math.ceil(W / TILE) + 10);
+  let isFull  = false; // first section is always half-speed
 
-  while (wx < 35000) {
-    const roll = Math.random();
+  while (wx < 45000) {
+    // ── Generate one section ──
+    const sectionTiles = 20 + Math.floor(Math.random() * 10);
+    const sectionEnd   = wx + TILE * sectionTiles;
+    let ox = wx;
 
-    if (roll < 0.52) {
-      // ── BLOCK GROUP ──
-      // 1–3 columns; each column stacks from floor up (no floating)
-      const cols   = 1 + Math.floor(Math.random() * 3);
-      const color  = randColor();
-      for (let c = 0; c < cols; c++) {
-        const colH = Math.random() < 0.38 ? 2 : 1; // 38% chance of 2-high
-        for (let h = 0; h < colH; h++) {
-          blocks.push({ worldX: wx + c * TILE, y: FLOOR_Y - TILE * (h + 1), color });
-        }
-      }
-      wx += cols * TILE;
-      wx += TILE * (5 + Math.floor(Math.random() * 5)); // gap after group
+    while (ox < sectionEnd) {
+      const roll = Math.random();
 
-    } else if (roll < 0.88) {
-      // ── SPIKE GROUP ──
-      const count = Math.random() < 0.48 ? 1 : 2;
-      for (let i = 0; i < count; i++) {
-        const tall  = Math.random() < 0.5; // tall vs half
+      if (roll < 0.50) {
+        // Block group: 1–3 columns, grounded stacks
+        const cols  = 1 + Math.floor(Math.random() * 3);
         const color = randColor();
-        spikes.push({ worldX: wx + i * TILE, tall, color });
-      }
-      wx += count * TILE;
-      wx += TILE * (5 + Math.floor(Math.random() * 5)); // gap after group
+        for (let c = 0; c < cols; c++) {
+          const colH = Math.random() < 0.35 ? 2 : 1;
+          for (let h = 0; h < colH; h++) {
+            blocks.push({ worldX: ox + c * TILE, y: FLOOR_Y - TILE * (h + 1), color });
+          }
+        }
+        ox += cols * TILE;
 
-    } else {
-      // ── EMPTY SECTION ── (breathing room)
-      wx += TILE * (6 + Math.floor(Math.random() * 4));
+      } else if (roll < 0.82) {
+        // Spike group: 1–2 in half mode, 1–3 in full mode
+        const maxCount = isFull ? 3 : 2;
+        const count    = 1 + Math.floor(Math.random() * maxCount);
+        for (let i = 0; i < count; i++) {
+          spikes.push({ worldX: ox + i * TILE, tall: Math.random() < 0.5, color: randColor() });
+        }
+        ox += count * TILE;
+
+      } else {
+        // Empty breathing gap
+        ox += TILE * 3;
+      }
+
+      // Gap between groups within the section
+      ox += TILE * (5 + Math.floor(Math.random() * 4));
     }
+
+    // Clear gap after section before the arrow
+    wx = sectionEnd + TILE * 6;
+
+    // ── Place transition arrow ──
+    isFull = !isFull;
+    arrows.push({ worldX: wx, type: isFull ? 'full' : 'half', collected: false });
+
+    // Clear gap after arrow before the next section
+    wx += TILE * 7;
   }
 
-  return { blocks, spikes };
+  return { blocks, spikes, arrows };
 }
 
 // ===================== STATE =====================
-let worldOffset = 0;
-let cubeAngle   = 0;
-let cubeY       = GROUND_Y;
-let cubeVY      = 0;
-let grounded    = true;
-let isDead      = false;
-let deathTimer  = 0;
-let blocks      = [];
-let spikes      = [];
+let worldOffset  = 0;
+let cubeAngle    = 0;
+let cubeY        = GROUND_Y;
+let cubeVY       = 0;
+let grounded     = true;
+let isDead       = false;
+let deathTimer   = 0;
+let gameTime     = 0;
+let currentMode  = 'half';   // 'half' | 'full'
+let blocks       = [];
+let spikes       = [];
+let arrows       = [];
 
 const STARS = Array.from({ length: 120 }, () => ({
   x: Math.random() * W,
@@ -253,6 +279,9 @@ const STARS = Array.from({ length: 120 }, () => ({
   r: Math.random() * 0.9 + 0.2,
   o: Math.random() * 0.4 + 0.1,
 }));
+
+function getSpeed()   { return currentMode === 'half' ? SPEED_HALF : SPEED_FULL; }
+function getRotRate() { return (Math.PI / 2) / TILE * getSpeed(); }
 
 // ===================== HELPERS =====================
 function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
@@ -270,12 +299,14 @@ function die() {
   isDead     = true;
   deathTimer = DEATH_PAUSE;
   playDeath();
+  restartMusic();
 }
 
 function respawn() {
   const level = genLevel();
   blocks      = level.blocks;
   spikes      = level.spikes;
+  arrows      = level.arrows;
   worldOffset = 0;
   cubeY       = GROUND_Y;
   cubeVY      = 0;
@@ -283,28 +314,36 @@ function respawn() {
   cubeAngle   = 0;
   isDead      = false;
   deathTimer  = 0;
+  currentMode = 'half';
 }
 
 function resolveCollisions() {
   grounded = false;
-
-  // Floor
   if (cubeY + CUBE_SIZE / 2 >= FLOOR_Y) {
     cubeY = FLOOR_Y - CUBE_SIZE / 2;
     cubeVY   = 0;
     grounded = true;
   }
-
-  // Block tops — land only while falling/level
   if (cubeVY >= 0) {
     for (const b of blocks) {
       const sx = b.worldX - worldOffset;
       if (sx + TILE <= CUBE_X - CUBE_SIZE / 2 || sx >= CUBE_X + CUBE_SIZE / 2) continue;
       if (cubeY + CUBE_SIZE / 2 >= b.y && cubeY - CUBE_SIZE / 2 < b.y) {
-        cubeY    = b.y - CUBE_SIZE / 2;
-        cubeVY   = 0;
-        grounded = true;
+        cubeY  = b.y - CUBE_SIZE / 2;
+        cubeVY = 0; grounded = true;
       }
+    }
+  }
+}
+
+function checkArrows() {
+  for (const a of arrows) {
+    if (a.collected) continue;
+    const sx = a.worldX - worldOffset;
+    // Collect when cube center passes arrow center
+    if (sx <= CUBE_X + CUBE_SIZE / 2) {
+      a.collected  = true;
+      currentMode  = a.type;
     }
   }
 }
@@ -314,19 +353,14 @@ function checkDeath() {
   const hb = INNER_HB / 2;
   const il = CUBE_X - hb, ir = CUBE_X + hb;
   const it = cubeY   - hb, ib = cubeY   + hb;
-
-  // Block sides / underside
   for (const b of blocks) {
     const sx = b.worldX - worldOffset;
     if (ir > sx && il < sx + TILE && ib > b.y && it < b.y + TILE) { die(); return; }
   }
-
-  // Spikes — always lethal (no landing)
   for (const s of spikes) {
     const sx = s.worldX - worldOffset;
     const sh = s.tall ? TILE : TILE / 2;
-    const sy = FLOOR_Y - sh;
-    if (ir > sx && il < sx + TILE && ib > sy && it < FLOOR_Y) { die(); return; }
+    if (ir > sx && il < sx + TILE && ib > FLOOR_Y - sh && it < FLOOR_Y) { die(); return; }
   }
 }
 
@@ -334,14 +368,12 @@ function checkDeath() {
 function drawBackground() {
   ctx.fillStyle = '#07060f';
   ctx.fillRect(0, 0, W, H);
-
   for (const s of STARS) {
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(210,210,255,${s.o})`;
     ctx.fill();
   }
-
   const ox = worldOffset % TILE;
   ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
   for (let x = -ox; x < W; x += TILE) {
@@ -355,14 +387,12 @@ function drawBackground() {
 function drawFloor() {
   ctx.fillStyle = '#080015';
   ctx.fillRect(0, FLOOR_Y, W, H - FLOOR_Y);
-
   const ox = worldOffset % TILE;
   ctx.strokeStyle = '#160830'; ctx.lineWidth = 0.6;
   for (let x = -ox; x < W; x += TILE) {
     ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, H); ctx.stroke();
   }
   ctx.beginPath(); ctx.moveTo(0, FLOOR_Y + TILE * 0.5); ctx.lineTo(W, FLOOR_Y + TILE * 0.5); ctx.stroke();
-
   neon('#a855f7', 10);
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
@@ -387,16 +417,12 @@ function drawSpikes() {
     const sx = s.worldX - worldOffset;
     if (sx + TILE < 0 || sx > W) continue;
     const sh = s.tall ? TILE : TILE / 2;
-    const ty = FLOOR_Y - sh; // tip Y
-
     ctx.beginPath();
-    ctx.moveTo(sx,            FLOOR_Y); // bottom-left
-    ctx.lineTo(sx + TILE,     FLOOR_Y); // bottom-right
-    ctx.lineTo(sx + TILE / 2, ty);      // tip
+    ctx.moveTo(sx,            FLOOR_Y);
+    ctx.lineTo(sx + TILE,     FLOOR_Y);
+    ctx.lineTo(sx + TILE / 2, FLOOR_Y - sh);
     ctx.closePath();
-
-    ctx.fillStyle = s.color + '1a';
-    ctx.fill();
+    ctx.fillStyle = s.color + '1a'; ctx.fill();
     neon(s.color, 14);
     ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
     ctx.stroke();
@@ -404,21 +430,59 @@ function drawSpikes() {
   }
 }
 
+function drawArrows() {
+  for (const a of arrows) {
+    if (a.collected) continue;
+    const sx = a.worldX - worldOffset;
+    if (sx + ARROW_W < 0 || sx - ARROW_W > W) continue;
+
+    const color = a.type === 'full' ? '#ffe600' : '#00aaff';
+    const pulse = 1 + Math.sin(gameTime * 4) * 0.12; // gentle float pulse
+    const hw = ARROW_W / 2 * pulse;
+    const hh = ARROW_H / 2 * pulse;
+
+    ctx.save();
+    ctx.translate(sx, ARROW_Y);
+
+    // Arrow shape: chevron pointing right
+    ctx.beginPath();
+    ctx.moveTo(-hw,       -hh * 0.55);
+    ctx.lineTo(hw * 0.1,  -hh * 0.55);
+    ctx.lineTo(hw,         0);
+    ctx.lineTo(hw * 0.1,   hh * 0.55);
+    ctx.lineTo(-hw,        hh * 0.55);
+    ctx.lineTo(-hw * 0.35, 0);
+    ctx.closePath();
+
+    ctx.fillStyle = color + '28';
+    ctx.fill();
+    neon(color, 16);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.stroke();
+    noNeon();
+
+    // Small label below
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(a.type === 'full' ? 'FAST' : 'SLOW', 0, hh + 12);
+
+    ctx.restore();
+  }
+}
+
 function drawCube() {
   ctx.save();
   ctx.translate(CUBE_X, cubeY);
   ctx.rotate(cubeAngle);
-
   neon('#39ff14', 18);
   ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2;
   ctx.strokeRect(-CUBE_SIZE / 2, -CUBE_SIZE / 2, CUBE_SIZE, CUBE_SIZE);
   noNeon();
-
   neon('#00d4ff', 14);
   ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5;
   ctx.strokeRect(-INNER_SIZE / 2, -INNER_SIZE / 2, INNER_SIZE, INNER_SIZE);
   noNeon();
-
   ctx.restore();
 }
 
@@ -428,6 +492,18 @@ function drawDeathOverlay() {
   ctx.fillRect(0, 0, W, H);
 }
 
+function drawSpeedIndicator() {
+  const isFull = currentMode === 'full';
+  const color  = isFull ? '#ffe600' : '#00aaff';
+  const label  = isFull ? '▶▶ FAST' : '▶ HALF';
+  ctx.font = 'bold 11px monospace';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  neon(color, 8);
+  ctx.fillText(label, 12, 22);
+  noNeon();
+}
+
 // ===================== INPUT =====================
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); jump(); }
@@ -435,9 +511,10 @@ document.addEventListener('keydown', e => {
 canvas.addEventListener('mousedown', () => jump());
 
 // ===================== LOOP =====================
-const level = genLevel();
-blocks = level.blocks;
-spikes = level.spikes;
+const firstLevel = genLevel();
+blocks = firstLevel.blocks;
+spikes = firstLevel.spikes;
+arrows = firstLevel.arrows;
 
 let last = 0;
 function loop(ts) {
@@ -447,22 +524,25 @@ function loop(ts) {
   if (isDead) {
     deathTimer -= dt;
     if (deathTimer <= 0) respawn();
-    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawCube(); drawDeathOverlay();
+    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawArrows(); drawCube(); drawDeathOverlay();
   } else {
-    worldOffset += SPEED * dt;
+    gameTime    += dt;
+    worldOffset += getSpeed() * dt;
     cubeVY      += GRAVITY * dt;
     cubeY       += cubeVY * dt;
     grounded     = false;
     resolveCollisions();
+    checkArrows();
 
     if (!grounded) {
-      cubeAngle += ROT_RATE * dt;
+      cubeAngle += getRotRate() * dt;
     } else {
       cubeAngle = Math.round(cubeAngle / (Math.PI / 2)) * (Math.PI / 2);
     }
 
     checkDeath();
-    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawCube();
+    drawBackground(); drawFloor(); drawBlocks(); drawSpikes(); drawArrows(); drawCube();
+    drawSpeedIndicator();
   }
 
   requestAnimationFrame(loop);
