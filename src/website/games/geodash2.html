@@ -8,24 +8,16 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       background: #07060f;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; overflow: hidden;
     }
-    canvas { display: block; }
+    canvas { display: block; cursor: default; }
     .back-btn {
-      position: fixed;
-      top: 1rem; right: 1.2rem;
-      padding: 0.35rem 1rem;
-      border: 1px solid #a855f7;
-      color: #a855f7;
-      font-size: 0.8rem; font-weight: 600;
-      letter-spacing: 0.08em;
-      text-decoration: none; text-transform: uppercase;
-      font-family: monospace;
-      transition: background 0.2s, box-shadow 0.2s;
+      position: fixed; top: 1rem; right: 1.2rem;
+      padding: 0.35rem 1rem; border: 1px solid #a855f7;
+      color: #a855f7; font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.08em; text-decoration: none; text-transform: uppercase;
+      font-family: monospace; transition: background 0.2s, box-shadow 0.2s;
     }
     .back-btn:hover { background: #a855f720; box-shadow: 0 0 10px #a855f7; }
   </style>
@@ -41,7 +33,16 @@
     p.get('from') === 'published' ? '../published.html' : '../drafts.html';
 })();
 
-const W = 880, H = 490, TILE = 42;
+// ===================== CONSTANTS =====================
+const W        = 880;
+const H        = 490;
+const TILE     = 42;
+const PANEL_W  = 130;
+const FLOOR_Y  = H - 90;           // 400 — bottom of editable grid
+const GRID_COLS = Math.floor((W - PANEL_W) / TILE);  // 17
+const GRID_ROWS = Math.floor(FLOOR_Y / TILE);         // 9
+const ROYGBIV  = ['#ff2424','#ff7700','#ffe600','#00ee44','#00bbff','#3355ff','#cc00ff'];
+
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 canvas.width  = W;
@@ -50,77 +51,462 @@ canvas.height = H;
 function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
 function noNeon()           { ctx.shadowBlur = 0; }
 
-const STARS = Array.from({ length: 120 }, () => ({
-  x: Math.random() * W,
-  y: Math.random() * H * 0.82,
-  r: Math.random() * 0.9 + 0.2,
-  o: Math.random() * 0.4 + 0.1,
+// ===================== BACKGROUND =====================
+const STARS = Array.from({ length: 100 }, () => ({
+  x: Math.random() * W, y: Math.random() * H,
+  r: Math.random() * 0.9 + 0.2, o: Math.random() * 0.35 + 0.1,
 }));
 
-let t = 0;
-function loop(ts) {
-  t = ts / 1000;
-
-  // Background
+function drawDarkBg() {
   ctx.fillStyle = '#07060f';
   ctx.fillRect(0, 0, W, H);
-
-  // Grid
   ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
-  for (let x = 0; x < W; x += TILE) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = 0; y < H; y += TILE) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // Stars
+  for (let x = 0; x < W; x += TILE) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += TILE) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   for (const s of STARS) {
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(210,210,255,${s.o})`; ctx.fill();
   }
+}
 
-  // Floor
-  const FLOOR_Y = H - 90;
+// ===================== STATE =====================
+let gameState   = 'menu';    // 'menu' | 'levels' | 'editor'
+let menuHover   = false;
+let levelHover  = -1;
+// Session-only level storage — 8 slots
+// Each slot: null  OR  { tiles: { "col,row": { type, color } } }
+let levels      = new Array(8).fill(null);
+let editingSlot = -1;
+let editTiles   = {};        // current editor session
+let selectedTool  = 'block';
+let selectedColor = ROYGBIV[0];
+let isDrawing   = false;
+let drawMode    = 'place';   // 'place' | 'erase'
+let hoverCell   = null;      // { col, row } in editor grid
+let panelHover  = null;      // panel element being hovered
+
+// ===================== LEVEL SLOT LAYOUT =====================
+// 4 slots per row, 2 rows = 8 total
+const SLOT_W      = 185;
+const SLOT_H      = 112;
+const SLOT_GAP    = 14;
+const SLOT_THUMB  = 76;   // thumbnail area height inside card
+const SL_START_X  = (W - (4 * SLOT_W + 3 * SLOT_GAP)) / 2;  // ~49
+const SL_START_Y  = 108;
+
+function slotRect(i) {
+  const col = i % 4, row = Math.floor(i / 4);
+  return {
+    x: SL_START_X + col * (SLOT_W + SLOT_GAP),
+    y: SL_START_Y + row * (SLOT_H + SLOT_GAP),
+  };
+}
+
+function inSlot(i, mx, my) {
+  const { x, y } = slotRect(i);
+  return mx >= x && mx <= x + SLOT_W && my >= y && my <= y + SLOT_H;
+}
+
+// ===================== PANEL LAYOUT =====================
+const TOOLS = [
+  { id: 'block',     label: '■  Block',   y: 34  },
+  { id: 'spike',     label: '▲  Spike',   y: 66  },
+  { id: 'halfSpike', label: '△  ½ Spike', y: 98  },
+  { id: 'eraser',    label: '✕  Erase',   y: 130 },
+];
+const BTN_H = 26;
+
+// Swatch positions
+const SW_SIZE = 24, SW_GAP = 4, SW_X0 = 8, SW_Y0 = 178;
+function swatchRect(i) {
+  return {
+    x: SW_X0 + (i % 4) * (SW_SIZE + SW_GAP),
+    y: SW_Y0 + Math.floor(i / 4) * (SW_SIZE + SW_GAP),
+  };
+}
+
+function panelHit(mx, my) {
+  if (mx >= PANEL_W) return null;
+  for (const t of TOOLS) {
+    if (my >= t.y && my < t.y + BTN_H) return { kind: 'tool', id: t.id };
+  }
+  for (let i = 0; i < ROYGBIV.length; i++) {
+    const { x, y } = swatchRect(i);
+    if (mx >= x && mx <= x + SW_SIZE && my >= y && my <= y + SW_SIZE)
+      return { kind: 'color', index: i };
+  }
+  const cy = H - 44;
+  if (my >= cy && my < cy + 30) return { kind: 'clear' };
+  return null;
+}
+
+// ===================== EDITOR HELPERS =====================
+function pixelToCell(mx, my) {
+  if (mx < PANEL_W || my < 0 || my >= FLOOR_Y) return null;
+  const col = Math.floor((mx - PANEL_W) / TILE);
+  const row = Math.floor(my / TILE);
+  if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return null;
+  return { col, row };
+}
+
+function tileKey(col, row) { return `${col},${row}`; }
+
+function placeTile(col, row) {
+  editTiles[tileKey(col, row)] = { type: selectedTool, color: selectedColor };
+}
+
+function eraseTile(col, row) {
+  delete editTiles[tileKey(col, row)];
+}
+
+function openSlot(i) {
+  editingSlot = i;
+  editTiles   = levels[i] ? JSON.parse(JSON.stringify(levels[i])) : {};
+  hoverCell   = null; panelHover = null; isDrawing = false;
+  gameState   = 'editor';
+}
+
+function saveAndBack() {
+  levels[editingSlot] = Object.keys(editTiles).length > 0
+    ? JSON.parse(JSON.stringify(editTiles))
+    : null;
+  editingSlot = -1;
+  gameState   = 'levels';
+}
+
+// ===================== DRAW: TILE (reused in editor + preview) =====================
+function drawTile(tile, px, py, tileSize) {
+  const ts = tileSize ?? TILE;
+  if (tile.type === 'block') {
+    ctx.fillStyle = tile.color + '20';
+    ctx.fillRect(px, py, ts, ts);
+    neon(tile.color, 10);
+    ctx.strokeStyle = tile.color; ctx.lineWidth = ts > 12 ? 1.5 : 0.8;
+    ctx.strokeRect(px, py, ts, ts);
+    noNeon();
+  } else {
+    const sh = tile.type === 'halfSpike' ? ts / 2 : ts;
+    ctx.beginPath();
+    ctx.moveTo(px,          py + ts);
+    ctx.lineTo(px + ts,     py + ts);
+    ctx.lineTo(px + ts / 2, py + ts - sh);
+    ctx.closePath();
+    ctx.fillStyle = tile.color + '18';
+    ctx.fill();
+    neon(tile.color, 12);
+    ctx.strokeStyle = tile.color; ctx.lineWidth = ts > 12 ? 1.5 : 0.8;
+    ctx.stroke();
+    noNeon();
+  }
+}
+
+// ===================== DRAW: MENU =====================
+function drawMenu() {
+  drawDarkBg();
   neon('#a855f7', 10);
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
   noNeon();
 
   ctx.textAlign = 'center';
-
-  // Title
   ctx.font = 'bold 80px monospace';
-  neon('#39ff14', 28);
-  ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2.5;
-  ctx.strokeText('GEO', W / 2, H / 2 - 80);
-  noNeon();
+  neon('#39ff14', 28); ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2.5;
+  ctx.strokeText('GEO', W / 2, H / 2 - 80); noNeon();
+  neon('#a855f7', 28); ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2.5;
+  ctx.strokeText('DASH', W / 2, H / 2 - 5); noNeon();
 
-  neon('#a855f7', 28);
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2.5;
-  ctx.strokeText('DASH', W / 2, H / 2 - 5);
-  noNeon();
-
-  // Tagline
-  ctx.font = '12px monospace';
-  ctx.fillStyle = '#2a1a4b';
+  ctx.font = '12px monospace'; ctx.fillStyle = '#2a1a4b';
   ctx.fillText('run  ·  jump  ·  survive', W / 2, H / 2 + 22);
 
-  // Coming soon button (disabled)
+  // Create Levels button
   const bx = W / 2 - 150, by = H / 2 + 45, bw = 300, bh = 46;
-  ctx.fillStyle = 'transparent';
-  ctx.strokeStyle = '#1e0f38'; ctx.lineWidth = 1.5;
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeRect(bx, by, bw, bh);
-  ctx.font = 'bold 15px monospace';
-  ctx.fillStyle = '#2a1040';
-  ctx.fillText('Coming Soon', W / 2, by + 30);
+  const hov = menuHover;
+  ctx.fillStyle = hov ? '#a855f712' : 'transparent';
+  neon(hov ? '#a855f7' : '#7c3aed', hov ? 14 : 5);
+  ctx.strokeStyle = hov ? '#a855f7' : '#7c3aed'; ctx.lineWidth = 1.5;
+  ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh); noNeon();
+  ctx.font = 'bold 16px monospace';
+  ctx.fillStyle = hov ? '#d8b4fe' : '#a855f7';
+  ctx.fillText('▶  Create Levels', W / 2, by + 30);
+}
 
-  // Hint
-  ctx.font = '11px monospace';
-  ctx.fillStyle = '#1e0f38';
-  ctx.fillText('in development', W / 2, H - 22);
+// ===================== DRAW: LEVEL SLOTS =====================
+function drawSlot(i) {
+  const { x, y } = slotRect(i);
+  const data = levels[i];
+  const hov  = levelHover === i;
+  const bord = hov ? '#a855f7' : (data ? '#7c3aed' : '#1e0f38');
 
+  // Card background + border
+  ctx.fillStyle = '#0a090f';
+  neon(bord, hov ? 12 : 0);
+  ctx.strokeStyle = bord; ctx.lineWidth = 1;
+  ctx.fillRect(x, y, SLOT_W, SLOT_H);
+  ctx.strokeRect(x, y, SLOT_W, SLOT_H);
+  noNeon();
+
+  // Thumbnail area
+  ctx.fillStyle = '#07060f';
+  ctx.fillRect(x + 1, y + 1, SLOT_W - 2, SLOT_THUMB - 2);
+
+  if (data && Object.keys(data).length > 0) {
+    // Mini preview — 8px per tile
+    const PS  = 8;
+    const pw  = GRID_COLS * PS;   // 136
+    const ph  = GRID_ROWS * PS;   // 72
+    const px0 = x + Math.floor((SLOT_W - pw) / 2);
+    const py0 = y + Math.floor((SLOT_THUMB - ph) / 2);
+
+    // Floor
+    ctx.fillStyle = '#1a0a30';
+    ctx.fillRect(px0, py0 + ph - 1, pw, 2);
+
+    for (const [key, tile] of Object.entries(data)) {
+      const [tc, tr] = key.split(',').map(Number);
+      drawTile(tile, px0 + tc * PS, py0 + tr * PS, PS);
+    }
+  } else {
+    ctx.textAlign = 'center'; ctx.font = 'bold 26px monospace';
+    ctx.fillStyle = hov ? '#3b1a6b' : '#1a0a2a';
+    ctx.fillText('+', x + SLOT_W / 2, y + SLOT_THUMB / 2 + 9);
+  }
+
+  // Label strip
+  const ly = y + SLOT_THUMB;
+  ctx.fillStyle = '#0d0d0f';
+  ctx.fillRect(x + 1, ly, SLOT_W - 2, SLOT_H - SLOT_THUMB - 1);
+  ctx.strokeStyle = (data ? '#3b1a6b' : '#130825') + 'aa'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(x + 1, ly); ctx.lineTo(x + SLOT_W - 1, ly); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.font = '11px monospace';
+  ctx.fillStyle = data ? '#d8b4fe' : (hov ? '#4b2a6b' : '#1e0f38');
+  ctx.fillText(data ? `Level ${i + 1}` : 'Empty', x + SLOT_W / 2, ly + 22);
+}
+
+function drawLevels() {
+  drawDarkBg();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 22px monospace';
+  neon('#a855f7', 14); ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.2;
+  ctx.strokeText('Create Levels', W / 2, 56); noNeon();
+  ctx.font = '11px monospace'; ctx.fillStyle = '#2a1a4b';
+  ctx.fillText('Esc to go back  ·  click a slot to edit', W / 2, 78);
+  for (let i = 0; i < 8; i++) drawSlot(i);
+}
+
+// ===================== DRAW: EDITOR =====================
+function drawEditorPanel() {
+  ctx.fillStyle = '#0a090f';
+  ctx.fillRect(0, 0, PANEL_W, H);
+  // Right border
+  ctx.strokeStyle = '#1a0a30'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PANEL_W, 0); ctx.lineTo(PANEL_W, H); ctx.stroke();
+
+  ctx.textAlign = 'left';
+
+  // Section: TOOLS
+  ctx.font = 'bold 9px monospace'; ctx.fillStyle = '#3b1a6b';
+  ctx.fillText('TOOLS', 8, 24);
+  for (const t of TOOLS) {
+    const sel = selectedTool === t.id;
+    const hov = panelHover?.kind === 'tool' && panelHover.id === t.id;
+    neon(sel ? '#a855f7' : 'transparent', sel ? 8 : 0);
+    ctx.fillStyle = sel ? '#a855f718' : (hov ? '#a855f708' : 'transparent');
+    ctx.strokeStyle = sel ? '#a855f7' : (hov ? '#7c3aed' : '#1e0f38');
+    ctx.lineWidth = 1;
+    ctx.fillRect(8, t.y, PANEL_W - 16, BTN_H);
+    ctx.strokeRect(8, t.y, PANEL_W - 16, BTN_H);
+    noNeon();
+    ctx.font = '10px monospace';
+    ctx.fillStyle = sel ? '#d8b4fe' : (hov ? '#a855f7' : '#4b2a6b');
+    ctx.fillText(t.label, 14, t.y + 17);
+  }
+
+  // Section: COLOR
+  ctx.font = 'bold 9px monospace'; ctx.fillStyle = '#3b1a6b';
+  ctx.fillText('COLOR', 8, 166);
+  for (let i = 0; i < ROYGBIV.length; i++) {
+    const { x, y } = swatchRect(i);
+    const sel = selectedColor === ROYGBIV[i];
+    const hov = panelHover?.kind === 'color' && panelHover.index === i;
+    neon(ROYGBIV[i], sel ? 10 : (hov ? 6 : 0));
+    ctx.fillStyle = ROYGBIV[i] + (sel ? 'cc' : '44');
+    ctx.fillRect(x, y, SW_SIZE, SW_SIZE);
+    if (sel || hov) {
+      ctx.strokeStyle = ROYGBIV[i]; ctx.lineWidth = sel ? 1.5 : 1;
+      ctx.strokeRect(x, y, SW_SIZE, SW_SIZE);
+    }
+    noNeon();
+  }
+
+  // Clear button
+  const cy = H - 44;
+  const hov = panelHover?.kind === 'clear';
+  ctx.fillStyle = hov ? '#1a0808' : 'transparent';
+  ctx.strokeStyle = hov ? '#ff4444' : '#1e0f38'; ctx.lineWidth = 1;
+  ctx.fillRect(8, cy, PANEL_W - 16, 30);
+  ctx.strokeRect(8, cy, PANEL_W - 16, 30);
+  ctx.font = '10px monospace';
+  ctx.fillStyle = hov ? '#ff6666' : '#3b1a3b';
+  ctx.fillText('✕  Clear All', 14, cy + 19);
+
+  // Bottom hint
+  ctx.font = 'bold 9px monospace'; ctx.fillStyle = '#1e0f38';
+  ctx.fillText('Esc → back', 8, H - 10);
+}
+
+function drawEditor() {
+  // Background
+  ctx.fillStyle = '#07060f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid area background
+  ctx.fillStyle = '#050410';
+  ctx.fillRect(PANEL_W, 0, W - PANEL_W, FLOOR_Y);
+
+  // Grid lines
+  ctx.strokeStyle = '#0d0620'; ctx.lineWidth = 0.5;
+  for (let c = 0; c <= GRID_COLS; c++) {
+    const gx = PANEL_W + c * TILE;
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, FLOOR_Y); ctx.stroke();
+  }
+  for (let r = 0; r <= GRID_ROWS; r++) {
+    const gy = r * TILE;
+    ctx.beginPath(); ctx.moveTo(PANEL_W, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+
+  // Placed tiles
+  for (const [key, tile] of Object.entries(editTiles)) {
+    const [col, row] = key.split(',').map(Number);
+    drawTile(tile, PANEL_W + col * TILE, row * TILE);
+  }
+
+  // Hover preview
+  if (hoverCell) {
+    const { col, row } = hoverCell;
+    const px = PANEL_W + col * TILE, py = row * TILE;
+    if (selectedTool === 'eraser') {
+      ctx.fillStyle = '#ff222215';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = '#ff222240'; ctx.lineWidth = 1;
+      ctx.strokeRect(px, py, TILE, TILE);
+    } else {
+      ctx.globalAlpha = 0.5;
+      drawTile({ type: selectedTool, color: selectedColor }, px, py);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Floor strip
+  ctx.fillStyle = '#080015';
+  ctx.fillRect(PANEL_W, FLOOR_Y, W - PANEL_W, H - FLOOR_Y);
+  neon('#a855f7', 10);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(PANEL_W, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
+  noNeon();
+
+  // Level number label
+  ctx.textAlign = 'right'; ctx.font = '11px monospace'; ctx.fillStyle = '#2a1040';
+  ctx.fillText(`Level ${editingSlot + 1}`, W - 8, H - 10);
+
+  // Grid column/row count hint
+  ctx.textAlign = 'left'; ctx.font = '10px monospace'; ctx.fillStyle = '#1a0a2a';
+  ctx.fillText(`${GRID_COLS} × ${GRID_ROWS}`, PANEL_W + 6, H - 10);
+
+  drawEditorPanel();
+}
+
+// ===================== MOUSE HELPERS =====================
+function canvasMouse(e) {
+  const r = canvas.getBoundingClientRect();
+  return {
+    mx: (e.clientX - r.left) * (W / r.width),
+    my: (e.clientY - r.top)  * (H / r.height),
+  };
+}
+
+function menuButtonHit(mx, my) {
+  const bx = W / 2 - 150, by = H / 2 + 45, bw = 300, bh = 46;
+  return mx >= bx && mx <= bx + bw && my >= by && my <= by + bh;
+}
+
+// ===================== INPUT =====================
+canvas.addEventListener('mousemove', e => {
+  const { mx, my } = canvasMouse(e);
+
+  if (gameState === 'menu') {
+    menuHover = menuButtonHit(mx, my);
+    canvas.style.cursor = menuHover ? 'pointer' : 'default';
+
+  } else if (gameState === 'levels') {
+    levelHover = -1;
+    for (let i = 0; i < 8; i++) { if (inSlot(i, mx, my)) { levelHover = i; break; } }
+    canvas.style.cursor = levelHover >= 0 ? 'pointer' : 'default';
+
+  } else if (gameState === 'editor') {
+    hoverCell  = pixelToCell(mx, my);
+    panelHover = panelHit(mx, my);
+    canvas.style.cursor = panelHover ? 'pointer' : (hoverCell ? 'crosshair' : 'default');
+
+    if (isDrawing && hoverCell) {
+      if (drawMode === 'erase') eraseTile(hoverCell.col, hoverCell.row);
+      else                       placeTile(hoverCell.col, hoverCell.row);
+    }
+  }
+});
+
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  const { mx, my } = canvasMouse(e);
+
+  if (gameState === 'menu') {
+    if (menuButtonHit(mx, my)) { gameState = 'levels'; levelHover = -1; }
+
+  } else if (gameState === 'levels') {
+    for (let i = 0; i < 8; i++) { if (inSlot(i, mx, my)) { openSlot(i); return; } }
+
+  } else if (gameState === 'editor') {
+    const pb = panelHit(mx, my);
+    if (pb) {
+      if (pb.kind === 'tool')  selectedTool = pb.id;
+      if (pb.kind === 'color') { selectedColor = ROYGBIV[pb.index]; if (selectedTool === 'eraser') selectedTool = 'block'; }
+      if (pb.kind === 'clear') editTiles = {};
+      return;
+    }
+    const cell = pixelToCell(mx, my);
+    if (cell) {
+      isDrawing = true;
+      if (e.button === 2 || selectedTool === 'eraser') {
+        drawMode = 'erase'; eraseTile(cell.col, cell.row);
+      } else {
+        drawMode = 'place'; placeTile(cell.col, cell.row);
+      }
+    }
+  }
+});
+
+canvas.addEventListener('mouseup',    () => { isDrawing = false; });
+canvas.addEventListener('mouseleave', () => { isDrawing = false; hoverCell = null; panelHover = null; });
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (gameState === 'editor') {
+    const { mx, my } = canvasMouse(e);
+    const cell = pixelToCell(mx, my);
+    if (cell) eraseTile(cell.col, cell.row);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if      (gameState === 'editor') saveAndBack();
+    else if (gameState === 'levels') gameState = 'menu';
+  }
+});
+
+// ===================== LOOP =====================
+function loop() {
+  if      (gameState === 'menu')   drawMenu();
+  else if (gameState === 'levels') drawLevels();
+  else if (gameState === 'editor') drawEditor();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
