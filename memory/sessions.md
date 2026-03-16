@@ -1,5 +1,19 @@
 # Session History
 
+## Session 6 -- 2026-03-15
+
+Completed website setup: corecreate.dev is live on Cloudflare Pages, deployed via GitHub push to Geoff-55/ClaudeCreator.
+Built out the site structure: dark neon theme (purple), homepage with Drafts (password protected) and Published Games tabs.
+Added screenshot watcher system (scripts/watch_screenshots.ps1 + stop script) -- auto-starts each session.
+Built Pong 2 (src/website/games/pong2.html) -- full-featured canvas game:
+  - Title menu → mode select (AI easy/med/hard or PvP) → score select (3/5/10/Endless) → game
+  - Modifier system: 5 types (speed, ball shrink, paddle shrink, random obstacle, field shrink), stackable, queue in middle 10%, rate scales with round time, resets on point
+  - 3-2-1 countdown between rounds, mod sounds, field pulse on queue/activate
+  - Background music (ambient drone + pentatonic melody), starts on first interaction
+  - Left panel shows active modifiers, context-aware back button (?from=drafts/published)
+  - Thumbnail in drafts shows "PONG 2" + glowing ball SVG
+Next session: more games, or start building the drafts/published management system.
+
 ## Session 5 -- 2026-03-15
 
 Scrapped launch script and wrap hook system -- deleted scripts/launch.ps1, .claude/hooks/wrap_detector.py, and .claude/settings.json.

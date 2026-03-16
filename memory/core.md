@@ -10,11 +10,14 @@ Understands how programming works but not an expert in any language.
 ## Key Decisions
 
 - Project root: C:\Dev\ClaudeCreator
-- Primary focus: Content creation tool/system
+- Primary focus: Minigame website (with future content creation functionality planned)
 - C:\Dev\ will house multiple projects over time
 - Website: corecreate.dev -- hosted on Cloudflare Pages, deployed via GitHub push
 - Website source: src/website/ in this repo
 
 ## Gotchas
 
-- gh CLI installed but requires terminal restart before it's available in PATH
+- gh CLI installed and working (auth'd as Geoff-55)
+- GitHub repo: github.com/Geoff-55/ClaudeCreator (master branch → deploys to Cloudflare Pages)
+- Screenshot watcher auto-starts each session; screenshots land in Screenshots/ (gitignored)
+- Games live in src/website/games/, linked from drafts.html with ?from=drafts param
