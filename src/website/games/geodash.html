@@ -49,18 +49,31 @@ const ctx    = canvas.getContext('2d');
 const W = 800, H = 450;
 canvas.width = W; canvas.height = H;
 
-const TILE       = 42;          // Grid/cube size in px
-const FLOOR_Y    = H - 90;      // Top of floor
-const CUBE_X     = 180;         // Fixed screen X for cube
+const TILE       = 42;
+const FLOOR_Y    = H - 90;
+const CUBE_X     = 180;
 const CUBE_SIZE  = TILE;
 const INNER_SIZE = 20;
-const SPEED      = 270;         // World scroll speed px/s
+const SPEED      = 270;
+const GRAVITY    = 1400;
+const JUMP_VEL   = 530;
 
-// Rotation: 90° per tile traveled (GD-style)
+// Rotation: 90° per tile (GD-style, only in air)
 const ROT_RATE = (Math.PI / 2) / TILE * SPEED;
+
+const GROUND_Y = FLOOR_Y - CUBE_SIZE / 2; // Cube center Y when grounded
 
 let worldOffset = 0;
 let cubeAngle   = 0;
+let cubeY       = GROUND_Y;
+let cubeVY      = 0;
+let grounded    = true;
+
+function jump() {
+  if (!grounded) return;
+  cubeVY   = -JUMP_VEL;
+  grounded = false;
+}
 
 // Stars — generated once, fixed to screen
 const STARS = Array.from({ length: 110 }, () => ({
@@ -123,7 +136,7 @@ function drawFloor() {
 
 function drawCube() {
   const cx = CUBE_X;
-  const cy = FLOOR_Y - CUBE_SIZE / 2;
+  const cy = cubeY;
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -146,6 +159,12 @@ function drawCube() {
   ctx.restore();
 }
 
+// ===================== INPUT =====================
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); jump(); }
+});
+canvas.addEventListener('mousedown', () => jump());
+
 // ===================== LOOP =====================
 let last = 0;
 function loop(ts) {
@@ -153,7 +172,20 @@ function loop(ts) {
   last = ts;
 
   worldOffset += SPEED * dt;
-  cubeAngle   += ROT_RATE * dt;
+
+  // Physics
+  if (!grounded) {
+    cubeVY += GRAVITY * dt;
+    cubeY  += cubeVY * dt;
+    cubeAngle += ROT_RATE * dt;
+    if (cubeY >= GROUND_Y) {
+      cubeY    = GROUND_Y;
+      cubeVY   = 0;
+      grounded = true;
+      // Snap angle to nearest 90° for clean landing
+      cubeAngle = Math.round(cubeAngle / (Math.PI / 2)) * (Math.PI / 2);
+    }
+  }
 
   drawBackground();
   drawFloor();
