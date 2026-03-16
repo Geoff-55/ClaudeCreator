@@ -350,6 +350,8 @@ function genLevel() {
 }
 
 // ===================== STATE =====================
+let gameState    = 'menu';   // 'menu' | 'playing'
+let menuHover    = false;
 let worldOffset  = 0;
 let cubeAngle    = 0;
 let cubeY        = GROUND_Y;
@@ -656,19 +658,117 @@ function drawSpeedIndicator() {
   noNeon();
 }
 
+// ===================== MENU =====================
+function startGame() {
+  respawn();
+  gameState = 'playing';
+}
+
+function drawMenuBg() {
+  ctx.fillStyle = '#07060f';
+  ctx.fillRect(0, 0, W, H);
+  // Faint grid
+  ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
+  for (let x = 0; x < W; x += TILE) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += TILE) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  // Stars
+  for (const s of STARS) {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(210,210,255,${s.o})`;
+    ctx.fill();
+  }
+  // Floor line
+  neon('#a855f7', 10);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
+  noNeon();
+}
+
+function drawMenu() {
+  drawMenuBg();
+  ctx.textAlign = 'center';
+
+  // Title — "GEO" green / "DASH" purple, stacked
+  ctx.font = 'bold 80px monospace';
+  neon('#39ff14', 28);
+  ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2.5;
+  ctx.strokeText('GEO', W / 2, H / 2 - 80);
+  noNeon();
+
+  neon('#a855f7', 28);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2.5;
+  ctx.strokeText('DASH', W / 2, H / 2 - 5);
+  noNeon();
+
+  // Tagline
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#2a1a4b';
+  ctx.fillText('run  ·  jump  ·  survive', W / 2, H / 2 + 22);
+
+  // Endless Mode button
+  const bx = W / 2 - 150, by = H / 2 + 45, bw = 300, bh = 46;
+  const hov = menuHover;
+  ctx.fillStyle = hov ? '#39ff1412' : 'transparent';
+  neon(hov ? '#39ff14' : '#a855f7', hov ? 14 : 5);
+  ctx.strokeStyle = hov ? '#39ff14' : '#7c3aed';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeRect(bx, by, bw, bh);
+  noNeon();
+
+  ctx.font = 'bold 16px monospace';
+  ctx.fillStyle = hov ? '#39ff14' : '#a855f7';
+  ctx.fillText('▶  Endless Mode', W / 2, by + 30);
+
+  // Controls hint
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#1e0f38';
+  ctx.fillText('Click · ↑ · W to jump', W / 2, H - 22);
+}
+
 // ===================== INPUT =====================
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-    e.preventDefault(); jumpHeld = true; tryJump();
+    e.preventDefault();
+    if (gameState === 'menu') { startGame(); return; }
+    jumpHeld = true; tryJump();
   }
+  if (e.key === 'Escape' && gameState === 'playing') { gameState = 'menu'; }
 });
 document.addEventListener('keyup', e => {
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') jumpHeld = false;
 });
-canvas.addEventListener('mousedown',  () => { jumpHeld = true;  tryJump(); });
-canvas.addEventListener('mouseup',    () => { jumpHeld = false; });
-canvas.addEventListener('touchstart', () => { jumpHeld = true;  tryJump(); }, { passive: true });
-canvas.addEventListener('touchend',   () => { jumpHeld = false; });
+canvas.addEventListener('mousedown', () => {
+  if (gameState === 'menu') return;   // menu handled by click event
+  jumpHeld = true; tryJump();
+});
+canvas.addEventListener('mouseup',   () => { jumpHeld = false; });
+canvas.addEventListener('mousemove', e => {
+  if (gameState !== 'menu') return;
+  const r  = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top)  * (H / r.height);
+  const bx = W / 2 - 150, by = H / 2 + 45, bw = 300, bh = 46;
+  menuHover = mx >= bx && mx <= bx + bw && my >= by && my <= by + bh;
+});
+canvas.addEventListener('click', e => {
+  if (gameState !== 'menu') return;
+  const r  = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top)  * (H / r.height);
+  const bx = W / 2 - 150, by = H / 2 + 45, bw = 300, bh = 46;
+  if (mx >= bx && mx <= bx + bw && my >= by && my <= by + bh) startGame();
+});
+canvas.addEventListener('touchstart', e => {
+  if (gameState === 'menu') { startGame(); return; }
+  jumpHeld = true; tryJump();
+}, { passive: true });
+canvas.addEventListener('touchend', () => { jumpHeld = false; });
 
 // ===================== LOOP =====================
 const firstLevel = genLevel();
@@ -682,7 +782,10 @@ function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
 
-  if (isDead) {
+  if (gameState === 'menu') {
+    gameTime += dt;
+    drawMenu();
+  } else if (isDead) {
     deathTimer -= dt;
     if (deathTimer <= 0) respawn();
     drawBackground(); drawFloor(); drawJumpPads(); drawBlocks(); drawSpikes(); drawArrows(); drawCube(); drawDeathOverlay();
