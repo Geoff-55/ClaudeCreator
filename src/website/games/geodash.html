@@ -7,14 +7,14 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #0d0d0f;
+      background: #07060f;
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      font-family: monospace;
-      color: #a855f7;
+      overflow: hidden;
     }
+    canvas { display: block; }
     .back-btn {
       position: fixed;
       top: 1rem; right: 1.2rem;
@@ -32,11 +32,136 @@
 </head>
 <body>
   <a class="back-btn" id="backBtn" href="#">Back</a>
-  <p style="opacity:0.3; letter-spacing:0.15em;">— coming soon —</p>
-  <script>
-    const p = new URLSearchParams(window.location.search);
-    const from = p.get('from') || 'drafts';
-    document.getElementById('backBtn').href = from === 'published' ? '../published.html' : '../drafts.html';
-  </script>
+  <canvas id="c"></canvas>
+
+<script>
+// --- Back button ---
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  document.getElementById('backBtn').href =
+    p.get('from') === 'published' ? '../published.html' : '../drafts.html';
+})();
+
+// ===================== SETUP =====================
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+const W = 800, H = 450;
+canvas.width = W; canvas.height = H;
+
+const TILE       = 42;          // Grid/cube size in px
+const FLOOR_Y    = H - 90;      // Top of floor
+const CUBE_X     = 180;         // Fixed screen X for cube
+const CUBE_SIZE  = TILE;
+const INNER_SIZE = 20;
+const SPEED      = 270;         // World scroll speed px/s
+
+// Rotation: 90° per tile traveled (GD-style)
+const ROT_RATE = (Math.PI / 2) / TILE * SPEED;
+
+let worldOffset = 0;
+let cubeAngle   = 0;
+
+// Stars — generated once, fixed to screen
+const STARS = Array.from({ length: 110 }, () => ({
+  x: Math.random() * W,
+  y: Math.random() * (FLOOR_Y - 10),
+  r: Math.random() * 0.9 + 0.2,
+  o: Math.random() * 0.4 + 0.1,
+}));
+
+// ===================== HELPERS =====================
+function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function noNeon()           { ctx.shadowBlur = 0; }
+
+// ===================== DRAW =====================
+function drawBackground() {
+  // Space base
+  ctx.fillStyle = '#07060f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  for (const s of STARS) {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(210, 210, 255, ${s.o})`;
+    ctx.fill();
+  }
+
+  // Scrolling grid lines (above floor)
+  const ox = worldOffset % TILE;
+  ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
+  for (let x = -ox; x < W; x += TILE) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, FLOOR_Y); ctx.stroke();
+  }
+  for (let y = 0; y < FLOOR_Y; y += TILE) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawFloor() {
+  const floorH = H - FLOOR_Y;
+
+  // Floor fill
+  ctx.fillStyle = '#080015';
+  ctx.fillRect(0, FLOOR_Y, W, floorH);
+
+  // Scrolling tile grid on floor surface
+  const ox = worldOffset % TILE;
+  ctx.strokeStyle = '#160830'; ctx.lineWidth = 0.6;
+  for (let x = -ox; x < W; x += TILE) {
+    ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, H); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(0, FLOOR_Y + TILE * 0.5); ctx.lineTo(W, FLOOR_Y + TILE * 0.5); ctx.stroke();
+
+  // Top edge — neon glow line
+  neon('#a855f7', 10);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
+  noNeon();
+}
+
+function drawCube() {
+  const cx = CUBE_X;
+  const cy = FLOOR_Y - CUBE_SIZE / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(cubeAngle);
+
+  // Outer square — neon green
+  neon('#39ff14', 18);
+  ctx.strokeStyle = '#39ff14';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-CUBE_SIZE / 2, -CUBE_SIZE / 2, CUBE_SIZE, CUBE_SIZE);
+  noNeon();
+
+  // Inner square — neon blue
+  neon('#00d4ff', 14);
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-INNER_SIZE / 2, -INNER_SIZE / 2, INNER_SIZE, INNER_SIZE);
+  noNeon();
+
+  ctx.restore();
+}
+
+// ===================== LOOP =====================
+let last = 0;
+function loop(ts) {
+  const dt = Math.min((ts - last) / 1000, 0.05);
+  last = ts;
+
+  worldOffset += SPEED * dt;
+  cubeAngle   += ROT_RATE * dt;
+
+  drawBackground();
+  drawFloor();
+  drawCube();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
 </body>
 </html>
