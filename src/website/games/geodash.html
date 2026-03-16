@@ -208,14 +208,14 @@ function genLevel() {
 
   while (wx < 45000) {
     // ── Generate one section ──
-    const sectionTiles = 20 + Math.floor(Math.random() * 12);
+    const sectionTiles = 28 + Math.floor(Math.random() * 16); // longer sections = less frequent speed changes
     const sectionEnd   = wx + TILE * sectionTiles;
     let ox = wx;
 
     while (ox < sectionEnd) {
       const roll = Math.random();
 
-      if (roll < 0.28) {
+      if (roll < 0.36) {
         // ── Floor block group: 1–3 columns, grounded stacks ──
         const cols  = 1 + Math.floor(Math.random() * 3);
         const color = randColor();
@@ -227,41 +227,46 @@ function genLevel() {
         }
         ox += cols * TILE;
 
-      } else if (roll < 0.58) {
-        // ── Elevated platform: 2–6 tiles wide ──
-        const pWidth = 2 + Math.floor(Math.random() * 5);
-        const pY     = FLOOR_Y - TILE * 2;       // one tile above floor
-        const pColor = randColor();
-        for (let i = 0; i < pWidth; i++) {
-          blocks.push({ worldX: ox + i * TILE, y: pY, color: pColor });
+      } else if (roll < 0.62) {
+        // ── Grounded platform: 2–5 tiles wide, 1–3 tiles tall ──
+        // All columns filled from floor up to platform top
+        const pWidth  = 2 + Math.floor(Math.random() * 4);
+        const pHeight = Math.random() < 0.55 ? 1 : Math.random() < 0.82 ? 2 : 3;
+        const pY      = FLOOR_Y - TILE * pHeight; // top surface
+        const pColor  = randColor();
+        for (let c = 0; c < pWidth; c++) {
+          for (let h = 1; h <= pHeight; h++) {
+            blocks.push({ worldX: ox + c * TILE, y: FLOOR_Y - TILE * h, color: pColor });
+          }
         }
 
-        // What's on the platform?
-        const pRoll = Math.random();
-        if (pRoll < 0.30 && pWidth >= 2) {
-          // Spikes on platform (1–2, not at the very left edge)
-          const sStart = 1 + Math.floor(Math.random() * Math.max(1, pWidth - 2));
-          const sCount = Math.min(pWidth - sStart, Math.random() < 0.45 ? 2 : 1);
-          for (let i = 0; i < sCount; i++) {
-            spikes.push({ worldX: ox + (sStart + i) * TILE, tall: Math.random() < 0.5,
-                          color: randColor(), floorY: pY });
+        // Platform-top content (only when tall enough to be interesting)
+        if (pHeight >= 1) {
+          const pRoll = Math.random();
+          if (pRoll < 0.32 && pWidth >= 2) {
+            // Spikes on top (not at left edge so there's a landing zone)
+            const sStart = 1 + Math.floor(Math.random() * Math.max(1, pWidth - 2));
+            const sCount = Math.min(pWidth - sStart, Math.random() < 0.45 ? 2 : 1);
+            for (let i = 0; i < sCount; i++) {
+              spikes.push({ worldX: ox + (sStart + i) * TILE, tall: Math.random() < 0.5,
+                            color: randColor(), floorY: pY });
+            }
+          } else if (pRoll < 0.50 && pWidth >= 3) {
+            // Speed arrow floating above platform
+            const aTile = 1 + Math.floor(Math.random() * (pWidth - 2));
+            arrows.push({ worldX: ox + aTile * TILE + TILE / 2,
+                          type: Math.random() < 0.5 ? 'full' : 'half',
+                          collected: false, floatY: pY - TILE * 0.85 });
+          } else if (pRoll < 0.68 && pWidth >= 4) {
+            // Jump-off spike at right end of long platform
+            spikes.push({ worldX: ox + (pWidth - 1) * TILE, tall: true,
+                          color: '#ff3030', floorY: pY });
           }
-        } else if (pRoll < 0.52 && pWidth >= 3) {
-          // Speed arrow floating above platform
-          const aTile = 1 + Math.floor(Math.random() * (pWidth - 2));
-          arrows.push({ worldX: ox + aTile * TILE + TILE / 2,
-                        type: Math.random() < 0.5 ? 'full' : 'half',
-                        collected: false,
-                        floatY: pY - TILE * 0.85 });
-        } else if (pRoll < 0.70 && pWidth >= 4) {
-          // Jump-off spike at right end of long platform
-          spikes.push({ worldX: ox + (pWidth - 1) * TILE, tall: true,
-                        color: '#ff3030', floorY: pY });
         }
         ox += pWidth * TILE;
 
-      } else if (roll < 0.84) {
-        // ── Floor spike group: 1–2 in half mode, 1–3 in full mode ──
+      } else if (roll < 0.90) {
+        // ── Floor spike group: 1–2 in half, 1–3 in full ──
         const maxCount = isFull ? 3 : 2;
         const count    = 1 + Math.floor(Math.random() * maxCount);
         for (let i = 0; i < count; i++) {
@@ -276,18 +281,18 @@ function genLevel() {
       }
 
       // Gap between groups within the section
-      ox += TILE * (5 + Math.floor(Math.random() * 5));
+      ox += TILE * (4 + Math.floor(Math.random() * 4));
     }
 
     // Clear gap after section before the arrow
-    wx = sectionEnd + TILE * 6;
+    wx = sectionEnd + TILE * 7;
 
     // ── Place transition arrow ──
     isFull = !isFull;
     arrows.push({ worldX: wx, type: isFull ? 'full' : 'half', collected: false });
 
     // Clear gap after arrow before the next section
-    wx += TILE * 7;
+    wx += TILE * 8;
   }
 
   return { blocks, spikes, arrows };
@@ -303,6 +308,9 @@ let isDead       = false;
 let deathTimer   = 0;
 let gameTime     = 0;
 let currentMode  = 'half';   // 'half' | 'full'
+let jumpHeld     = false;
+let jumpBuffer   = 0;        // seconds remaining in jump buffer window
+const JUMP_BUF   = 0.12;     // 120 ms — tap just before landing still counts
 let blocks       = [];
 let spikes       = [];
 let arrows       = [];
@@ -315,17 +323,20 @@ const STARS = Array.from({ length: 120 }, () => ({
 }));
 
 function getSpeed()   { return currentMode === 'half' ? SPEED_HALF : SPEED_FULL; }
-function getRotRate() { return (Math.PI / 2) / TILE * getSpeed(); }
+function getRotRate() { return (Math.PI / 2) / TILE * getSpeed() * 0.28; }
 
 // ===================== HELPERS =====================
 function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
 function noNeon()           { ctx.shadowBlur = 0; }
 
 // ===================== PHYSICS =====================
-function jump() {
-  if (!grounded || isDead) return;
+function tryJump() {
+  if (isDead) return;
+  jumpBuffer = JUMP_BUF;   // buffer the request
+  if (!grounded) return;   // will fire when we land
   cubeVY   = -JUMP_VEL;
   grounded = false;
+  jumpBuffer = 0;
 }
 
 function die() {
@@ -349,6 +360,8 @@ function respawn() {
   isDead      = false;
   deathTimer  = 0;
   currentMode = 'half';
+  jumpHeld    = false;
+  jumpBuffer  = 0;
 }
 
 function resolveCollisions() {
@@ -438,8 +451,9 @@ function drawBlocks() {
   for (const b of blocks) {
     const sx = b.worldX - worldOffset;
     if (sx + TILE < 0 || sx > W) continue;
-    ctx.fillStyle = b.color + '18';
-    ctx.fillRect(sx, b.y, TILE, TILE);
+    // Fill from block top to floor so stacked blocks look like solid grounded pillars
+    ctx.fillStyle = b.color + '20';
+    ctx.fillRect(sx, b.y, TILE, FLOOR_Y - b.y);
     neon(b.color, 12);
     ctx.strokeStyle = b.color; ctx.lineWidth = 1.5;
     ctx.strokeRect(sx, b.y, TILE, TILE);
@@ -542,9 +556,17 @@ function drawSpeedIndicator() {
 
 // ===================== INPUT =====================
 document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); jump(); }
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+    e.preventDefault(); jumpHeld = true; tryJump();
+  }
 });
-canvas.addEventListener('mousedown', () => jump());
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') jumpHeld = false;
+});
+canvas.addEventListener('mousedown',  () => { jumpHeld = true;  tryJump(); });
+canvas.addEventListener('mouseup',    () => { jumpHeld = false; });
+canvas.addEventListener('touchstart', () => { jumpHeld = true;  tryJump(); }, { passive: true });
+canvas.addEventListener('touchend',   () => { jumpHeld = false; });
 
 // ===================== LOOP =====================
 const firstLevel = genLevel();
@@ -568,6 +590,13 @@ function loop(ts) {
     cubeY       += cubeVY * dt;
     grounded     = false;
     resolveCollisions();
+    if (jumpBuffer > 0) jumpBuffer -= dt;
+    // Fire jump the moment we're grounded: held input OR buffered tap
+    if (grounded && (jumpHeld || jumpBuffer > 0)) {
+      cubeVY   = -JUMP_VEL;
+      grounded = false;
+      jumpBuffer = 0;
+    }
     checkArrows();
 
     if (!grounded) {
