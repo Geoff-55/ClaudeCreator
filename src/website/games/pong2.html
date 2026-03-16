@@ -34,102 +34,133 @@
   </style>
 </head>
 <body>
-  <a class="back-btn" href="../index.html">Back</a>
+  <a class="back-btn" id="backBtn" href="#">Back</a>
   <canvas id="c"></canvas>
 
 <script>
+// --- Back button: go to wherever we came from ---
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const from = params.get('from') || 'drafts';
+  document.getElementById('backBtn').href = from === 'published' ? '../published.html' : '../drafts.html';
+})();
+
+// ===================== AUDIO =====================
+let audioCtx = null, masterGain = null, musicStarted = false;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.22;
+  masterGain.connect(audioCtx.destination);
+}
+
+function startMusic() {
+  if (musicStarted || !audioCtx) return;
+  musicStarted = true;
+  // Low ambient drone — two detuned sines
+  for (const detune of [-4, 4]) {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 65.41; // C2
+    osc.detune.value = detune;
+    g.gain.value = 0.10;
+    osc.connect(g); g.connect(masterGain);
+    osc.start();
+  }
+  scheduleMelody();
+}
+
+const PENTATONIC = [130.81, 164.81, 196.00, 246.94, 261.63, 329.63, 392.00];
+function scheduleMelody() {
+  if (!audioCtx || !musicStarted) return;
+  const freq = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(0, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(0.055, audioCtx.currentTime + 0.4);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.8);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 2.8);
+  setTimeout(scheduleMelody, (1.8 + Math.random() * 2.2) * 1000);
+}
+
+function playHit(freq) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.06);
+}
+
+document.addEventListener('click', () => { initAudio(); }, { once: true });
+
+// ===================== GAME =====================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-
 const W = 900, H = 580;
-canvas.width = W;
-canvas.height = H;
+canvas.width = W; canvas.height = H;
 
-// --- Constants ---
-const PADDLE_W = 12;
-const PADDLE_H_BASE = 80;
-const BALL_R_BASE = 10;
-const BALL_SPEED_BASE = 4.5;
-const MOD_INTERVAL = 5;
-const WIN_SCORE = 10;
+const PADDLE_W = 12, PADDLE_H_BASE = 80, BALL_R_BASE = 10;
+const BALL_SPEED_BASE = 4.5, MOD_INTERVAL = 5, WIN_SCORE = 10;
+const OBS_SIZE = 42; // slightly bigger than before
+
 const MOD_TYPES = ['SPEED_UP', 'BALL_SHRINK', 'PADDLE_SHRINK', 'OBSTACLE', 'FIELD_SHRINK'];
 const MOD_LABELS = {
   SPEED_UP:      '⚡ Speed +25%',
   BALL_SHRINK:   '● Ball -25%',
   PADDLE_SHRINK: '▌ Paddle -25%',
-  OBSTACLE:      '■ Obstacle',
+  OBSTACLE:      '◆ Random Object',
   FIELD_SHRINK:  '⬜ Field -10%',
 };
+const OBS_SHAPES = ['square', 'triangle', 'circle', 'diamond'];
 const AI_CFG = {
   'ai-easy':   { speed: 180, error: 55 },
   'ai-medium': { speed: 290, error: 18 },
   'ai-hard':   { speed: 430, error: 4  },
 };
 
-// --- State ---
-let state = 'menu'; // menu | playing | win
-let mode = null;
-let menuHover = -1;
-let winner = '';
-
-// --- Game Objects ---
+let state = 'menu', mode = null, menuHover = -1, winner = '';
 let field, p1, p2, ball, obstacles, modifiers, modTimer, totalTime;
 let modQueued = false, pendingMod = null;
 let countdown = 0, countdownTimer = 0;
 
-function makeField() {
-  return { x: 20, y: 50, w: W - 40, h: H - 70 };
-}
-
-function makePaddles(f) {
-  return {
-    p1: { x: f.x + f.w - 18, y: f.y + f.h / 2, w: PADDLE_W, h: PADDLE_H_BASE, score: 0 },
-    p2: { x: f.x + 6,         y: f.y + f.h / 2, w: PADDLE_W, h: PADDLE_H_BASE, score: 0 },
-  };
-}
+function makeField() { return { x: 20, y: 50, w: W - 40, h: H - 70 }; }
 
 function resetGame() {
   field = makeField();
-  const pads = makePaddles(field);
-  p1 = pads.p1; p1.score = 0;
-  p2 = pads.p2; p2.score = 0;
+  p1 = { x: field.x + field.w - 18, y: field.y + field.h / 2, w: PADDLE_W, h: PADDLE_H_BASE, score: 0 };
+  p2 = { x: field.x + 6,            y: field.y + field.h / 2, w: PADDLE_W, h: PADDLE_H_BASE, score: 0 };
   ball = { x: field.x + field.w / 2, y: field.y + field.h / 2, r: BALL_R_BASE, speed: BALL_SPEED_BASE, vx: 0, vy: 0 };
-  obstacles = [];
-  modifiers = [];
-  modTimer = MOD_INTERVAL;
-  modQueued = false; pendingMod = null;
+  obstacles = []; modifiers = [];
+  modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
   totalTime = 0;
   startCountdown();
 }
 
 function resetRound() {
   field = makeField();
-  p1.x = field.x + field.w - 18;
-  p1.y = field.y + field.h / 2;
-  p1.h = PADDLE_H_BASE;
-  p2.x = field.x + 6;
-  p2.y = field.y + field.h / 2;
-  p2.h = PADDLE_H_BASE;
-  ball.r = BALL_R_BASE;
-  ball.speed = BALL_SPEED_BASE;
+  p1.x = field.x + field.w - 18; p1.y = field.y + field.h / 2; p1.h = PADDLE_H_BASE;
+  p2.x = field.x + 6;            p2.y = field.y + field.h / 2; p2.h = PADDLE_H_BASE;
+  ball.r = BALL_R_BASE; ball.speed = BALL_SPEED_BASE;
   ball.vx = 0; ball.vy = 0;
-  ball.x = field.x + field.w / 2;
-  ball.y = field.y + field.h / 2;
-  obstacles = [];
-  modifiers = [];
-  modTimer = MOD_INTERVAL;
-  modQueued = false; pendingMod = null;
+  ball.x = field.x + field.w / 2; ball.y = field.y + field.h / 2;
+  obstacles = []; modifiers = [];
+  modTimer = MOD_INTERVAL; modQueued = false; pendingMod = null;
   startCountdown();
 }
 
-function startCountdown() {
-  countdown = 3;
-  countdownTimer = 0.75;
-}
+function startCountdown() { countdown = 3; countdownTimer = 0.75; }
 
 function launchBall() {
-  ball.x = field.x + field.w / 2;
-  ball.y = field.y + field.h / 2;
   const angle = (Math.random() * 60 - 30) * (Math.PI / 180);
   const dir = Math.random() < 0.5 ? 1 : -1;
   ball.vx = dir * ball.speed * Math.cos(angle);
@@ -155,31 +186,25 @@ function applyMod() {
   modifiers.push(type);
   switch (type) {
     case 'SPEED_UP':
-      ball.speed *= 1.25;
-      normBall();
-      break;
+      ball.speed *= 1.25; normBall(); break;
     case 'BALL_SHRINK':
-      ball.r = Math.max(3, ball.r * 0.75);
-      break;
+      ball.r = Math.max(3, ball.r * 0.75); break;
     case 'PADDLE_SHRINK':
       p1.h = Math.max(18, p1.h * 0.75);
       p2.h = Math.max(18, p2.h * 0.75);
-      clamp(p1); clamp(p2);
-      break;
+      clamp(p1); clamp(p2); break;
     case 'OBSTACLE': {
       const cx = field.x + field.w * 0.3 + Math.random() * field.w * 0.4;
       const cy = field.y + field.h * 0.2 + Math.random() * field.h * 0.6;
-      obstacles.push({ x: cx - 15, y: cy - 15, w: 30, h: 30 });
+      const shape = OBS_SHAPES[Math.floor(Math.random() * OBS_SHAPES.length)];
+      obstacles.push({ x: cx - OBS_SIZE / 2, y: cy - OBS_SIZE / 2, w: OBS_SIZE, h: OBS_SIZE, shape });
       break;
     }
     case 'FIELD_SHRINK': {
       const sx = field.w * 0.05, sy = field.h * 0.05;
-      field.x += sx; field.y += sy;
-      field.w -= sx * 2; field.h -= sy * 2;
-      p1.x = field.x + field.w - 18;
-      p2.x = field.x + 6;
+      field.x += sx; field.y += sy; field.w -= sx * 2; field.h -= sy * 2;
+      p1.x = field.x + field.w - 18; p2.x = field.x + 6;
       clamp(p1); clamp(p2);
-      // Push ball inside if needed
       ball.x = Math.max(field.x + ball.r, Math.min(field.x + field.w - ball.r, ball.x));
       ball.y = Math.max(field.y + ball.r, Math.min(field.y + field.h - ball.r, ball.y));
       break;
@@ -189,9 +214,7 @@ function applyMod() {
 }
 
 function clamp(p) {
-  const top = field.y + p.h / 2;
-  const bot = field.y + field.h - p.h / 2;
-  p.y = Math.max(top, Math.min(bot, p.y));
+  p.y = Math.max(field.y + p.h / 2, Math.min(field.y + field.h - p.h / 2, p.y));
 }
 
 // --- Input ---
@@ -214,7 +237,6 @@ function updateAI(dt) {
 
 // --- Update ---
 function update(dt) {
-  // Countdown before ball launches
   if (countdown > 0) {
     countdownTimer -= dt;
     if (countdownTimer <= 0) {
@@ -227,23 +249,18 @@ function update(dt) {
 
   totalTime += dt;
 
-  // Modifier timer / queue
   if (!modQueued) {
     modTimer -= dt;
     if (modTimer <= 0) queueMod();
   } else {
-    // Apply once ball is in middle 50% horizontally
-    const midLeft  = field.x + field.w * 0.25;
-    const midRight = field.x + field.w * 0.75;
-    if (ball.x >= midLeft && ball.x <= midRight) applyMod();
+    const midL = field.x + field.w * 0.45;
+    const midR = field.x + field.w * 0.55;
+    if (ball.x >= midL && ball.x <= midR) applyMod();
   }
 
-  // P1 input (right paddle — arrows)
   const spd = 340 * dt;
   if (keys['ArrowUp'])   { p1.y -= spd; clamp(p1); }
   if (keys['ArrowDown']) { p1.y += spd; clamp(p1); }
-
-  // P2 input or AI (left paddle — W/S)
   if (mode === 'pvp') {
     if (keys['w'] || keys['W']) { p2.y -= spd; clamp(p2); }
     if (keys['s'] || keys['S']) { p2.y += spd; clamp(p2); }
@@ -251,30 +268,29 @@ function update(dt) {
     updateAI(dt);
   }
 
-  // Ball movement
   ball.x += ball.vx * 60 * dt;
   ball.y += ball.vy * 60 * dt;
 
-  // Top/bottom wall bounce
+  // Wall bounce
   if (ball.y - ball.r < field.y) {
-    ball.y = field.y + ball.r;
-    ball.vy = Math.abs(ball.vy);
+    ball.y = field.y + ball.r; ball.vy = Math.abs(ball.vy);
+    playHit(200);
   }
   if (ball.y + ball.r > field.y + field.h) {
-    ball.y = field.y + field.h - ball.r;
-    ball.vy = -Math.abs(ball.vy);
+    ball.y = field.y + field.h - ball.r; ball.vy = -Math.abs(ball.vy);
+    playHit(200);
   }
 
   // Paddle collisions
   if (hitsPaddle(p1) && ball.vx > 0) {
     ball.vx = -Math.abs(ball.vx);
     ball.vy += ((ball.y - p1.y) / (p1.h / 2)) * 1.5;
-    normBall();
+    normBall(); playHit(330);
   }
   if (hitsPaddle(p2) && ball.vx < 0) {
     ball.vx = Math.abs(ball.vx);
     ball.vy += ((ball.y - p2.y) / (p2.h / 2)) * 1.5;
-    normBall();
+    normBall(); playHit(330);
   }
 
   // Obstacle collisions
@@ -293,10 +309,8 @@ function update(dt) {
 }
 
 function hitsPaddle(p) {
-  return ball.x + ball.r > p.x &&
-         ball.x - ball.r < p.x + p.w &&
-         ball.y + ball.r > p.y - p.h / 2 &&
-         ball.y - ball.r < p.y + p.h / 2;
+  return ball.x + ball.r > p.x && ball.x - ball.r < p.x + p.w &&
+         ball.y + ball.r > p.y - p.h / 2 && ball.y - ball.r < p.y + p.h / 2;
 }
 
 function resolveObs(obs) {
@@ -310,6 +324,7 @@ function resolveObs(obs) {
     } else {
       ball.vy = dy > 0 ? Math.abs(ball.vy) : -Math.abs(ball.vy);
     }
+    playHit(260);
   }
 }
 
@@ -319,75 +334,76 @@ function drawBg() {
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#131320';
   ctx.lineWidth = 0.5;
-  for (let x = 0; x < W; x += 45) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = 0; y < H; y += 45) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
+  for (let x = 0; x < W; x += 45) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 45) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 }
 
-function neon(color, blur) {
-  ctx.shadowColor = color;
-  ctx.shadowBlur = blur;
-}
+function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
 function noNeon() { ctx.shadowBlur = 0; }
+
+function drawObstacle(obs) {
+  const cx = obs.x + obs.w / 2, cy = obs.y + obs.h / 2, r = obs.w / 2;
+  ctx.fillStyle = '#3b0764';
+  ctx.strokeStyle = '#a855f7';
+  ctx.lineWidth = 1.5;
+  neon('#7c3aed', 14);
+  ctx.beginPath();
+  switch (obs.shape) {
+    case 'square':
+      ctx.rect(obs.x, obs.y, obs.w, obs.h); break;
+    case 'circle':
+      ctx.arc(cx, cy, r, 0, Math.PI * 2); break;
+    case 'triangle':
+      ctx.moveTo(cx, obs.y);
+      ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+      ctx.lineTo(obs.x, obs.y + obs.h);
+      ctx.closePath(); break;
+    case 'diamond':
+      ctx.moveTo(cx, obs.y);
+      ctx.lineTo(obs.x + obs.w, cy);
+      ctx.lineTo(cx, obs.y + obs.h);
+      ctx.lineTo(obs.x, cy);
+      ctx.closePath(); break;
+  }
+  ctx.fill(); ctx.stroke();
+  noNeon();
+}
 
 function drawGame() {
   drawBg();
 
   // Field border
-  ctx.strokeStyle = '#a855f7';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
   neon('#a855f7', 8);
   ctx.strokeRect(field.x, field.y, field.w, field.h);
   noNeon();
 
   // Center dashes
-  ctx.setLineDash([8, 8]);
-  ctx.strokeStyle = '#1e1040';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(field.x + field.w / 2, field.y);
-  ctx.lineTo(field.x + field.w / 2, field.y + field.h);
-  ctx.stroke();
+  ctx.setLineDash([8, 8]); ctx.strokeStyle = '#1e1040'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(field.x + field.w/2, field.y); ctx.lineTo(field.x + field.w/2, field.y + field.h); ctx.stroke();
   ctx.setLineDash([]);
 
   // Paddles
   for (const p of [p1, p2]) {
-    ctx.fillStyle = '#a855f7';
-    neon('#a855f7', 14);
-    ctx.fillRect(p.x, p.y - p.h / 2, p.w, p.h);
+    ctx.fillStyle = '#a855f7'; neon('#a855f7', 14);
+    ctx.fillRect(p.x, p.y - p.h/2, p.w, p.h);
     noNeon();
   }
 
   // Obstacles
-  for (const obs of obstacles) {
-    ctx.fillStyle = '#3b0764';
-    neon('#7c3aed', 12);
-    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-    ctx.strokeStyle = '#a855f7';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-    noNeon();
-  }
+  for (const obs of obstacles) drawObstacle(obs);
 
   // Ball
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  neon('#ffffff', 18);
-  ctx.fill();
-  noNeon();
+  ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff'; neon('#ffffff', 18); ctx.fill(); noNeon();
 
   drawHUD();
 
-  // Countdown overlay
+  // Countdown
   if (countdown > 0) {
     ctx.textAlign = 'center';
     ctx.font = 'bold 100px monospace';
-    ctx.strokeStyle = '#a855f7';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
     neon('#a855f7', 35);
     ctx.strokeText(countdown, W / 2, field.y + field.h / 2 + 36);
     noNeon();
@@ -396,36 +412,27 @@ function drawGame() {
 
 function drawHUD() {
   // Scores
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#d8b4fe';
-  ctx.font = 'bold 28px monospace';
   const mid = field.x + field.w / 2;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#d8b4fe'; ctx.font = 'bold 28px monospace';
   ctx.fillText(p2.score, mid - 50, 36);
   ctx.fillText(p1.score, mid + 50, 36);
-  ctx.fillStyle = '#4b2a7a';
-  ctx.font = 'bold 20px monospace';
+  ctx.fillStyle = '#4b2a7a'; ctx.font = 'bold 20px monospace';
   ctx.fillText(':', mid, 36);
-
-  // Player labels
-  ctx.font = '11px monospace';
-  ctx.fillStyle = '#6b4a9b';
+  ctx.font = '11px monospace'; ctx.fillStyle = '#6b4a9b';
   ctx.fillText(mode === 'pvp' ? 'P2' : 'AI', mid - 50, 48);
   ctx.fillText('P1', mid + 50, 48);
 
   // Timer
-  const m = String(Math.floor(totalTime / 60)).padStart(2, '0');
-  const s = String(Math.floor(totalTime % 60)).padStart(2, '0');
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#4b4b6b';
-  ctx.font = '13px monospace';
-  ctx.fillText(`${m}:${s}`, W - 8, 20);
+  const mm = String(Math.floor(totalTime / 60)).padStart(2, '0');
+  const ss = String(Math.floor(totalTime % 60)).padStart(2, '0');
+  ctx.textAlign = 'right'; ctx.fillStyle = '#4b4b6b'; ctx.font = '13px monospace';
+  ctx.fillText(`${mm}:${ss}`, W - 8, 20);
 
-  // Modifier countdown / queued status
-  ctx.textAlign = 'left';
-  ctx.font = '13px monospace';
+  // Mod status
+  ctx.textAlign = 'left'; ctx.font = '13px monospace';
   if (modQueued) {
-    const qFlash = Math.floor(Date.now() / 300) % 2 === 0;
-    ctx.fillStyle = qFlash ? '#f472b6' : '#f87171';
+    ctx.fillStyle = Math.floor(Date.now() / 300) % 2 === 0 ? '#f472b6' : '#f87171';
     ctx.fillText('MOD QUEUED!', 8, 20);
   } else {
     const flash = modTimer < 2 && Math.floor(modTimer * 4) % 2 === 0;
@@ -433,12 +440,11 @@ function drawHUD() {
     ctx.fillText(`mod in: ${Math.ceil(modTimer)}s`, 8, 20);
   }
 
-  // Active modifier list (bottom left, outside field border)
+  // Active modifier list
   if (modifiers.length > 0) {
     const counts = {};
     for (const m of modifiers) counts[m] = (counts[m] || 0) + 1;
-    ctx.textAlign = 'left';
-    ctx.font = '11px monospace';
+    ctx.textAlign = 'left'; ctx.font = '11px monospace';
     let ly = H - 8;
     for (const [k, v] of Object.entries(counts).reverse()) {
       ctx.fillStyle = '#4b3a6b';
@@ -450,79 +456,46 @@ function drawHUD() {
 
 function drawMenu() {
   drawBg();
-
-  // Title
   ctx.textAlign = 'center';
-  ctx.font = 'bold 80px monospace';
-  ctx.strokeStyle = '#a855f7';
-  ctx.lineWidth = 2;
-  neon('#a855f7', 25);
-  ctx.strokeText('PONG 2', W / 2, H / 2 - 140);
-  noNeon();
+  ctx.font = 'bold 80px monospace'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
+  neon('#a855f7', 25); ctx.strokeText('PONG 2', W/2, H/2 - 140); noNeon();
+  ctx.font = '14px monospace'; ctx.fillStyle = '#4b2a6b';
+  ctx.fillText('modifiers · chaos · first to 10', W/2, H/2 - 100);
 
-  // Subtitle
-  ctx.font = '14px monospace';
-  ctx.fillStyle = '#4b2a6b';
-  ctx.fillText('modifiers · chaos · first to 10', W / 2, H / 2 - 100);
-
-  // Menu items
-  const items = [
-    'vs AI — Easy',
-    'vs AI — Medium',
-    'vs AI — Hard',
-    'vs Player 2',
-  ];
+  const items = ['vs AI — Easy', 'vs AI — Medium', 'vs AI — Hard', 'vs Player 2'];
   items.forEach((label, i) => {
-    const bx = W / 2 - 160, by = H / 2 - 55 + i * 52, bw = 320, bh = 40;
+    const bx = W/2 - 160, by = H/2 - 55 + i * 52, bw = 320, bh = 40;
     const hov = menuHover === i;
-    ctx.strokeStyle = hov ? '#d8b4fe' : '#7c3aed';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = hov ? '#d8b4fe' : '#7c3aed'; ctx.lineWidth = 1;
     ctx.fillStyle = hov ? '#a855f715' : 'transparent';
     neon('#a855f7', hov ? 12 : 0);
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeRect(bx, by, bw, bh);
-    noNeon();
+    ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh); noNeon();
     ctx.fillStyle = hov ? '#d8b4fe' : '#a855f7';
     ctx.font = `${hov ? 'bold ' : ''}17px monospace`;
-    ctx.fillText(label, W / 2, by + 26);
+    ctx.fillText(label, W/2, by + 26);
   });
 
-  // Controls hint
-  ctx.font = '12px monospace';
-  ctx.fillStyle = '#2a1a4a';
-  ctx.fillText('P1: ↑ ↓   P2: W S', W / 2, H - 20);
+  ctx.font = '12px monospace'; ctx.fillStyle = '#2a1a4a';
+  ctx.fillText('P1: ↑ ↓   P2: W S', W/2, H - 20);
 }
 
 function drawWin() {
   drawGame();
-  ctx.fillStyle = '#0d0d0fbb';
-  ctx.fillRect(0, 0, W, H);
-
+  ctx.fillStyle = '#0d0d0fbb'; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center';
-  ctx.font = 'bold 54px monospace';
-  ctx.strokeStyle = '#a855f7';
-  ctx.lineWidth = 2;
-  neon('#a855f7', 30);
-  ctx.strokeText(`${winner} wins!`, W / 2, H / 2 - 30);
-  noNeon();
-
-  const m = String(Math.floor(totalTime / 60)).padStart(2, '0');
-  const s = String(Math.floor(totalTime % 60)).padStart(2, '0');
-  ctx.fillStyle = '#6b4a9b';
-  ctx.font = '16px monospace';
-  ctx.fillText(`time: ${m}:${s}`, W / 2, H / 2 + 16);
-
-  ctx.fillStyle = '#4b2a6b';
-  ctx.font = '14px monospace';
-  ctx.fillText('click to return to menu', W / 2, H / 2 + 50);
+  ctx.font = 'bold 54px monospace'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
+  neon('#a855f7', 30); ctx.strokeText(`${winner} wins!`, W/2, H/2 - 30); noNeon();
+  const mm = String(Math.floor(totalTime/60)).padStart(2,'0');
+  const ss = String(Math.floor(totalTime%60)).padStart(2,'0');
+  ctx.fillStyle = '#6b4a9b'; ctx.font = '16px monospace';
+  ctx.fillText(`time: ${mm}:${ss}`, W/2, H/2 + 16);
+  ctx.fillStyle = '#4b2a6b'; ctx.font = '14px monospace';
+  ctx.fillText('click to return to menu', W/2, H/2 + 50);
 }
 
 // --- Menu interaction ---
-const MENU_ITEMS = 4;
-function menuItemBox(i) {
-  return { x: W / 2 - 160, y: H / 2 - 55 + i * 52, w: 320, h: 40 };
-}
 const MENU_MODES = ['ai-easy', 'ai-medium', 'ai-hard', 'pvp'];
+function menuItemBox(i) { return { x: W/2-160, y: H/2-55+i*52, w: 320, h: 40 }; }
 
 canvas.addEventListener('mousemove', e => {
   if (state !== 'menu') return;
@@ -530,22 +503,21 @@ canvas.addEventListener('mousemove', e => {
   const mx = (e.clientX - r.left) * (W / r.width);
   const my = (e.clientY - r.top) * (H / r.height);
   menuHover = -1;
-  for (let i = 0; i < MENU_ITEMS; i++) {
+  for (let i = 0; i < 4; i++) {
     const b = menuItemBox(i);
-    if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
-      menuHover = i; break;
-    }
+    if (mx >= b.x && mx <= b.x+b.w && my >= b.y && my <= b.y+b.h) { menuHover = i; break; }
   }
 });
 
-canvas.addEventListener('click', e => {
+canvas.addEventListener('click', () => {
+  initAudio();
   if (state === 'menu' && menuHover >= 0) {
     mode = MENU_MODES[menuHover];
     resetGame();
     state = 'playing';
+    startMusic();
   } else if (state === 'win') {
-    state = 'menu';
-    menuHover = -1;
+    state = 'menu'; menuHover = -1;
   }
 });
 
@@ -554,9 +526,9 @@ let last = 0;
 function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
-  if (state === 'menu')    drawMenu();
+  if (state === 'menu')         drawMenu();
   else if (state === 'playing') { update(dt); drawGame(); }
-  else if (state === 'win')    drawWin();
+  else if (state === 'win')     drawWin();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
