@@ -38,54 +38,67 @@
     <a href="games/pong2.html?from=published" style="text-decoration:none;">
       <div style="width:160px; border:1px solid #7c3aed; background:#0d0d0f; cursor:pointer; transition: box-shadow 0.2s;"
            onmouseover="this.style.boxShadow='0 0 18px #7c3aed'" onmouseout="this.style.boxShadow='none'">
-        <div style="width:100%; height:100px; background:#080010; overflow:hidden;">
+        <div style="width:100%; height:100px; background:#07060f; overflow:hidden;">
           <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
             <defs>
-              <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              <filter id="ballglow"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="tg" x="-80%" y="-80%" width="260%" height="260%">
+                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="sun" x="-150%" y="-150%" width="400%" height="400%">
+                <feGaussianBlur stdDeviation="12"/>
+              </filter>
+              <radialGradient id="sunG" cx="38%" cy="35%" r="65%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="30%" stop-color="#e9d5ff"/>
+                <stop offset="70%" stop-color="#a855f7" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#3b0764" stop-opacity="0"/>
+              </radialGradient>
             </defs>
 
-            <!-- Background -->
-            <rect width="160" height="100" fill="#080010"/>
+            <!-- Space background -->
+            <rect width="160" height="100" fill="#07060f"/>
 
-            <!-- Subtle grid -->
-            <g stroke="#0f0825" stroke-width="0.5">
-              <line x1="0" y1="33" x2="160" y2="33"/>
-              <line x1="0" y1="66" x2="160" y2="66"/>
-              <line x1="53" y1="0" x2="53" y2="100"/>
-              <line x1="107" y1="0" x2="107" y2="100"/>
+            <!-- Nebula -->
+            <circle cx="80" cy="52" r="70" fill="url(#sunG)" opacity="0.18"/>
+
+            <!-- Grid -->
+            <g stroke="#0f0825" stroke-width="0.4" opacity="0.9">
+              <line x1="0" y1="25" x2="160" y2="25"/><line x1="0" y1="50" x2="160" y2="50"/>
+              <line x1="0" y1="75" x2="160" y2="75"/><line x1="40" y1="0" x2="40" y2="100"/>
+              <line x1="80" y1="0" x2="80" y2="100"/><line x1="120" y1="0" x2="120" y2="100"/>
             </g>
 
-            <!-- Title strip -->
-            <rect width="160" height="17" fill="#06000f"/>
-            <text x="80" y="12" text-anchor="middle" font-family="monospace" font-size="10" font-weight="900"
-              fill="none" stroke="#a855f7" stroke-width="0.7" letter-spacing="4" filter="url(#glow)">PONG 2</text>
+            <!-- Faint geo shapes -->
+            <polygon points="8,5 38,18 15,38" fill="none" stroke="#4b1a80" stroke-width="0.7" opacity="0.5"/>
+            <polygon points="135,72 158,60 155,90" fill="none" stroke="#4b1a80" stroke-width="0.7" opacity="0.5"/>
 
-            <!-- Field border -->
-            <rect x="4" y="19" width="152" height="77" fill="none" stroke="#a855f7" stroke-width="1" filter="url(#glow)"/>
+            <!-- Stars -->
+            <circle cx="14" cy="9" r="0.7" fill="white" opacity="0.55"/>
+            <circle cx="48" cy="6" r="0.5" fill="white" opacity="0.4"/>
+            <circle cx="142" cy="11" r="0.8" fill="white" opacity="0.6"/>
+            <circle cx="128" cy="88" r="0.6" fill="white" opacity="0.45"/>
+            <circle cx="22" cy="78" r="0.5" fill="white" opacity="0.5"/>
+            <circle cx="153" cy="48" r="0.7" fill="white" opacity="0.35"/>
+            <circle cx="6" cy="55" r="0.6" fill="white" opacity="0.4"/>
+            <circle cx="110" cy="94" r="0.5" fill="white" opacity="0.4"/>
+            <circle cx="158" cy="22" r="0.5" fill="white" opacity="0.3"/>
+            <circle cx="72" cy="96" r="0.4" fill="white" opacity="0.35"/>
 
-            <!-- Score -->
-            <text x="66" y="31" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#d8b4fe">3</text>
-            <text x="80" y="30" text-anchor="middle" font-family="monospace" font-size="8" fill="#3b1a60">:</text>
-            <text x="94" y="31" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#d8b4fe">2</text>
+            <!-- Sun glow (outer, blurred) -->
+            <circle cx="80" cy="52" r="26" fill="url(#sunG)" filter="url(#sun)" opacity="0.85"/>
 
-            <!-- Center dashed line -->
-            <line x1="80" y1="19" x2="80" y2="96" stroke="#1e0e40" stroke-width="1" stroke-dasharray="5,4"/>
+            <!-- Sun core -->
+            <circle cx="80" cy="52" r="18" fill="url(#sunG)"/>
+            <circle cx="78" cy="50" r="6" fill="white" opacity="0.92" filter="url(#tg)"/>
 
-            <!-- Left paddle -->
-            <rect x="7" y="46" width="5" height="24" rx="1" fill="#a855f7" filter="url(#glow)"/>
+            <!-- PONG — top half -->
+            <text x="80" y="33" text-anchor="middle" font-family="monospace" font-size="24" font-weight="900"
+              fill="none" stroke="#e9d5ff" stroke-width="0.9" letter-spacing="2" filter="url(#tg)">PONG</text>
 
-            <!-- Right paddle -->
-            <rect x="148" y="54" width="5" height="24" rx="1" fill="#a855f7" filter="url(#glow)"/>
-
-            <!-- Obstacle (diamond) -->
-            <polygon points="58,55 65,62 58,69 51,62" fill="#1a0430" stroke="#6b3aed" stroke-width="0.8"/>
-
-            <!-- Ball -->
-            <circle cx="102" cy="64" r="4" fill="white" filter="url(#ballglow)"/>
-
-            <!-- Bottom tag -->
-            <text x="80" y="93" text-anchor="middle" font-family="monospace" font-size="5.5" fill="#2a1248" letter-spacing="1">⚡ CHAOS MODIFIERS ⚡</text>
+            <!-- 2 — bottom half -->
+            <text x="80" y="82" text-anchor="middle" font-family="monospace" font-size="32" font-weight="900"
+              fill="none" stroke="#ffffff" stroke-width="0.9" filter="url(#tg)">2</text>
           </svg>
         </div>
         <div style="padding:0.5rem 0.7rem; border-top:1px solid #3b1a6b;">
