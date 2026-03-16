@@ -74,6 +74,8 @@ let winner = '';
 
 // --- Game Objects ---
 let field, p1, p2, ball, obstacles, modifiers, modTimer, totalTime;
+let modQueued = false, pendingMod = null;
+let countdown = 0, countdownTimer = 0;
 
 function makeField() {
   return { x: 20, y: 50, w: W - 40, h: H - 70 };
@@ -91,12 +93,13 @@ function resetGame() {
   const pads = makePaddles(field);
   p1 = pads.p1; p1.score = 0;
   p2 = pads.p2; p2.score = 0;
-  ball = { x: 0, y: 0, r: BALL_R_BASE, speed: BALL_SPEED_BASE, vx: 0, vy: 0 };
+  ball = { x: field.x + field.w / 2, y: field.y + field.h / 2, r: BALL_R_BASE, speed: BALL_SPEED_BASE, vx: 0, vy: 0 };
   obstacles = [];
   modifiers = [];
   modTimer = MOD_INTERVAL;
+  modQueued = false; pendingMod = null;
   totalTime = 0;
-  launchBall();
+  startCountdown();
 }
 
 function resetRound() {
@@ -109,10 +112,19 @@ function resetRound() {
   p2.h = PADDLE_H_BASE;
   ball.r = BALL_R_BASE;
   ball.speed = BALL_SPEED_BASE;
+  ball.vx = 0; ball.vy = 0;
+  ball.x = field.x + field.w / 2;
+  ball.y = field.y + field.h / 2;
   obstacles = [];
   modifiers = [];
   modTimer = MOD_INTERVAL;
-  launchBall();
+  modQueued = false; pendingMod = null;
+  startCountdown();
+}
+
+function startCountdown() {
+  countdown = 3;
+  countdownTimer = 0.75;
 }
 
 function launchBall() {
@@ -132,8 +144,14 @@ function normBall() {
 }
 
 // --- Modifiers ---
+function queueMod() {
+  pendingMod = MOD_TYPES[Math.floor(Math.random() * MOD_TYPES.length)];
+  modQueued = true;
+}
+
 function applyMod() {
-  const type = MOD_TYPES[Math.floor(Math.random() * MOD_TYPES.length)];
+  const type = pendingMod;
+  modQueued = false; pendingMod = null;
   modifiers.push(type);
   switch (type) {
     case 'SPEED_UP':
@@ -196,9 +214,29 @@ function updateAI(dt) {
 
 // --- Update ---
 function update(dt) {
+  // Countdown before ball launches
+  if (countdown > 0) {
+    countdownTimer -= dt;
+    if (countdownTimer <= 0) {
+      countdown--;
+      if (countdown === 0) launchBall();
+      else countdownTimer = 0.75;
+    }
+    return;
+  }
+
   totalTime += dt;
-  modTimer -= dt;
-  if (modTimer <= 0) applyMod();
+
+  // Modifier timer / queue
+  if (!modQueued) {
+    modTimer -= dt;
+    if (modTimer <= 0) queueMod();
+  } else {
+    // Apply once ball is in middle 50% horizontally
+    const midLeft  = field.x + field.w * 0.25;
+    const midRight = field.x + field.w * 0.75;
+    if (ball.x >= midLeft && ball.x <= midRight) applyMod();
+  }
 
   // P1 input (right paddle — arrows)
   const spd = 340 * dt;
@@ -343,6 +381,17 @@ function drawGame() {
   noNeon();
 
   drawHUD();
+
+  // Countdown overlay
+  if (countdown > 0) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 100px monospace';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2;
+    neon('#a855f7', 35);
+    ctx.strokeText(countdown, W / 2, field.y + field.h / 2 + 36);
+    noNeon();
+  }
 }
 
 function drawHUD() {
@@ -371,14 +420,20 @@ function drawHUD() {
   ctx.font = '13px monospace';
   ctx.fillText(`${m}:${s}`, W - 8, 20);
 
-  // Modifier countdown
-  const flash = modTimer < 2 && Math.floor(modTimer * 4) % 2 === 0;
+  // Modifier countdown / queued status
   ctx.textAlign = 'left';
-  ctx.fillStyle = flash ? '#f472b6' : modTimer < 2 ? '#f87171' : '#6b6b9b';
   ctx.font = '13px monospace';
-  ctx.fillText(`mod in: ${Math.ceil(modTimer)}s`, 8, 20);
+  if (modQueued) {
+    const qFlash = Math.floor(Date.now() / 300) % 2 === 0;
+    ctx.fillStyle = qFlash ? '#f472b6' : '#f87171';
+    ctx.fillText('MOD QUEUED!', 8, 20);
+  } else {
+    const flash = modTimer < 2 && Math.floor(modTimer * 4) % 2 === 0;
+    ctx.fillStyle = flash ? '#f472b6' : modTimer < 2 ? '#f87171' : '#6b6b9b';
+    ctx.fillText(`mod in: ${Math.ceil(modTimer)}s`, 8, 20);
+  }
 
-  // Active modifier list (bottom left)
+  // Active modifier list (bottom left, outside field border)
   if (modifiers.length > 0) {
     const counts = {};
     for (const m of modifiers) counts[m] = (counts[m] || 0) + 1;
@@ -387,7 +442,7 @@ function drawHUD() {
     let ly = H - 8;
     for (const [k, v] of Object.entries(counts).reverse()) {
       ctx.fillStyle = '#4b3a6b';
-      ctx.fillText(`${MOD_LABELS[k]}${v > 1 ? ' x' + v : ''}`, 8, ly);
+      ctx.fillText(`${MOD_LABELS[k]}${v > 1 ? ' x' + v : ''}`, 3, ly);
       ly -= 15;
     }
   }
