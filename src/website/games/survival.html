@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">they should fit the neon purple style, structurally look like grass, make the pixels slightly bigger and have the tree be MUCH bigger. The player can walk behind most parts of the tree except the bottom of the trunk.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">make the trees look 2D facing up toward the sky. trunk base blocks movement, player walks behind the rest. make grass more varied, a couple different versions, more pixelated and less detail.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -97,33 +97,39 @@ function chunkRNG(cx, cy) {
 }
 
 // ===================== TREE GEOMETRY =====================
-const CBS  = 6;   // canopy block size (px)
-const CR   = 10;  // canopy radius in blocks (60px radius = 120px diameter)
-const TW   = 12;  // trunk width
-const TH   = 28;  // trunk height below canopy center
-const TRUNK_FRONT = 14; // bottom px of trunk drawn in FRONT of player
+const CBS  = 5;   // canopy block size (px)
+const CRX  = 8;   // canopy horizontal radius in blocks → 40px
+const CRY  = 6;   // canopy vertical radius in blocks   → 30px
+const TW   = 12;  // trunk width (px)
+const TH   = 30;  // trunk height (px) below canopy bottom
+const TCOL = 16;  // trunk base collision zone height (px)
 
-// Precompute canopy block rings (at startup, not per frame)
-const C_OUTER = [], C_MID = [], C_INNER = [], C_CORE = [];
-for (let row = -CR; row <= CR; row++) {
-  for (let col = -CR; col <= CR; col++) {
-    const d = Math.sqrt(row * row + col * col);
-    if (d > CR) continue;
-    if      (d > CR - 2)   C_OUTER.push([row, col]);
-    else if (d > CR - 5)   C_MID.push([row, col]);
-    else if (d > CR - 8)   C_INNER.push([row, col]);
-    else                   C_CORE.push([row, col]);
+// Precompute oval canopy block rings (done once at startup)
+const C_OUTER = [], C_MID = [], C_INNER = [];
+for (let row = -CRY; row <= CRY; row++) {
+  for (let col = -CRX; col <= CRX; col++) {
+    const d2 = (col / CRX) ** 2 + (row / CRY) ** 2;
+    if (d2 > 1.0)  continue;
+    if (d2 > 0.65) C_OUTER.push([row, col]);
+    else if (d2 > 0.28) C_MID.push([row, col]);
+    else           C_INNER.push([row, col]);
   }
 }
 
-// ===================== GRASS GEOMETRY =====================
-// Fixed blade offsets — 5 blades per patch, pointing upward
-const BLADES = [
-  { dx: -7, h: 10, body: '#6b21a8', tip: '#c084fc' },
-  { dx: -3, h: 13, body: '#9333ea', tip: '#d8b4fe' },
-  { dx:  1, h:  9, body: '#7c3aed', tip: '#c084fc' },
-  { dx:  5, h: 12, body: '#6b21a8', tip: '#d8b4fe' },
-  { dx:  9, h:  8, body: '#9333ea', tip: '#c084fc' },
+// ===================== GRASS VARIANTS =====================
+// Two simple chunky variants — each blade is a solid rectangle
+const GRASS_VARIANTS = [
+  // A: two blades, simple
+  [
+    { dx: -4, w: 4, h: 10, c: '#6b21a8' },
+    { dx:  3, w: 4, h:  7, c: '#7c3aed' },
+  ],
+  // B: three shorter chunkier blocks
+  [
+    { dx: -5, w: 4, h: 6, c: '#7c3aed' },
+    { dx:  0, w: 4, h: 9, c: '#6b21a8' },
+    { dx:  5, w: 4, h: 5, c: '#9333ea' },
+  ],
 ];
 
 // ===================== WORLD GENERATION =====================
@@ -133,27 +139,39 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
     const rng = chunkRNG(cx, cy);
     const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
 
-    // 2–4 grass patches
+    // 2–4 grass patches, each assigned a variant
     const grass = [];
     const n = 2 + Math.floor(rng() * 3);
     for (let i = 0; i < n; i++) {
       grass.push({
         x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
         y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
+        v: Math.floor(rng() * GRASS_VARIANTS.length),  // variant index
       });
     }
 
-    // 35% tree — kept well away from chunk edges to avoid major clipping
+    // 35% tree — canopy center stored as t.x, t.y
     let tree = null;
     if (rng() < 0.35) {
       tree = {
-        x: wx + 100 + Math.floor(rng() * (CHUNK_W - 200)),
-        y: wy + 100 + Math.floor(rng() * (CHUNK_H - 200)),
+        x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
+        y: wy + 60 + Math.floor(rng() * (CHUNK_H - 150)),
       };
     }
 
     worldChunks.push({ grass, tree });
   }
+}
+
+// Helper: trunk base collision rect in world coords for a tree
+function trunkRect(t) {
+  const trunkBot = t.y + CRY * CBS + TH;
+  return {
+    x1: t.x - TW / 2,
+    x2: t.x + TW / 2,
+    y1: trunkBot - TCOL,
+    y2: trunkBot,
+  };
 }
 
 // ===================== PLAYER =====================
@@ -191,6 +209,27 @@ function updateFacing() {
   if (dx !== 0 || dy !== 0) facingAngle = Math.atan2(dy, dx);
 }
 
+function resolveTreeCollisions() {
+  for (const chunk of worldChunks) {
+    if (!chunk.tree) continue;
+    const r = trunkRect(chunk.tree);
+    // Closest point on rect to player circle
+    const cx = Math.max(r.x1, Math.min(r.x2, px));
+    const cy = Math.max(r.y1, Math.min(r.y2, py));
+    const dx = px - cx, dy = py - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < BODY_R) {
+      if (dist === 0) {
+        py = r.y1 - BODY_R;  // centre inside rect — push up
+      } else {
+        const overlap = BODY_R - dist;
+        px += (dx / dist) * overlap;
+        py += (dy / dist) * overlap;
+      }
+    }
+  }
+}
+
 function updateMovement(dt) {
   const moving    = active('w') || active('a') || active('s') || active('d');
   const sprinting = keys['shift'] && moving && stamina > 0;
@@ -209,12 +248,15 @@ function updateMovement(dt) {
   if (staminaReady && stamina < STAM_MAX)
     stamina = Math.min(STAM_MAX, stamina + STAM_REGEN * dt);
 
-  if (!moving) return;
-  const speed = sprinting ? SPEED * SPRINT_MULT : SPEED;
-  px += Math.cos(facingAngle) * speed * dt;
-  py += Math.sin(facingAngle) * speed * dt;
-  px = Math.max(BODY_R, Math.min(WORLD_W - BODY_R, px));
-  py = Math.max(BODY_R, Math.min(WORLD_H - BODY_R, py));
+  if (moving) {
+    const speed = sprinting ? SPEED * SPRINT_MULT : SPEED;
+    px += Math.cos(facingAngle) * speed * dt;
+    py += Math.sin(facingAngle) * speed * dt;
+    px = Math.max(BODY_R, Math.min(WORLD_W - BODY_R, px));
+    py = Math.max(BODY_R, Math.min(WORLD_H - BODY_R, py));
+  }
+
+  resolveTreeCollisions();
 }
 
 // ===================== DRAW =====================
@@ -252,91 +294,81 @@ function drawBorder() {
   noNeon();
 }
 
-// Grass patches (drawn below player)
 function drawGrass() {
   for (const chunk of worldChunks) {
     for (const g of chunk.grass) {
       const sx = g.x - camX, sy = g.y - camY;
       if (sx < -30 || sx > W + 30 || sy < -30 || sy > H + 30) continue;
-      for (const b of BLADES) {
-        // Body
-        ctx.fillStyle = b.body;
-        ctx.fillRect(sx + b.dx, sy - b.h, 2, b.h);
-        // Tip (top 3px brighter)
-        ctx.fillStyle = b.tip;
-        ctx.fillRect(sx + b.dx, sy - b.h, 2, 3);
+      for (const b of GRASS_VARIANTS[g.v]) {
+        ctx.fillStyle = b.c;
+        ctx.fillRect(sx + b.dx, sy - b.h, b.w, b.h);
       }
     }
   }
 }
 
-// Tree trunk base — drawn BEFORE player so player walks in front of it
+// Trunk base — drawn before player so player appears IN FRONT
 function drawTreeBases() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
     const t = chunk.tree;
-    const sx = Math.round(t.x - camX);
-    const sy = Math.round(t.y - camY);
-    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 80) continue;
+    const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
+    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 120) continue;
 
-    // Trunk base: bottom TRUNK_FRONT pixels of trunk
-    const trunkBotY = sy + CR * CBS / 2 + TH;          // world bottom of trunk (screen)
-    const trunkTopY = trunkBotY - TH;
-    const splitY    = trunkBotY - TRUNK_FRONT;          // split point
+    const trunkTopY = sy + CRY * CBS;
+    const trunkBotY = trunkTopY + TH;
+    const splitY    = trunkBotY - TCOL;
 
+    // Bottom section of trunk (player walks in front)
     ctx.fillStyle = '#0d051a';
-    ctx.fillRect(sx - TW / 2, splitY, TW, TRUNK_FRONT);
-    // Subtle edge highlight on sides
+    ctx.fillRect(sx - TW / 2, splitY, TW, TCOL);
     ctx.fillStyle = '#1e0a38';
-    ctx.fillRect(sx - TW / 2, splitY, 2, TRUNK_FRONT);
-    ctx.fillRect(sx + TW / 2 - 2, splitY, 2, TRUNK_FRONT);
+    ctx.fillRect(sx - TW / 2,     splitY, 2, TCOL);
+    ctx.fillRect(sx + TW / 2 - 2, splitY, 2, TCOL);
   }
 }
 
-// Tree canopy + upper trunk — drawn AFTER player so player walks behind them
-function drawTreeCanopies() {
+// Canopy + upper trunk — drawn after player so player appears BEHIND
+function drawTreeTops() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
     const t = chunk.tree;
-    const sx = Math.round(t.x - camX);
-    const sy = Math.round(t.y - camY);
-    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 80) continue;
+    const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
+    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 120) continue;
 
-    const trunkBotY = sy + CR * CBS / 2 + TH;
-    const splitY    = trunkBotY - TRUNK_FRONT;
+    const trunkTopY = sy + CRY * CBS;
+    const trunkBotY = trunkTopY + TH;
+    const splitY    = trunkBotY - TCOL;
 
-    // Upper trunk (above split)
+    // Upper trunk
     ctx.fillStyle = '#0d051a';
-    ctx.fillRect(sx - TW / 2, sy + CR * CBS / 2, TW, TH - TRUNK_FRONT);
+    ctx.fillRect(sx - TW / 2, trunkTopY, TW, splitY - trunkTopY);
     ctx.fillStyle = '#1e0a38';
-    ctx.fillRect(sx - TW / 2, sy + CR * CBS / 2, 2, TH - TRUNK_FRONT);
-    ctx.fillRect(sx + TW / 2 - 2, sy + CR * CBS / 2, 2, TH - TRUNK_FRONT);
+    ctx.fillRect(sx - TW / 2,     trunkTopY, 2, splitY - trunkTopY);
+    ctx.fillRect(sx + TW / 2 - 2, trunkTopY, 2, splitY - trunkTopY);
 
-    // Canopy — outer edge glow pass
-    neon('#3b1a6b', 8);
-    ctx.fillStyle = '#1a0838';
+    // Canopy — outer glow ring
+    neon('#3b1a6b', 10);
+    ctx.fillStyle = '#160630';
     for (const [row, col] of C_OUTER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
     noNeon();
 
-    // Canopy — remaining rings
-    ctx.fillStyle = '#220d42';
+    // Mid ring
+    ctx.fillStyle = '#21094a';
     for (const [row, col] of C_MID)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
-    ctx.fillStyle = '#2e1256';
+    // Inner
+    ctx.fillStyle = '#2e1260';
     for (const [row, col] of C_INNER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
-    ctx.fillStyle = '#1e0a38';
-    for (const [row, col] of C_CORE)
-      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
-
-    // Subtle highlight dots scattered near center
-    ctx.fillStyle = '#4a1a70';
-    ctx.fillRect(sx - CBS,     sy - CBS * 2, CBS, CBS);
-    ctx.fillRect(sx + CBS * 2, sy,           CBS, CBS);
-    ctx.fillRect(sx - CBS * 3, sy + CBS,     CBS, CBS);
+    // A few highlight flecks
+    ctx.fillStyle = '#4a1a78';
+    ctx.fillRect(sx - CBS,      sy - CBS,      CBS, CBS);
+    ctx.fillRect(sx + CBS * 2,  sy + CBS,      CBS, CBS);
+    ctx.fillRect(sx - CBS * 3,  sy,            CBS, CBS);
   }
 }
 
@@ -391,7 +423,7 @@ function loop(ts) {
   drawGrass();
   drawTreeBases();   // trunk base — in front of player
   drawPlayer();
-  drawTreeCanopies(); // canopy + upper trunk — behind player
+  drawTreeTops();    // canopy + upper trunk — behind player
   drawBorder();
   drawStamina();
   requestAnimationFrame(loop);
