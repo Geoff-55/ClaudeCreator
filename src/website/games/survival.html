@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">now for the website around the game have a slight border. Now, add a small stamina bar to the bottom left of the game. Shift makes the player sprint, and stamina is used. Stamina will begin regening at a steady rate after 3 seconds if they continue walking, or instantly if they stand still.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">have the chunks have very small pixelated details like just super small patches of grass. have them be sparse, only a couple or few in each chunk. Now, add a 35% chance for a tree to spawn in each chunk, same style but much bigger and tree like.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -62,8 +62,8 @@ function noNeon()           { ctx.shadowBlur = 0; }
 
 // ===================== INPUT =====================
 const keys      = {};
-const released  = {};         // key → timestamp when released
-const DIAG_GRACE = 50;        // ms — grace window after releasing a diagonal key
+const released  = {};
+const DIAG_GRACE = 50;
 
 document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
@@ -78,35 +78,88 @@ document.addEventListener('keyup', e => {
   released[k] = performance.now();
 });
 
-// A key counts as active if held, or released within the grace window
 function active(k) {
   return keys[k] || (released[k] !== undefined && performance.now() - released[k] < DIAG_GRACE);
 }
 
 // ===================== WORLD =====================
 const CHUNK_W = W, CHUNK_H = H;
-const WORLD_W = CHUNK_W * 5;   // 4400
-const WORLD_H = CHUNK_H * 7;   // 3430
+const CHUNKS_X = 5, CHUNKS_Y = 7;
+const WORLD_W = CHUNK_W * CHUNKS_X;
+const WORLD_H = CHUNK_H * CHUNKS_Y;
+
+// Simple seeded RNG per chunk
+function chunkRNG(cx, cy) {
+  let s = (cx * 73856093 ^ cy * 19349663) >>> 0;
+  return function() {
+    s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+    return (s >>> 0) / 0x100000000;
+  };
+}
+
+// Grass patch: pixel offsets (each drawn as 2x2)
+const GRASS_PX = [[0,0],[3,1],[1,3],[-2,2],[4,-1],[-1,-2],[2,4]];
+
+// Tree canopy: block offsets (row,col) in a 7x5 grid, each block = 4px
+// Shape: roughly circular blob
+const CANOPY_GRID = [
+  [0,2],[0,3],[0,4],
+  [1,1],[1,2],[1,3],[1,4],[1,5],
+  [2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],
+  [3,1],[3,2],[3,3],[3,4],[3,5],
+  [4,2],[4,3],[4,4],
+];
+const CB = 4; // canopy block size (px)
+
+// Generate all chunk decorations at startup
+const worldChunks = [];
+for (let cy = 0; cy < CHUNKS_Y; cy++) {
+  for (let cx = 0; cx < CHUNKS_X; cx++) {
+    const rng = chunkRNG(cx, cy);
+    const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
+
+    // 2–4 grass patches
+    const grass = [];
+    const n = 2 + Math.floor(rng() * 3);
+    for (let i = 0; i < n; i++) {
+      grass.push({
+        x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
+        y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
+      });
+    }
+
+    // 35% tree
+    let tree = null;
+    if (rng() < 0.35) {
+      tree = {
+        x: wx + 70 + Math.floor(rng() * (CHUNK_W - 140)),
+        y: wy + 70 + Math.floor(rng() * (CHUNK_H - 140)),
+      };
+    }
+
+    worldChunks.push({ grass, tree });
+  }
+}
 
 // ===================== PLAYER =====================
 const BODY_R      = 18;
 const HEAD_R      = 7;
 const HEAD_DIST   = 12;
-const SPEED       = 160;   // px/s walk
-const SPRINT_MULT = 1.75;  // sprint speed multiplier
+const SPEED       = 160;
+const SPRINT_MULT = 1.75;
 
-let px = WORLD_W / 2, py = WORLD_H / 2;   // start at world centre
-let facingAngle = -Math.PI / 2;            // default: up
+let px = WORLD_W / 2, py = WORLD_H / 2;
+let facingAngle = -Math.PI / 2;
 
 // ===================== STAMINA =====================
-const STAM_MAX       = 100;
-const STAM_DRAIN     = 40;    // per second while sprinting
-const STAM_REGEN     = 25;    // per second while regenerating
-const STAM_REGEN_DELAY = 3;   // seconds before regen kicks in while walking
+const STAM_MAX         = 100;
+const STAM_DRAIN       = 40;
+const STAM_REGEN       = 25;
+const STAM_REGEN_DELAY = 3;
 
-let stamina        = STAM_MAX;
-let staminaReady   = false;   // whether regen is active
-let walkingTimer   = 0;       // time spent walking without sprinting
+let stamina      = STAM_MAX;
+let staminaReady = false;
+let walkingTimer = 0;
 
 // ===================== CAMERA =====================
 let camX = 0, camY = 0;
@@ -116,6 +169,7 @@ function updateCamera() {
   camY = Math.max(0, Math.min(WORLD_H - H, py - H / 2));
 }
 
+// ===================== UPDATE =====================
 function updateFacing() {
   const dx = (active('d') ? 1 : 0) - (active('a') ? 1 : 0);
   const dy = (active('s') ? 1 : 0) - (active('w') ? 1 : 0);
@@ -123,33 +177,27 @@ function updateFacing() {
 }
 
 function updateMovement(dt) {
-  const moving = active('w') || active('a') || active('s') || active('d');
+  const moving    = active('w') || active('a') || active('s') || active('d');
   const sprinting = keys['shift'] && moving && stamina > 0;
 
-  // Stamina logic
   if (sprinting) {
     stamina = Math.max(0, stamina - STAM_DRAIN * dt);
     walkingTimer = 0;
     staminaReady = false;
   } else if (!moving) {
-    // Standing still — regen immediately
     staminaReady = true;
     walkingTimer = 0;
   } else {
-    // Walking without sprinting — wait for delay then regen
     walkingTimer += dt;
     if (walkingTimer >= STAM_REGEN_DELAY) staminaReady = true;
   }
-
-  if (staminaReady && stamina < STAM_MAX) {
+  if (staminaReady && stamina < STAM_MAX)
     stamina = Math.min(STAM_MAX, stamina + STAM_REGEN * dt);
-  }
 
   if (!moving) return;
   const speed = sprinting ? SPEED * SPRINT_MULT : SPEED;
   px += Math.cos(facingAngle) * speed * dt;
   py += Math.sin(facingAngle) * speed * dt;
-  // Clamp to world bounds
   px = Math.max(BODY_R, Math.min(WORLD_W - BODY_R, px));
   py = Math.max(BODY_R, Math.min(WORLD_H - BODY_R, py));
 }
@@ -173,18 +221,65 @@ function drawBg() {
 
   // Chunk boundaries (dev aid)
   ctx.strokeStyle = '#1e0f38'; ctx.lineWidth = 1;
-  for (let cx = 0; cx <= 5; cx++) {
+  for (let cx = 0; cx <= CHUNKS_X; cx++) {
     const sx = cx * CHUNK_W - camX;
     ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
   }
-  for (let cy = 0; cy <= 7; cy++) {
+  for (let cy = 0; cy <= CHUNKS_Y; cy++) {
     const sy = cy * CHUNK_H - camY;
     ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
   }
 }
 
+function drawDecorations() {
+  for (let cy = 0; cy < CHUNKS_Y; cy++) {
+    for (let cx = 0; cx < CHUNKS_X; cx++) {
+      const chunk = worldChunks[cy * CHUNKS_X + cx];
+
+      // Grass patches
+      ctx.fillStyle = '#1a3a16';
+      for (const g of chunk.grass) {
+        const sx = g.x - camX, sy = g.y - camY;
+        if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+        for (const [dx, dy] of GRASS_PX) {
+          ctx.fillRect(sx + dx, sy + dy, 2, 2);
+        }
+      }
+
+      // Tree
+      if (chunk.tree) {
+        const t = chunk.tree;
+        const sx = t.x - camX, sy = t.y - camY;
+        if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
+
+        // Shadow (subtle dark ellipse behind canopy)
+        ctx.fillStyle = '#050408';
+        ctx.beginPath();
+        ctx.ellipse(sx + 3, sy + 4, 14, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Canopy blocks — outer layer
+        ctx.fillStyle = '#1c4a18';
+        for (const [row, col] of CANOPY_GRID) {
+          ctx.fillRect(sx - 14 + col * CB, sy - 12 + row * CB, CB, CB);
+        }
+
+        // Inner canopy (slightly lighter, 1-block inset)
+        ctx.fillStyle = '#245e1e';
+        const innerBlocks = [[1,2],[1,3],[1,4],[2,1],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[3,4]];
+        for (const [row, col] of innerBlocks) {
+          ctx.fillRect(sx - 14 + col * CB, sy - 12 + row * CB, CB, CB);
+        }
+
+        // Dark center (trunk visible from top)
+        ctx.fillStyle = '#0f1a0c';
+        ctx.fillRect(sx - 3, sy - 2, 6, 6);
+      }
+    }
+  }
+}
+
 function drawBorder() {
-  // World border in screen space
   const bx = -camX, by = -camY;
   neon('#a855f7', 22);
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4;
@@ -193,9 +288,8 @@ function drawBorder() {
 }
 
 function drawPlayer() {
-  const sx = px - camX, sy = py - camY;  // world → screen
+  const sx = px - camX, sy = py - camY;
 
-  // Body
   neon('#a855f7', 20);
   ctx.fillStyle = '#0d0a1a';
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
@@ -203,7 +297,6 @@ function drawPlayer() {
   ctx.fill(); ctx.stroke();
   noNeon();
 
-  // Head — small circle offset in facing direction
   const hx = sx + Math.cos(facingAngle) * HEAD_DIST;
   const hy = sy + Math.sin(facingAngle) * HEAD_DIST;
   neon('#d8b4fe', 12);
@@ -218,15 +311,11 @@ function drawStamina() {
   const bx = 14, by = H - 24;
   const fill = (stamina / STAM_MAX) * BAR_W;
   const sprinting = keys['shift'] && stamina > 0;
-
-  // Tint: cyan when sprinting, purple when regen-ready, dim otherwise
   const color = sprinting ? '#00d4ff' : staminaReady ? '#a855f7' : '#3b1a6b';
 
-  // Background track
   ctx.fillStyle = '#0d0a1a';
   ctx.fillRect(bx, by, BAR_W, BAR_H);
 
-  // Fill
   if (fill > 0) {
     neon(color, sprinting ? 10 : 6);
     ctx.fillStyle = color;
@@ -234,7 +323,6 @@ function drawStamina() {
     noNeon();
   }
 
-  // Track border
   ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
   ctx.strokeRect(bx, by, BAR_W, BAR_H);
 }
@@ -248,6 +336,7 @@ function loop(ts) {
   updateMovement(dt);
   updateCamera();
   drawBg();
+  drawDecorations();
   drawBorder();
   drawPlayer();
   drawStamina();
