@@ -1,5 +1,28 @@
 # Session History
 
+## Session 7 -- 2026-03-16
+
+GeoDash (geodash.html) wrapped up:
+  - Fixed uncommitted changes from previous session (grounded platforms, hold-to-jump) by pushing them properly
+  - Rotation reduced to 0.28x → then tuned to 0.56x (~180° per jump at half speed)
+  - Platform blocks now fill column to floor visually (solid grounded pillars)
+  - Jump buffer (120ms tap-before-landing window) added
+  - Structured obstacle patterns: predefined block/spike formations instead of random per-column heights
+  - Speed arrows: full-speed arrows never spawn during fast sections
+  - Pink jump pads: rare, launch 60% higher, always followed by 3 pink spikes then platform or spike group
+  - Main menu added: GEO (green) / DASH (purple) stacked title, Endless Mode (DNF) button, Esc to return
+  - Marked as DNF: button label "(DNF)", card in drafts faded/dimmed
+
+GeoDash 2 (geodash2.html) started fresh:
+  - New drafts card with GEO/DASH split thumbnail
+  - Menu: Create Levels tab only (game modes coming later)
+  - Level editor: 8 save slots (session-only), 4×2 grid of cards with mini tile previews
+  - Editor tools: Block, Spike, ½ Spike, Eraser; 7 ROYGBIV color swatches; Clear All
+  - Click/drag to place, right-click to erase, ghost preview on hover, neon glow
+  - Esc: editor → slots → menu; levels auto-save to slot on back
+
+Next session: continue GeoDash 2 (add play mode, more tile types, or other game modes).
+
 ## Session 6 -- 2026-03-15
 
 Completed website setup: corecreate.dev is live on Cloudflare Pages, deployed via GitHub push to Geoff-55/ClaudeCreator.

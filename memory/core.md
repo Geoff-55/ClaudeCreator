@@ -21,3 +21,5 @@ Understands how programming works but not an expert in any language.
 - GitHub repo: github.com/Geoff-55/ClaudeCreator (master branch → deploys to Cloudflare Pages)
 - Screenshot watcher auto-starts each session; screenshots land in Screenshots/ (gitignored)
 - Games live in src/website/games/, linked from drafts.html with ?from=drafts param
+- geodash.html = original GeoDash, marked DNF (kept for reference)
+- geodash2.html = new GeoDash in active development, level editor first
