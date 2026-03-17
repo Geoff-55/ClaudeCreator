@@ -98,11 +98,12 @@ function chunkRNG(cx, cy) {
 
 // ===================== TREE GEOMETRY =====================
 const CBS  = 5;   // canopy block size (px)
-const CRX  = 8;   // canopy horizontal radius in blocks → 40px
-const CRY  = 6;   // canopy vertical radius in blocks   → 30px
-const TW   = 12;  // trunk width (px)
-const TH   = 30;  // trunk height (px) below canopy bottom
-const TCOL = 16;  // trunk base collision zone height (px)
+const CRX  = 12;  // canopy horizontal radius in blocks → 60px
+const CRY  = 9;   // canopy vertical radius in blocks   → 45px
+const TW   = 14;  // trunk width (px)
+const TH   = 52;  // trunk height (px) below canopy bottom
+const TCOL = 20;  // trunk base collision zone height (px)
+const SEG_H = 8;  // trunk segment height for bend drawing
 
 // Precompute oval canopy block rings (done once at startup)
 const C_OUTER = [], C_MID = [], C_INNER = [];
@@ -153,9 +154,19 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
     // 35% tree — canopy center stored as t.x, t.y
     let tree = null;
     if (rng() < 0.35) {
+      // Generate trunk bend: each segment drifts slightly left/right
+      const numSegs = Math.ceil(TH / SEG_H);
+      const segs = [];
+      let drift = 0;
+      for (let i = 0; i < numSegs; i++) {
+        drift += Math.round(rng() * 6 - 3);   // step -3..+3
+        drift = Math.max(-6, Math.min(6, drift)); // clamp total drift
+        segs.push(drift);
+      }
       tree = {
-        x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
-        y: wy + 60 + Math.floor(rng() * (CHUNK_H - 150)),
+        x:    wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
+        y:    wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
+        segs,
       };
     }
 
@@ -307,24 +318,35 @@ function drawGrass() {
   }
 }
 
+// Draw one trunk segment (both colour passes)
+function drawTrunkSeg(sx, segTopY, segH, dx) {
+  ctx.fillStyle = '#0d051a';
+  ctx.fillRect(sx - TW / 2 + dx, segTopY, TW, segH);
+  ctx.fillStyle = '#1e0a38';
+  ctx.fillRect(sx - TW / 2 + dx,     segTopY, 2, segH);
+  ctx.fillRect(sx + TW / 2 - 2 + dx, segTopY, 2, segH);
+}
+
 // Trunk base — drawn before player so player appears IN FRONT
 function drawTreeBases() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
     const t = chunk.tree;
     const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
-    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 120) continue;
+    if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 160) continue;
 
     const trunkTopY = sy + CRY * CBS;
     const trunkBotY = trunkTopY + TH;
     const splitY    = trunkBotY - TCOL;
 
-    // Bottom section of trunk (player walks in front)
-    ctx.fillStyle = '#0d051a';
-    ctx.fillRect(sx - TW / 2, splitY, TW, TCOL);
-    ctx.fillStyle = '#1e0a38';
-    ctx.fillRect(sx - TW / 2,     splitY, 2, TCOL);
-    ctx.fillRect(sx + TW / 2 - 2, splitY, 2, TCOL);
+    // Only segments that fall below the split point
+    for (let i = 0; i < t.segs.length; i++) {
+      const segTopY = trunkTopY + i * SEG_H;
+      const segBotY = Math.min(segTopY + SEG_H, trunkBotY);
+      if (segBotY <= splitY) continue;          // above split — skip
+      const clampTop = Math.max(segTopY, splitY);
+      drawTrunkSeg(sx, clampTop, segBotY - clampTop, t.segs[i]);
+    }
   }
 }
 
@@ -334,18 +356,20 @@ function drawTreeTops() {
     if (!chunk.tree) continue;
     const t = chunk.tree;
     const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
-    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 120) continue;
+    if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 160) continue;
 
     const trunkTopY = sy + CRY * CBS;
     const trunkBotY = trunkTopY + TH;
     const splitY    = trunkBotY - TCOL;
 
-    // Upper trunk
-    ctx.fillStyle = '#0d051a';
-    ctx.fillRect(sx - TW / 2, trunkTopY, TW, splitY - trunkTopY);
-    ctx.fillStyle = '#1e0a38';
-    ctx.fillRect(sx - TW / 2,     trunkTopY, 2, splitY - trunkTopY);
-    ctx.fillRect(sx + TW / 2 - 2, trunkTopY, 2, splitY - trunkTopY);
+    // Segments above the split point
+    for (let i = 0; i < t.segs.length; i++) {
+      const segTopY = trunkTopY + i * SEG_H;
+      const segBotY = Math.min(segTopY + SEG_H, trunkBotY);
+      if (segTopY >= splitY) break;             // at or below split — stop
+      const clampBot = Math.min(segBotY, splitY);
+      drawTrunkSeg(sx, segTopY, clampBot - segTopY, t.segs[i]);
+    }
 
     // Canopy — outer glow ring
     neon('#3b1a6b', 10);
@@ -364,7 +388,7 @@ function drawTreeTops() {
     for (const [row, col] of C_INNER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
-    // A few highlight flecks
+    // Highlight flecks
     ctx.fillStyle = '#4a1a78';
     ctx.fillRect(sx - CBS,      sy - CBS,      CBS, CBS);
     ctx.fillRect(sx + CBS * 2,  sy + CBS,      CBS, CBS);
