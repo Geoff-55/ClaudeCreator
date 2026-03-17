@@ -27,7 +27,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">ok, so now let the character move in the direction its facing as long as one of the movement keys is pressed.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">real quick make it 50 ms. Now, have the camera be locked on the player, and the terrain be open world. lets say for example the width and height of the screen is one "chunk" make the world for now 5 chunks long and 7 chunks tall. the border can be a more bold glowing line.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -59,7 +59,7 @@ function noNeon()           { ctx.shadowBlur = 0; }
 // ===================== INPUT =====================
 const keys      = {};
 const released  = {};         // key → timestamp when released
-const DIAG_GRACE = 25;        // ms — grace window after releasing a diagonal key
+const DIAG_GRACE = 50;        // ms — grace window after releasing a diagonal key
 
 document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
@@ -77,14 +77,27 @@ function active(k) {
   return keys[k] || (released[k] !== undefined && performance.now() - released[k] < DIAG_GRACE);
 }
 
-// ===================== PLAYER =====================
-const BODY_R   = 18;
-const HEAD_R   = 7;
-const HEAD_DIST = 12;
-const SPEED    = 160;   // px/s
+// ===================== WORLD =====================
+const CHUNK_W = W, CHUNK_H = H;
+const WORLD_W = CHUNK_W * 5;   // 4400
+const WORLD_H = CHUNK_H * 7;   // 3430
 
-let px = W / 2, py = H / 2;
-let facingAngle = -Math.PI / 2;  // default: up
+// ===================== PLAYER =====================
+const BODY_R    = 18;
+const HEAD_R    = 7;
+const HEAD_DIST = 12;
+const SPEED     = 160;   // px/s
+
+let px = WORLD_W / 2, py = WORLD_H / 2;   // start at world centre
+let facingAngle = -Math.PI / 2;            // default: up
+
+// ===================== CAMERA =====================
+let camX = 0, camY = 0;
+
+function updateCamera() {
+  camX = Math.max(0, Math.min(WORLD_W - W, px - W / 2));
+  camY = Math.max(0, Math.min(WORLD_H - H, py - H / 2));
+}
 
 function updateFacing() {
   const dx = (active('d') ? 1 : 0) - (active('a') ? 1 : 0);
@@ -97,36 +110,51 @@ function updateMovement(dt) {
   if (!moving) return;
   px += Math.cos(facingAngle) * SPEED * dt;
   py += Math.sin(facingAngle) * SPEED * dt;
-  // Clamp to canvas
-  px = Math.max(BODY_R, Math.min(W - BODY_R, px));
-  py = Math.max(BODY_R, Math.min(H - BODY_R, py));
+  // Clamp to world bounds
+  px = Math.max(BODY_R, Math.min(WORLD_W - BODY_R, px));
+  py = Math.max(BODY_R, Math.min(WORLD_H - BODY_R, py));
 }
 
 // ===================== DRAW =====================
+const GRID = 40;
+
 function drawBg() {
   ctx.fillStyle = '#07060f';
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
-  for (let x = 0; x < W; x += 40) {
+  // Grid scrolls with camera
+  const ox = camX % GRID, oy = camY % GRID;
+  for (let x = -ox; x < W; x += GRID) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
   }
-  for (let y = 0; y < H; y += 40) {
+  for (let y = -oy; y < H; y += GRID) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 }
 
+function drawBorder() {
+  // World border in screen space
+  const bx = -camX, by = -camY;
+  neon('#a855f7', 22);
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4;
+  ctx.strokeRect(bx, by, WORLD_W, WORLD_H);
+  noNeon();
+}
+
 function drawPlayer() {
+  const sx = px - camX, sy = py - camY;  // world → screen
+
   // Body
   neon('#a855f7', 20);
   ctx.fillStyle = '#0d0a1a';
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(px, py, BODY_R, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.arc(sx, sy, BODY_R, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
   noNeon();
 
   // Head — small circle offset in facing direction
-  const hx = px + Math.cos(facingAngle) * HEAD_DIST;
-  const hy = py + Math.sin(facingAngle) * HEAD_DIST;
+  const hx = sx + Math.cos(facingAngle) * HEAD_DIST;
+  const hy = sy + Math.sin(facingAngle) * HEAD_DIST;
   neon('#d8b4fe', 12);
   ctx.fillStyle = '#d8b4fe';
   ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI * 2);
@@ -141,7 +169,9 @@ function loop(ts) {
   last = ts;
   updateFacing();
   updateMovement(dt);
+  updateCamera();
   drawBg();
+  drawBorder();
   drawPlayer();
   requestAnimationFrame(loop);
 }
