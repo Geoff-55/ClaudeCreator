@@ -59,7 +59,7 @@ function noNeon()           { ctx.shadowBlur = 0; }
 // ===================== INPUT =====================
 const keys      = {};
 const released  = {};         // key → timestamp when released
-const DIAG_GRACE = 100;       // ms — grace window after releasing a diagonal key
+const DIAG_GRACE = 25;        // ms — grace window after releasing a diagonal key
 
 document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
