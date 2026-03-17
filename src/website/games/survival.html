@@ -36,7 +36,7 @@
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>E — inventory</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -67,6 +67,7 @@ const DIAG_GRACE = 50;
 
 document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
+  if (e.key.toLowerCase() === 'e') { inventoryOpen = !inventoryOpen; return; }
   keys[e.key.toLowerCase()] = true;
   if (e.key === 'Shift') keys['shift'] = true;
   delete released[e.key.toLowerCase()];
@@ -183,6 +184,59 @@ function trunkRect(t) {
     y1: trunkBot - TCOL,
     y2: trunkBot,
   };
+}
+
+// ===================== INVENTORY =====================
+let inventoryOpen = false;
+const INV_COLS = 4, INV_ROWS = 5;
+const SLOT_SIZE = 52, SLOT_GAP = 6;
+const INV_PAD = 22;
+const INV_W = INV_COLS * SLOT_SIZE + (INV_COLS - 1) * SLOT_GAP + INV_PAD * 2;
+const INV_H = INV_ROWS * SLOT_SIZE + (INV_ROWS - 1) * SLOT_GAP + INV_PAD * 2 + 28;
+const INV_X = Math.round((W - INV_W) / 2);
+const INV_Y = Math.round((H - INV_H) / 2);
+
+// Placeholder item slots (null = empty)
+const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
+
+function drawInventory() {
+  // Dim background
+  ctx.fillStyle = 'rgba(4, 3, 12, 0.78)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Panel background
+  ctx.fillStyle = '#0a0718';
+  ctx.fillRect(INV_X, INV_Y, INV_W, INV_H);
+
+  // Panel border with glow
+  neon('#a855f7', 14);
+  ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(INV_X, INV_Y, INV_W, INV_H);
+  noNeon();
+
+  // Title
+  ctx.fillStyle = '#a855f7';
+  ctx.font = '600 11px monospace';
+  ctx.letterSpacing = '0.12em';
+  ctx.fillText('INVENTORY', INV_X + INV_PAD, INV_Y + INV_PAD + 10);
+  ctx.letterSpacing = '0';
+
+  // Slots
+  const gridTop = INV_Y + INV_PAD + 28;
+  for (let row = 0; row < INV_ROWS; row++) {
+    for (let col = 0; col < INV_COLS; col++) {
+      const sx = INV_X + INV_PAD + col * (SLOT_SIZE + SLOT_GAP);
+      const sy = gridTop + row * (SLOT_SIZE + SLOT_GAP);
+
+      // Slot bg
+      ctx.fillStyle = '#0d0a1e';
+      ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
+
+      // Slot border
+      ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
+      ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
+    }
+  }
 }
 
 // ===================== PLAYER =====================
@@ -450,6 +504,7 @@ function loop(ts) {
   drawTreeTops();    // canopy + upper trunk — behind player
   drawBorder();
   drawStamina();
+  if (inventoryOpen) drawInventory();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
