@@ -27,7 +27,12 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">okay for now, it will be a top down game. Just add a simple character so walking or even a world yet, theyre just in the center of the screen and can face in 8 directions around them with wasd.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">for diagonal movement, add a slight delay so if you let go when going diagonal, but you let go of one key slightly before the other it stays diagonal. also, add a small list of controls on the bottom left.</p>
+  </div>
+
+  <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
+    <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — face direction</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -52,12 +57,25 @@ function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
 function noNeon()           { ctx.shadowBlur = 0; }
 
 // ===================== INPUT =====================
-const keys = {};
+const keys      = {};
+const released  = {};         // key → timestamp when released
+const DIAG_GRACE = 100;       // ms — grace window after releasing a diagonal key
+
 document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
   keys[e.key.toLowerCase()] = true;
+  delete released[e.key.toLowerCase()];
 });
-document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+document.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = false;
+  released[k] = performance.now();
+});
+
+// A key counts as active if held, or released within the grace window
+function active(k) {
+  return keys[k] || (released[k] !== undefined && performance.now() - released[k] < DIAG_GRACE);
+}
 
 // ===================== PLAYER =====================
 const CX = W / 2, CY = H / 2;
@@ -68,8 +86,8 @@ const HEAD_DIST = 12;   // distance of head centre from body centre
 let facingAngle = -Math.PI / 2;  // default: up
 
 function updateFacing() {
-  const dx = (keys['d'] ? 1 : 0) - (keys['a'] ? 1 : 0);
-  const dy = (keys['s'] ? 1 : 0) - (keys['w'] ? 1 : 0);
+  const dx = (active('d') ? 1 : 0) - (active('a') ? 1 : 0);
+  const dy = (active('s') ? 1 : 0) - (active('w') ? 1 : 0);
   if (dx !== 0 || dy !== 0) facingAngle = Math.atan2(dy, dx);
 }
 
