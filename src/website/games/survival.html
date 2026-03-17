@@ -27,12 +27,12 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">for diagonal movement, add a slight delay so if you let go when going diagonal, but you let go of one key slightly before the other it stays diagonal. also, add a small list of controls on the bottom left.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">ok, so now let the character move in the direction its facing as long as one of the movement keys is pressed.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — face direction</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -78,17 +78,28 @@ function active(k) {
 }
 
 // ===================== PLAYER =====================
-const CX = W / 2, CY = H / 2;
-const BODY_R = 18;
-const HEAD_R = 7;
-const HEAD_DIST = 12;   // distance of head centre from body centre
+const BODY_R   = 18;
+const HEAD_R   = 7;
+const HEAD_DIST = 12;
+const SPEED    = 160;   // px/s
 
+let px = W / 2, py = H / 2;
 let facingAngle = -Math.PI / 2;  // default: up
 
 function updateFacing() {
   const dx = (active('d') ? 1 : 0) - (active('a') ? 1 : 0);
   const dy = (active('s') ? 1 : 0) - (active('w') ? 1 : 0);
   if (dx !== 0 || dy !== 0) facingAngle = Math.atan2(dy, dx);
+}
+
+function updateMovement(dt) {
+  const moving = active('w') || active('a') || active('s') || active('d');
+  if (!moving) return;
+  px += Math.cos(facingAngle) * SPEED * dt;
+  py += Math.sin(facingAngle) * SPEED * dt;
+  // Clamp to canvas
+  px = Math.max(BODY_R, Math.min(W - BODY_R, px));
+  py = Math.max(BODY_R, Math.min(H - BODY_R, py));
 }
 
 // ===================== DRAW =====================
@@ -109,13 +120,13 @@ function drawPlayer() {
   neon('#a855f7', 20);
   ctx.fillStyle = '#0d0a1a';
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(CX, CY, BODY_R, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.arc(px, py, BODY_R, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
   noNeon();
 
   // Head — small circle offset in facing direction
-  const hx = CX + Math.cos(facingAngle) * HEAD_DIST;
-  const hy = CY + Math.sin(facingAngle) * HEAD_DIST;
+  const hx = px + Math.cos(facingAngle) * HEAD_DIST;
+  const hy = py + Math.sin(facingAngle) * HEAD_DIST;
   neon('#d8b4fe', 12);
   ctx.fillStyle = '#d8b4fe';
   ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI * 2);
@@ -124,8 +135,12 @@ function drawPlayer() {
 }
 
 // ===================== LOOP =====================
-function loop() {
+let last = 0;
+function loop(ts) {
+  const dt = Math.min((ts - last) / 1000, 0.05);
+  last = ts;
   updateFacing();
+  updateMovement(dt);
   drawBg();
   drawPlayer();
   requestAnimationFrame(loop);
