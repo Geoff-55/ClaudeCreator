@@ -1,5 +1,21 @@
 # Session History
 
+## Session 8 -- 2026-03-16
+
+Survival game (survival.html) — heavy development session:
+  - Completed camera lock + open world (5×7 chunks, 4400×3430px) — fixed missing updateCamera/drawBorder calls in loop
+  - Chunk boundary lines (dev aid) drawn slightly brighter than grid
+  - Canvas border: subtle neon-glow border around the game element
+  - Stamina system: Shift to sprint (1.75× speed), 40/s drain, regens instantly when still or after 3s of walking; stamina bar bottom-left, cyan when draining, purple when ready
+  - Seeded world generation per chunk (chunkRNG): grass patches + trees always same position
+  - Grass: 2 chunky variants (2-3 solid pixel-block blades, 4px wide), neon purple palette, 2–4 patches per chunk
+  - Trees: 2D side-view style — large oval canopy (120×90px, 5px blocks), segmented wavy trunk (8px segs with ±6px drift per tree), neon purple rings with glow on outer edge; 35% spawn chance per chunk
+  - Tree depth layering: trunk base drawn before player (player in front), canopy+upper trunk drawn after (player hidden behind)
+  - Trunk collision: AABB circle vs rect, pushes player out of trunk base; player can walk behind canopy freely
+  - Inventory system: E to open/close, 4×5 grid (20 slots), dark panel with neon purple border, semi-transparent world dimming; slots empty placeholders ready for items
+
+Next session: add items / tree chopping interaction, or continue filling out the survival game world.
+
 ## Session 7 -- 2026-03-16
 
 GeoDash (geodash.html) wrapped up:
