@@ -11,7 +11,11 @@
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; overflow: hidden;
     }
-    canvas { display: block; }
+    canvas {
+      display: block;
+      border: 1px solid #2a1050;
+      box-shadow: 0 0 12px #1a0838;
+    }
     .back-btn {
       position: fixed; top: 1rem; right: 1.2rem;
       padding: 0.35rem 1rem; border: 1px solid #a855f7;
@@ -27,12 +31,12 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">real quick make it 50 ms. Now, have the camera be locked on the player, and the terrain be open world. lets say for example the width and height of the screen is one "chunk" make the world for now 5 chunks long and 7 chunks tall. the border can be a more bold glowing line.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">now for the website around the game have a slight border. Now, add a small stamina bar to the bottom left of the game. Shift makes the player sprint, and stamina is used. Stamina will begin regening at a steady rate after 3 seconds if they continue walking, or instantly if they stand still.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -64,11 +68,13 @@ const DIAG_GRACE = 50;        // ms — grace window after releasing a diagonal 
 document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
   keys[e.key.toLowerCase()] = true;
+  if (e.key === 'Shift') keys['shift'] = true;
   delete released[e.key.toLowerCase()];
 });
 document.addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   keys[k] = false;
+  if (e.key === 'Shift') keys['shift'] = false;
   released[k] = performance.now();
 });
 
@@ -83,13 +89,24 @@ const WORLD_W = CHUNK_W * 5;   // 4400
 const WORLD_H = CHUNK_H * 7;   // 3430
 
 // ===================== PLAYER =====================
-const BODY_R    = 18;
-const HEAD_R    = 7;
-const HEAD_DIST = 12;
-const SPEED     = 160;   // px/s
+const BODY_R      = 18;
+const HEAD_R      = 7;
+const HEAD_DIST   = 12;
+const SPEED       = 160;   // px/s walk
+const SPRINT_MULT = 1.75;  // sprint speed multiplier
 
 let px = WORLD_W / 2, py = WORLD_H / 2;   // start at world centre
 let facingAngle = -Math.PI / 2;            // default: up
+
+// ===================== STAMINA =====================
+const STAM_MAX       = 100;
+const STAM_DRAIN     = 40;    // per second while sprinting
+const STAM_REGEN     = 25;    // per second while regenerating
+const STAM_REGEN_DELAY = 3;   // seconds before regen kicks in while walking
+
+let stamina        = STAM_MAX;
+let staminaReady   = false;   // whether regen is active
+let walkingTimer   = 0;       // time spent walking without sprinting
 
 // ===================== CAMERA =====================
 let camX = 0, camY = 0;
@@ -107,9 +124,31 @@ function updateFacing() {
 
 function updateMovement(dt) {
   const moving = active('w') || active('a') || active('s') || active('d');
+  const sprinting = keys['shift'] && moving && stamina > 0;
+
+  // Stamina logic
+  if (sprinting) {
+    stamina = Math.max(0, stamina - STAM_DRAIN * dt);
+    walkingTimer = 0;
+    staminaReady = false;
+  } else if (!moving) {
+    // Standing still — regen immediately
+    staminaReady = true;
+    walkingTimer = 0;
+  } else {
+    // Walking without sprinting — wait for delay then regen
+    walkingTimer += dt;
+    if (walkingTimer >= STAM_REGEN_DELAY) staminaReady = true;
+  }
+
+  if (staminaReady && stamina < STAM_MAX) {
+    stamina = Math.min(STAM_MAX, stamina + STAM_REGEN * dt);
+  }
+
   if (!moving) return;
-  px += Math.cos(facingAngle) * SPEED * dt;
-  py += Math.sin(facingAngle) * SPEED * dt;
+  const speed = sprinting ? SPEED * SPRINT_MULT : SPEED;
+  px += Math.cos(facingAngle) * speed * dt;
+  py += Math.sin(facingAngle) * speed * dt;
   // Clamp to world bounds
   px = Math.max(BODY_R, Math.min(WORLD_W - BODY_R, px));
   py = Math.max(BODY_R, Math.min(WORLD_H - BODY_R, py));
@@ -174,6 +213,32 @@ function drawPlayer() {
   noNeon();
 }
 
+function drawStamina() {
+  const BAR_W = 100, BAR_H = 6;
+  const bx = 14, by = H - 24;
+  const fill = (stamina / STAM_MAX) * BAR_W;
+  const sprinting = keys['shift'] && stamina > 0;
+
+  // Tint: cyan when sprinting, purple when regen-ready, dim otherwise
+  const color = sprinting ? '#00d4ff' : staminaReady ? '#a855f7' : '#3b1a6b';
+
+  // Background track
+  ctx.fillStyle = '#0d0a1a';
+  ctx.fillRect(bx, by, BAR_W, BAR_H);
+
+  // Fill
+  if (fill > 0) {
+    neon(color, sprinting ? 10 : 6);
+    ctx.fillStyle = color;
+    ctx.fillRect(bx, by, fill, BAR_H);
+    noNeon();
+  }
+
+  // Track border
+  ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, BAR_W, BAR_H);
+}
+
 // ===================== LOOP =====================
 let last = 0;
 function loop(ts) {
@@ -185,6 +250,7 @@ function loop(ts) {
   drawBg();
   drawBorder();
   drawPlayer();
+  drawStamina();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
