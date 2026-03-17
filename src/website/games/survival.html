@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">have the chunks have very small pixelated details like just super small patches of grass. have them be sparse, only a couple or few in each chunk. Now, add a 35% chance for a tree to spawn in each chunk, same style but much bigger and tree like.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">they should fit the neon purple style, structurally look like grass, make the pixels slightly bigger and have the tree be MUCH bigger. The player can walk behind most parts of the tree except the bottom of the trunk.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -61,8 +61,8 @@ function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
 function noNeon()           { ctx.shadowBlur = 0; }
 
 // ===================== INPUT =====================
-const keys      = {};
-const released  = {};
+const keys     = {};
+const released = {};
 const DIAG_GRACE = 50;
 
 document.addEventListener('keydown', e => {
@@ -88,7 +88,6 @@ const CHUNKS_X = 5, CHUNKS_Y = 7;
 const WORLD_W = CHUNK_W * CHUNKS_X;
 const WORLD_H = CHUNK_H * CHUNKS_Y;
 
-// Simple seeded RNG per chunk
 function chunkRNG(cx, cy) {
   let s = (cx * 73856093 ^ cy * 19349663) >>> 0;
   return function() {
@@ -97,21 +96,37 @@ function chunkRNG(cx, cy) {
   };
 }
 
-// Grass patch: pixel offsets (each drawn as 2x2)
-const GRASS_PX = [[0,0],[3,1],[1,3],[-2,2],[4,-1],[-1,-2],[2,4]];
+// ===================== TREE GEOMETRY =====================
+const CBS  = 6;   // canopy block size (px)
+const CR   = 10;  // canopy radius in blocks (60px radius = 120px diameter)
+const TW   = 12;  // trunk width
+const TH   = 28;  // trunk height below canopy center
+const TRUNK_FRONT = 14; // bottom px of trunk drawn in FRONT of player
 
-// Tree canopy: block offsets (row,col) in a 7x5 grid, each block = 4px
-// Shape: roughly circular blob
-const CANOPY_GRID = [
-  [0,2],[0,3],[0,4],
-  [1,1],[1,2],[1,3],[1,4],[1,5],
-  [2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],
-  [3,1],[3,2],[3,3],[3,4],[3,5],
-  [4,2],[4,3],[4,4],
+// Precompute canopy block rings (at startup, not per frame)
+const C_OUTER = [], C_MID = [], C_INNER = [], C_CORE = [];
+for (let row = -CR; row <= CR; row++) {
+  for (let col = -CR; col <= CR; col++) {
+    const d = Math.sqrt(row * row + col * col);
+    if (d > CR) continue;
+    if      (d > CR - 2)   C_OUTER.push([row, col]);
+    else if (d > CR - 5)   C_MID.push([row, col]);
+    else if (d > CR - 8)   C_INNER.push([row, col]);
+    else                   C_CORE.push([row, col]);
+  }
+}
+
+// ===================== GRASS GEOMETRY =====================
+// Fixed blade offsets — 5 blades per patch, pointing upward
+const BLADES = [
+  { dx: -7, h: 10, body: '#6b21a8', tip: '#c084fc' },
+  { dx: -3, h: 13, body: '#9333ea', tip: '#d8b4fe' },
+  { dx:  1, h:  9, body: '#7c3aed', tip: '#c084fc' },
+  { dx:  5, h: 12, body: '#6b21a8', tip: '#d8b4fe' },
+  { dx:  9, h:  8, body: '#9333ea', tip: '#c084fc' },
 ];
-const CB = 4; // canopy block size (px)
 
-// Generate all chunk decorations at startup
+// ===================== WORLD GENERATION =====================
 const worldChunks = [];
 for (let cy = 0; cy < CHUNKS_Y; cy++) {
   for (let cx = 0; cx < CHUNKS_X; cx++) {
@@ -128,12 +143,12 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
       });
     }
 
-    // 35% tree
+    // 35% tree — kept well away from chunk edges to avoid major clipping
     let tree = null;
     if (rng() < 0.35) {
       tree = {
-        x: wx + 70 + Math.floor(rng() * (CHUNK_W - 140)),
-        y: wy + 70 + Math.floor(rng() * (CHUNK_H - 140)),
+        x: wx + 100 + Math.floor(rng() * (CHUNK_W - 200)),
+        y: wy + 100 + Math.floor(rng() * (CHUNK_H - 200)),
       };
     }
 
@@ -209,7 +224,6 @@ function drawBg() {
   ctx.fillStyle = '#07060f';
   ctx.fillRect(0, 0, W, H);
 
-  // Regular grid
   ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
   const ox = camX % GRID, oy = camY % GRID;
   for (let x = -ox; x < W; x += GRID) {
@@ -219,7 +233,6 @@ function drawBg() {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  // Chunk boundaries (dev aid)
   ctx.strokeStyle = '#1e0f38'; ctx.lineWidth = 1;
   for (let cx = 0; cx <= CHUNKS_X; cx++) {
     const sx = cx * CHUNK_W - camX;
@@ -231,60 +244,100 @@ function drawBg() {
   }
 }
 
-function drawDecorations() {
-  for (let cy = 0; cy < CHUNKS_Y; cy++) {
-    for (let cx = 0; cx < CHUNKS_X; cx++) {
-      const chunk = worldChunks[cy * CHUNKS_X + cx];
-
-      // Grass patches
-      ctx.fillStyle = '#1a3a16';
-      for (const g of chunk.grass) {
-        const sx = g.x - camX, sy = g.y - camY;
-        if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
-        for (const [dx, dy] of GRASS_PX) {
-          ctx.fillRect(sx + dx, sy + dy, 2, 2);
-        }
-      }
-
-      // Tree
-      if (chunk.tree) {
-        const t = chunk.tree;
-        const sx = t.x - camX, sy = t.y - camY;
-        if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
-
-        // Shadow (subtle dark ellipse behind canopy)
-        ctx.fillStyle = '#050408';
-        ctx.beginPath();
-        ctx.ellipse(sx + 3, sy + 4, 14, 10, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Canopy blocks — outer layer
-        ctx.fillStyle = '#1c4a18';
-        for (const [row, col] of CANOPY_GRID) {
-          ctx.fillRect(sx - 14 + col * CB, sy - 12 + row * CB, CB, CB);
-        }
-
-        // Inner canopy (slightly lighter, 1-block inset)
-        ctx.fillStyle = '#245e1e';
-        const innerBlocks = [[1,2],[1,3],[1,4],[2,1],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[3,4]];
-        for (const [row, col] of innerBlocks) {
-          ctx.fillRect(sx - 14 + col * CB, sy - 12 + row * CB, CB, CB);
-        }
-
-        // Dark center (trunk visible from top)
-        ctx.fillStyle = '#0f1a0c';
-        ctx.fillRect(sx - 3, sy - 2, 6, 6);
-      }
-    }
-  }
-}
-
 function drawBorder() {
   const bx = -camX, by = -camY;
   neon('#a855f7', 22);
   ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4;
   ctx.strokeRect(bx, by, WORLD_W, WORLD_H);
   noNeon();
+}
+
+// Grass patches (drawn below player)
+function drawGrass() {
+  for (const chunk of worldChunks) {
+    for (const g of chunk.grass) {
+      const sx = g.x - camX, sy = g.y - camY;
+      if (sx < -30 || sx > W + 30 || sy < -30 || sy > H + 30) continue;
+      for (const b of BLADES) {
+        // Body
+        ctx.fillStyle = b.body;
+        ctx.fillRect(sx + b.dx, sy - b.h, 2, b.h);
+        // Tip (top 3px brighter)
+        ctx.fillStyle = b.tip;
+        ctx.fillRect(sx + b.dx, sy - b.h, 2, 3);
+      }
+    }
+  }
+}
+
+// Tree trunk base — drawn BEFORE player so player walks in front of it
+function drawTreeBases() {
+  for (const chunk of worldChunks) {
+    if (!chunk.tree) continue;
+    const t = chunk.tree;
+    const sx = Math.round(t.x - camX);
+    const sy = Math.round(t.y - camY);
+    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 80) continue;
+
+    // Trunk base: bottom TRUNK_FRONT pixels of trunk
+    const trunkBotY = sy + CR * CBS / 2 + TH;          // world bottom of trunk (screen)
+    const trunkTopY = trunkBotY - TH;
+    const splitY    = trunkBotY - TRUNK_FRONT;          // split point
+
+    ctx.fillStyle = '#0d051a';
+    ctx.fillRect(sx - TW / 2, splitY, TW, TRUNK_FRONT);
+    // Subtle edge highlight on sides
+    ctx.fillStyle = '#1e0a38';
+    ctx.fillRect(sx - TW / 2, splitY, 2, TRUNK_FRONT);
+    ctx.fillRect(sx + TW / 2 - 2, splitY, 2, TRUNK_FRONT);
+  }
+}
+
+// Tree canopy + upper trunk — drawn AFTER player so player walks behind them
+function drawTreeCanopies() {
+  for (const chunk of worldChunks) {
+    if (!chunk.tree) continue;
+    const t = chunk.tree;
+    const sx = Math.round(t.x - camX);
+    const sy = Math.round(t.y - camY);
+    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 80) continue;
+
+    const trunkBotY = sy + CR * CBS / 2 + TH;
+    const splitY    = trunkBotY - TRUNK_FRONT;
+
+    // Upper trunk (above split)
+    ctx.fillStyle = '#0d051a';
+    ctx.fillRect(sx - TW / 2, sy + CR * CBS / 2, TW, TH - TRUNK_FRONT);
+    ctx.fillStyle = '#1e0a38';
+    ctx.fillRect(sx - TW / 2, sy + CR * CBS / 2, 2, TH - TRUNK_FRONT);
+    ctx.fillRect(sx + TW / 2 - 2, sy + CR * CBS / 2, 2, TH - TRUNK_FRONT);
+
+    // Canopy — outer edge glow pass
+    neon('#3b1a6b', 8);
+    ctx.fillStyle = '#1a0838';
+    for (const [row, col] of C_OUTER)
+      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
+    noNeon();
+
+    // Canopy — remaining rings
+    ctx.fillStyle = '#220d42';
+    for (const [row, col] of C_MID)
+      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
+
+    ctx.fillStyle = '#2e1256';
+    for (const [row, col] of C_INNER)
+      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
+
+    ctx.fillStyle = '#1e0a38';
+    for (const [row, col] of C_CORE)
+      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
+
+    // Subtle highlight dots scattered near center
+    ctx.fillStyle = '#4a1a70';
+    ctx.fillRect(sx - CBS,     sy - CBS * 2, CBS, CBS);
+    ctx.fillRect(sx + CBS * 2, sy,           CBS, CBS);
+    ctx.fillRect(sx - CBS * 3, sy + CBS,     CBS, CBS);
+  }
 }
 
 function drawPlayer() {
@@ -309,20 +362,19 @@ function drawPlayer() {
 function drawStamina() {
   const BAR_W = 100, BAR_H = 6;
   const bx = 14, by = H - 24;
-  const fill = (stamina / STAM_MAX) * BAR_W;
-  const sprinting = keys['shift'] && stamina > 0;
-  const color = sprinting ? '#00d4ff' : staminaReady ? '#a855f7' : '#3b1a6b';
+  const fill  = (stamina / STAM_MAX) * BAR_W;
+  const color = keys['shift'] && stamina > 0 ? '#00d4ff'
+              : staminaReady                  ? '#a855f7'
+                                              : '#3b1a6b';
 
   ctx.fillStyle = '#0d0a1a';
   ctx.fillRect(bx, by, BAR_W, BAR_H);
-
   if (fill > 0) {
-    neon(color, sprinting ? 10 : 6);
+    neon(color, keys['shift'] ? 10 : 6);
     ctx.fillStyle = color;
     ctx.fillRect(bx, by, fill, BAR_H);
     noNeon();
   }
-
   ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
   ctx.strokeRect(bx, by, BAR_W, BAR_H);
 }
@@ -336,9 +388,11 @@ function loop(ts) {
   updateMovement(dt);
   updateCamera();
   drawBg();
-  drawDecorations();
-  drawBorder();
+  drawGrass();
+  drawTreeBases();   // trunk base — in front of player
   drawPlayer();
+  drawTreeCanopies(); // canopy + upper trunk — behind player
+  drawBorder();
   drawStamina();
   requestAnimationFrame(loop);
 }
