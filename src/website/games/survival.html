@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Survival</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #07060f;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; overflow: hidden;
+    }
+    canvas { display: block; }
+    .back-btn {
+      position: fixed; top: 1rem; right: 1.2rem;
+      padding: 0.35rem 1rem; border: 1px solid #a855f7;
+      color: #a855f7; font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.08em; text-decoration: none; text-transform: uppercase;
+      font-family: monospace; transition: background 0.2s, box-shadow 0.2s;
+    }
+    .back-btn:hover { background: #a855f720; box-shadow: 0 0 10px #a855f7; }
+  </style>
+</head>
+<body>
+  <a class="back-btn" id="backBtn" href="#">Back</a>
+
+  <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:1.2rem; max-width:220px; z-index:10; pointer-events:none;">
+    <p style="color:#a855f7; font-family:monospace; font-size:0.55rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.25rem;">Most Recent Prompt</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.58rem; line-height:1.5; opacity:0.6;">okay for now, it will be a top down game. Just add a simple character so walking or even a world yet, theyre just in the center of the screen and can face in 8 directions around them with wasd.</p>
+  </div>
+
+  <canvas id="c"></canvas>
+
+<script>
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  document.getElementById('backBtn').href =
+    p.get('from') === 'published' ? '../published.html' : '../drafts.html';
+  if (p.get('from') === 'drafts')
+    document.getElementById('prompt-display').style.display = 'block';
+})();
+
+// ===================== SETUP =====================
+const W = 880, H = 490;
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+canvas.width  = W;
+canvas.height = H;
+
+function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function noNeon()           { ctx.shadowBlur = 0; }
+
+// ===================== INPUT =====================
+const keys = {};
+document.addEventListener('keydown', e => {
+  if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+});
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// ===================== PLAYER =====================
+const CX = W / 2, CY = H / 2;
+const BODY_R = 18;
+const HEAD_R = 7;
+const HEAD_DIST = 12;   // distance of head centre from body centre
+
+let facingAngle = -Math.PI / 2;  // default: up
+
+function updateFacing() {
+  const dx = (keys['d'] ? 1 : 0) - (keys['a'] ? 1 : 0);
+  const dy = (keys['s'] ? 1 : 0) - (keys['w'] ? 1 : 0);
+  if (dx !== 0 || dy !== 0) facingAngle = Math.atan2(dy, dx);
+}
+
+// ===================== DRAW =====================
+function drawBg() {
+  ctx.fillStyle = '#07060f';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
+  for (let x = 0; x < W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawPlayer() {
+  // Body
+  neon('#a855f7', 20);
+  ctx.fillStyle = '#0d0a1a';
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CX, CY, BODY_R, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  noNeon();
+
+  // Head — small circle offset in facing direction
+  const hx = CX + Math.cos(facingAngle) * HEAD_DIST;
+  const hy = CY + Math.sin(facingAngle) * HEAD_DIST;
+  neon('#d8b4fe', 12);
+  ctx.fillStyle = '#d8b4fe';
+  ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI * 2);
+  ctx.fill();
+  noNeon();
+}
+
+// ===================== LOOP =====================
+function loop() {
+  updateFacing();
+  drawBg();
+  drawPlayer();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
