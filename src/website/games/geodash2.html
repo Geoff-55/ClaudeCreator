@@ -24,6 +24,12 @@
 </head>
 <body>
   <a class="back-btn" id="backBtn" href="#">Back</a>
+
+  <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:1.2rem; max-width:220px; z-index:10; pointer-events:none;">
+    <p style="color:#a855f7; font-family:monospace; font-size:0.55rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.25rem;">Most Recent Prompt</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.58rem; line-height:1.5; opacity:0.6;">also have it be in the games themselves, only if theyre in drafts. try not to have it be, but if it gets in the way thats okay.</p>
+  </div>
+
   <canvas id="c"></canvas>
 
 <script>
@@ -31,6 +37,8 @@
   const p = new URLSearchParams(window.location.search);
   document.getElementById('backBtn').href =
     p.get('from') === 'published' ? '../published.html' : '../drafts.html';
+  if (p.get('from') === 'drafts')
+    document.getElementById('prompt-display').style.display = 'block';
 })();
 
 // ===================== CONSTANTS =====================
