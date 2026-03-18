@@ -476,7 +476,7 @@ const RECIPES = [
   },
   {
     id: 'bronze_ingot', name: 'Bronze Ingot',
-    ingredients: [{ id: 'rough_bronze', count: 3 }],
+    ingredients: [{ id: 'rough_bronze', count: 2 }],
     fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
     requiresFurnace: true,
   },
@@ -499,6 +499,7 @@ const RECIPES = [
 
 function nearCraftingStation() {
   return craftingStations.some(s => {
+    if (s.cave !== inCave) return false;
     const dx = s.x - px, dy = s.y - py;
     return Math.sqrt(dx*dx + dy*dy) < STATION_RANGE;
   });
@@ -1325,8 +1326,8 @@ function handleInteract() {
   // Place items if equipped in weapon slot
   const weapon = equipSlots['weapon'];
   if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
-    if (weapon.id === 'campfire') campfires.push({ x: px, y: py });
-    else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py });
+    if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: inCave });
+    else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'sapling') saplings.push({ x: px, y: py, plantedTime: gameNow });
     else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave });
@@ -1719,12 +1720,19 @@ function updateMobs(dt, now) {
     const dx = px - m.x, dy = py - m.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (m.type === 'zombie') {
-      // Check fire flee
+      // Check fire flee (campfires + torches)
       let fleeX = 0, fleeY = 0, nearFire = false;
       for (const f of campfires) {
+        if (f.cave !== inCave) continue;
         const fdx = m.x - f.x, fdy = m.y - f.y;
         const fd = Math.sqrt(fdx*fdx + fdy*fdy);
         if (fd < 180 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
+      }
+      for (const f of torches) {
+        if (f.cave !== inCave) continue;
+        const fdx = m.x - f.x, fdy = m.y - f.y;
+        const fd = Math.sqrt(fdx*fdx + fdy*fdy);
+        if (fd < 120 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
       }
       const spd = m.subtype === 'brute' ? 32 : m.subtype === 'quick' ? 105 : 55;
       const dmg = m.subtype === 'brute' ? 12 : m.subtype === 'quick' ? 2  : 5;
@@ -1824,6 +1832,7 @@ function drawMobs() {
 function drawCampfires() {
   const t = performance.now() / 1000;
   for (const f of campfires) {
+    if (f.cave !== inCave) continue;
     const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
     if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
     ctx.fillStyle = '#3d1a05';
@@ -1878,6 +1887,7 @@ function drawNightOverlay() {
   lctx.fillStyle = pg; lctx.fillRect(0, 0, W, H);
   // Campfires
   for (const f of campfires) {
+    if (f.cave !== inCave) continue;
     const fx = f.x - camX, fy = f.y - camY;
     if (fx < -220 || fx > W+220 || fy < -220 || fy > H+220) continue;
     const fg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 180);
@@ -1922,6 +1932,7 @@ function drawAttackRadius() {
 // ===================== CRAFTING STATIONS (WORLD) =====================
 function drawCraftingStations() {
   for (const s of craftingStations) {
+    if (s.cave !== inCave) continue;
     const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
     if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
     // Tabletop
@@ -2317,9 +2328,9 @@ function loop(ts) {
   drawGroundItemBodies();
   if (!inCave) drawTreeBases();
   drawRockBases();
-  if (!inCave) drawCampfires();
+  drawCampfires();
   drawTorches();
-  if (!inCave) drawCraftingStations();
+  drawCraftingStations();
   drawFurnaces();
   if (!inCave) drawMineEntrances();
   if (inCave) drawMineExits();
