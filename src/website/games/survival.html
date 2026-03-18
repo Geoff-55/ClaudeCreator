@@ -444,12 +444,17 @@ const RECIPES = [
   },
   {
     id: 'feather_hat', name: 'Feather Hat',
-    ingredients: [{ id: 'feather', count: 4 }],
+    ingredients: [{ id: 'feather', count: 3 }],
     requiresStation: true,
   },
   {
     id: 'bone_armor', name: 'Bone Armor',
     ingredients: [{ id: 'bone', count: 5 }],
+    requiresStation: true,
+  },
+  {
+    id: 'feather_pants', name: 'Feather Pants',
+    ingredients: [{ id: 'feather', count: 4 }],
     requiresStation: true,
   },
   {
@@ -550,7 +555,7 @@ const ITEM_SLOT = {
   bronze_hatchet: 'weapon', bronze_pickaxe: 'weapon', bronze_sword: 'weapon',
   campfire: 'weapon', crafting_station: 'weapon', mine_entrance: 'weapon', furnace: 'weapon',
   sapling: 'weapon', torch: 'weapon',
-  feather_hat: 'helmet',
+  feather_hat: 'helmet', feather_pants: 'pants',
   bone_armor: 'chestplate',
   raw_chicken: 'food', cooked_chicken: 'food',
 };
@@ -714,6 +719,22 @@ function drawItemIcon(id, cx, cy, size) {
      [H,1,4],[H,2,4],[H,3,4],[H,4,4],[H,5,4],[H,6,4],
      [H,1,5],[H,2,5],[H,3,5],[H,4,5],[H,5,5],[H,6,5],
      [H,0,6],[H,1,6],[H,2,6],[H,3,6],[H,4,6],[H,5,6],[H,6,6],[H,7,6],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'feather_pants') {
+    const F = '#d4c89a', B = '#7a5820', H = '#5a4010', W = '#f0ecd0';
+    // waistband
+    [[B,0,0],[B,1,0],[B,2,0],[B,3,0],[B,4,0],[B,5,0],[B,6,0],[B,7,0],
+     // upper legs
+     [H,0,1],[F,1,1],[F,2,1],[F,3,1],[F,4,1],[F,5,1],[F,6,1],[H,7,1],
+     // split crotch
+     [H,0,2],[F,1,2],[F,2,2],[H,3,2],[H,4,2],[F,5,2],[F,6,2],[H,7,2],
+     // left leg, right leg
+     [H,0,3],[F,1,3],[F,2,3],               [F,5,3],[F,6,3],[H,7,3],
+     // feather trim on left leg
+     [H,0,4],[W,1,4],[F,2,4],               [F,5,4],[W,6,4],[H,7,4],
+     [H,0,5],[F,1,5],[F,2,5],               [F,5,5],[F,6,5],[H,7,5],
+     [H,0,6],[H,1,6],[H,2,6],               [H,5,6],[H,6,6],[H,7,6],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
   } else if (id === 'feather') {
@@ -1272,7 +1293,8 @@ function chopTree(tree, power) {
       const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 55;
       worldGroundItems.push({ type: 'stick', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
     }
-    if (Math.random() < 0.5) {
+    const saplingCount = 1 + (Math.random() < 0.5 ? 1 : 0);
+    for (let i = 0; i < saplingCount; i++) {
       const a = Math.random() * Math.PI * 2, d = 25 + Math.random() * 40;
       worldGroundItems.push({ type: 'sapling', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
     }
@@ -1296,7 +1318,7 @@ function mineRock(rock, power) {
   spawnParticles(rock.x, rock.y, pc2, 3);
 
   if (rock.hitsLeft <= 0) {
-    rock.mined = true;
+    rock.mined = true; rock.minedTime = gameNow;
     const isCoal = rock.type === 'coal';
     const isBronze = rock.type === 'bronze';
     score += isCoal ? 30 : isBronze ? 45 : 40;
@@ -1476,14 +1498,20 @@ function drawTreeBases() {
 }
 
 function drawRockBases() {
+  const PS = 5;
   for (const rock of curRocks()) {
     if (rock.mined) continue;
-    const sx = rock.x - camX, sy = rock.y - camY;
+    const sx = Math.round(rock.x - camX) + 4, sy = Math.round(rock.y - camY) + Math.round(ROCK_R * 0.58);
     if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
     ctx.fillStyle = inCave ? '#100e08' : '#1c3a0c';
-    ctx.beginPath();
-    ctx.ellipse(sx+4, sy + ROCK_R*0.58, ROCK_R*0.92, ROCK_R*0.28, 0, 0, Math.PI*2);
-    ctx.fill();
+    const rx = ROCK_R * 0.92, ry = ROCK_R * 0.28;
+    for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
+      for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
+        const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+        if ((cx/rx)**2 + (cy/ry)**2 > 1) continue;
+        ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+      }
+    }
   }
 }
 
@@ -1517,24 +1545,35 @@ function drawTreeTops() {
 }
 
 function drawRockTops() {
+  const PS = 5;
   for (const rock of curRocks()) {
     if (rock.mined) continue;
-    const sx = rock.x - camX, sy = rock.y - camY;
+    const sx = Math.round(rock.x - camX), sy = Math.round(rock.y - camY);
     if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
     const isBronzeRock = rock.type === 'bronze';
-    const isCoalRock = rock.type === 'coal';
-    const c1 = isBronzeRock ? '#3a2010' : isCoalRock ? '#141210' : inCave ? '#2a2820' : '#363636';
-    const c2 = isBronzeRock ? '#6a3818' : isCoalRock ? '#201e1a' : inCave ? '#3c3830' : '#4c4c4c';
-    const c3 = isBronzeRock ? '#a05828' : isCoalRock ? '#2c2820' : inCave ? '#504c42' : '#646464';
-    const c4 = isBronzeRock ? '#c87840' : isCoalRock ? '#383428' : inCave ? '#6a6458' : '#7e7e7e';
-    glow('#181818', 10); ctx.fillStyle = c1;
-    ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R, ROCK_R*0.72, 0, 0, Math.PI*2); ctx.fill(); noGlow();
-    ctx.fillStyle = c2;
-    ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R*0.8, ROCK_R*0.58, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = c3;
-    ctx.beginPath(); ctx.ellipse(sx-ROCK_R*0.16, sy-ROCK_R*0.18, ROCK_R*0.44, ROCK_R*0.31, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = c4;
-    ctx.beginPath(); ctx.ellipse(sx-ROCK_R*0.24, sy-ROCK_R*0.26, ROCK_R*0.18, ROCK_R*0.13, 0, 0, Math.PI*2); ctx.fill();
+    const isCoalRock   = rock.type === 'coal';
+    const [cD,cM,cH,cL] = isBronzeRock
+      ? ['#3a2010','#6a3818','#a05828','#c87840']
+      : isCoalRock
+      ? ['#141210','#201e1a','#2c2820','#383428']
+      : inCave
+      ? ['#2a2820','#3c3830','#504c42','#6a6458']
+      : ['#363636','#4c4c4c','#646464','#7e7e7e'];
+    const rx = ROCK_R, ry = ROCK_R * 0.72;
+    glow('#181818', 10);
+    for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
+      for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
+        const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+        const nd = (cx/rx)**2 + (cy/ry)**2;
+        if (nd > 1) continue;
+        const nr = Math.sqrt(nd);
+        let c = nr > 0.78 ? cD : (cx < -rx*0.05 && cy < -ry*0.05 && nr < 0.55) ? cH : cM;
+        if (cx < -rx*0.18 && cy < -ry*0.18 && nr < 0.38) c = cL;
+        ctx.fillStyle = c;
+        ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+      }
+    }
+    noGlow();
   }
 }
 
@@ -1548,13 +1587,31 @@ function drawGroundItemBodies() {
 }
 
 function drawPlayer() {
-  const sx = px - camX, sy = py - camY;
-  glow('#7ab038', 16); ctx.fillStyle = '#111a08'; ctx.strokeStyle = '#7ab038'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(sx, sy, BODY_R, 0, Math.PI*2); ctx.fill(); ctx.stroke(); noGlow();
-  const hx = sx + Math.cos(facingAngle) * HEAD_DIST;
-  const hy = sy + Math.sin(facingAngle) * HEAD_DIST;
-  glow('#d4b058', 10); ctx.fillStyle = '#d4b058';
-  ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI*2); ctx.fill(); noGlow();
+  const sx = Math.round(px - camX), sy = Math.round(py - camY);
+  const PS = 3;
+  glow('#7ab038', 16);
+  for (let gy = Math.floor(-BODY_R/PS); gy < Math.ceil(BODY_R/PS); gy++) {
+    for (let gx = Math.floor(-BODY_R/PS); gx < Math.ceil(BODY_R/PS); gx++) {
+      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+      const d = Math.sqrt(cx*cx + cy*cy);
+      if (d > BODY_R) continue;
+      ctx.fillStyle = d > BODY_R - PS*1.8 ? '#7ab038' : '#111a08';
+      ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+    }
+  }
+  noGlow();
+  const hx = Math.round(sx + Math.cos(facingAngle) * HEAD_DIST);
+  const hy = Math.round(sy + Math.sin(facingAngle) * HEAD_DIST);
+  glow('#d4b058', 10);
+  for (let gy = Math.floor(-HEAD_R/PS); gy < Math.ceil(HEAD_R/PS); gy++) {
+    for (let gx = Math.floor(-HEAD_R/PS); gx < Math.ceil(HEAD_R/PS); gx++) {
+      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+      if (Math.sqrt(cx*cx + cy*cy) > HEAD_R) continue;
+      ctx.fillStyle = '#d4b058';
+      ctx.fillRect(hx + gx*PS, hy + gy*PS, PS, PS);
+    }
+  }
+  noGlow();
 }
 
 function drawArrow(sx, sy, color) {
@@ -1748,8 +1805,10 @@ function updateMobs(dt, now) {
         const helmet = equipSlots['helmet'];
         const chest  = equipSlots['chestplate'];
         let armor = 0;
-        if (helmet && helmet.id === 'feather_hat') armor += 1;
-        if (chest  && chest.id  === 'bone_armor')  armor += 3;
+        const pants2 = equipSlots['pants'];
+        if (helmet && helmet.id === 'feather_hat')   armor += 1;
+        if (chest  && chest.id  === 'bone_armor')    armor += 3;
+        if (pants2 && pants2.id === 'feather_pants') armor += 1;
         playerHp = Math.max(0, playerHp - Math.max(1, dmg - armor));
         lastZombieDmg = now; lastHitTime = now;
         spawnParticles(px, py, '#cc2020', 3);
@@ -2243,6 +2302,17 @@ function updateSaplings() {
   }
 }
 
+const ROCK_RESPAWN_TIME = CYCLE_LEN * 2; // ~170s, two full day cycles
+function updateCaveRockRespawn() {
+  for (const rock of caveRocks) {
+    if (!rock.mined || rock.minedTime === undefined) continue;
+    if (gameNow - rock.minedTime < ROCK_RESPAWN_TIME) continue;
+    rock.mined = false; rock.minedTime = undefined;
+    rock.mineHealth = rock.type === 'bronze' ? 5 : rock.type === 'coal' ? 3 : 4;
+    rock.hitsLeft = rock.mineHealth;
+  }
+}
+
 function drawSaplings() {
   for (const s of saplings) {
     const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
@@ -2318,6 +2388,7 @@ function loop(ts) {
     updatePlayerRegen(dt, now);
     updateRespawns(dt);
     if (!inCave) updateSaplings();
+    if (inCave) updateCaveRockRespawn();
     updateParticles(dt);
     checkGameOver();
     updateCamera();
