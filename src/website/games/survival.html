@@ -36,7 +36,7 @@
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>E — inventory</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -61,16 +61,19 @@ function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
 function noNeon()           { ctx.shadowBlur = 0; }
 
 // ===================== INPUT =====================
-const keys     = {};
-const released = {};
+const keys      = {};
+const released  = {};
+const justPressed = new Set();
 const DIAG_GRACE = 50;
 
 document.addEventListener('keydown', e => {
-  if (['w','a','s','d'].includes(e.key.toLowerCase())) e.preventDefault();
-  if (e.key.toLowerCase() === 'e') { inventoryOpen = !inventoryOpen; return; }
-  keys[e.key.toLowerCase()] = true;
+  const k = e.key.toLowerCase();
+  if (['w','a','s','d'].includes(k)) e.preventDefault();
+  if (k === 'i') { inventoryOpen = !inventoryOpen; return; }
+  if (k === 'e') { justPressed.add('e'); return; }
+  keys[k] = true;
   if (e.key === 'Shift') keys['shift'] = true;
-  delete released[e.key.toLowerCase()];
+  delete released[k];
 });
 document.addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
@@ -136,6 +139,7 @@ const GRASS_VARIANTS = [
 
 // ===================== WORLD GENERATION =====================
 const worldChunks = [];
+const worldSticks = [];   // flat list — mutable (pickedUp state)
 for (let cy = 0; cy < CHUNKS_Y; cy++) {
   for (let cx = 0; cx < CHUNKS_X; cx++) {
     const rng = chunkRNG(cx, cy);
@@ -169,6 +173,16 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
         y:    wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
         segs,
       };
+    }
+
+    // 0–2 sticks per chunk (after tree gen so existing RNG sequence is unchanged)
+    const numSticks = Math.floor(rng() * 3);
+    for (let i = 0; i < numSticks; i++) {
+      worldSticks.push({
+        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+        pickedUp: false,
+      });
     }
 
     worldChunks.push({ grass, tree });
@@ -227,6 +241,7 @@ function drawInventory() {
     for (let col = 0; col < INV_COLS; col++) {
       const sx = INV_X + INV_PAD + col * (SLOT_SIZE + SLOT_GAP);
       const sy = gridTop + row * (SLOT_SIZE + SLOT_GAP);
+      const item = inventorySlots[row * INV_COLS + col];
 
       // Slot bg
       ctx.fillStyle = '#0d0a1e';
@@ -235,6 +250,26 @@ function drawInventory() {
       // Slot border
       ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
       ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
+
+      if (item) {
+        if (item.id === 'stick') {
+          ctx.save();
+          ctx.translate(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2);
+          ctx.rotate(Math.PI / 5);
+          ctx.fillStyle = '#3d1a05';
+          ctx.fillRect(-3, -13, 6, 26);
+          ctx.fillStyle = '#7a4215';
+          ctx.fillRect(-3, -13, 2, 26);
+          ctx.restore();
+        }
+        if (item.count > 1) {
+          ctx.fillStyle = '#a78bfa';
+          ctx.font = '500 9px monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText(item.count, sx + SLOT_SIZE - 4, sy + SLOT_SIZE - 4);
+          ctx.textAlign = 'left';
+        }
+      }
     }
   }
 }
@@ -248,6 +283,7 @@ const SPRINT_MULT = 1.75;
 
 let px = WORLD_W / 2, py = WORLD_H / 2;
 let facingAngle = -Math.PI / 2;
+let nearbyStick = null;  // stick eligible for pickup this frame
 
 // ===================== STAMINA =====================
 const STAM_MAX         = 100;
@@ -293,6 +329,48 @@ function resolveTreeCollisions() {
       }
     }
   }
+}
+
+// ===================== INTERACT =====================
+const PICKUP_RANGE = 65;
+const FACING_DOT   = 0.45;  // ~63° half-angle — fairly forgiving
+
+function getNearbyInteractable() {
+  let best = null, bestDist = Infinity;
+  const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
+  for (const stick of worldSticks) {
+    if (stick.pickedUp) continue;
+    const dx = stick.x - px, dy = stick.y - py;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > PICKUP_RANGE || dist === 0) continue;
+    const dot = fx * (dx / dist) + fy * (dy / dist);
+    if (dot < FACING_DOT) continue;
+    if (dist < bestDist) { bestDist = dist; best = stick; }
+  }
+  return best;
+}
+
+function addToInventory(id) {
+  // Stack onto existing slot
+  for (let i = 0; i < inventorySlots.length; i++) {
+    if (inventorySlots[i] && inventorySlots[i].id === id && inventorySlots[i].count < 99) {
+      inventorySlots[i].count++;
+      return;
+    }
+  }
+  // Empty slot
+  for (let i = 0; i < inventorySlots.length; i++) {
+    if (!inventorySlots[i]) { inventorySlots[i] = { id, count: 1 }; return; }
+  }
+}
+
+function handleInteract() {
+  if (!justPressed.has('e')) return;
+  justPressed.delete('e');
+  if (inventoryOpen) return;
+  if (!nearbyStick) return;
+  nearbyStick.pickedUp = true;
+  addToInventory('stick');
 }
 
 function updateMovement(dt) {
@@ -450,6 +528,39 @@ function drawTreeTops() {
   }
 }
 
+function drawStickBodies() {
+  for (const stick of worldSticks) {
+    if (stick.pickedUp) continue;
+    const sx = stick.x - camX, sy = stick.y - camY;
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(Math.PI / 5.5);
+    ctx.fillStyle = '#3d1a05';
+    ctx.fillRect(-2, -9, 4, 18);
+    ctx.fillStyle = '#7a4215';
+    ctx.fillRect(-2, -9, 1, 18);  // left edge highlight
+    ctx.restore();
+  }
+}
+
+function drawStickArrows() {
+  if (!nearbyStick || nearbyStick.pickedUp) return;
+  const sx = nearbyStick.x - camX, sy = nearbyStick.y - camY;
+  // Bouncy offset
+  const bob = Math.sin(performance.now() / 280) * 2.5;
+  const ay = sy - 22 + bob;
+  neon('#c4b5fd', 12);
+  ctx.fillStyle = '#c4b5fd';
+  ctx.beginPath();
+  ctx.moveTo(sx,      ay - 5);
+  ctx.lineTo(sx + 6,  ay + 2);
+  ctx.lineTo(sx - 6,  ay + 2);
+  ctx.closePath();
+  ctx.fill();
+  noNeon();
+}
+
 function drawPlayer() {
   const sx = px - camX, sy = py - camY;
 
@@ -495,13 +606,17 @@ function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   updateFacing();
+  nearbyStick = getNearbyInteractable();
+  handleInteract();
   updateMovement(dt);
   updateCamera();
   drawBg();
   drawGrass();
-  drawTreeBases();   // trunk base — in front of player
+  drawStickBodies();   // sticks on ground, under player
+  drawTreeBases();     // trunk base — in front of player
   drawPlayer();
-  drawTreeTops();    // canopy + upper trunk — behind player
+  drawTreeTops();      // canopy + upper trunk — behind player
+  drawStickArrows();   // pickup indicators on top of everything
   drawBorder();
   drawStamina();
   if (inventoryOpen) drawInventory();
