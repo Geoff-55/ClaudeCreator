@@ -227,77 +227,269 @@ function trunkRect(t) {
   };
 }
 
-// ===================== INVENTORY =====================
+// ===================== INVENTORY + CRAFTING =====================
 let inventoryOpen = false;
-const INV_COLS = 4, INV_ROWS = 5;
+const INV_COLS  = 4, INV_ROWS = 5;
 const SLOT_SIZE = 52, SLOT_GAP = 6;
-const INV_PAD = 22;
-const INV_W = INV_COLS * SLOT_SIZE + (INV_COLS - 1) * SLOT_GAP + INV_PAD * 2;
-const INV_H = INV_ROWS * SLOT_SIZE + (INV_ROWS - 1) * SLOT_GAP + INV_PAD * 2 + 28;
-const INV_X = Math.round((W - INV_W) / 2);
-const INV_Y = Math.round((H - INV_H) / 2);
+const INV_PAD   = 22;
+const CRAFT_W   = 140;  // crafting panel content width
+const CRAFT_GAP = 16;   // gap / divider between panels
+const RECIPE_H  = 76;   // height per recipe card
+
+const GRID_W = INV_COLS * SLOT_SIZE + (INV_COLS - 1) * SLOT_GAP;
+const GRID_H = INV_ROWS * SLOT_SIZE + (INV_ROWS - 1) * SLOT_GAP;
+const INV_W  = INV_PAD + CRAFT_W + CRAFT_GAP + GRID_W + INV_PAD;
+const INV_H  = GRID_H + INV_PAD * 2 + 28;
+const INV_X  = Math.round((W - INV_W) / 2);
+const INV_Y  = Math.round((H - INV_H) / 2);
+
+// Derived layout positions (computed after INV_X/Y)
+const CRAFT_LEFT = INV_X + INV_PAD;
+const CRAFT_TOP  = INV_Y + INV_PAD + 28;
+const GRID_LEFT  = CRAFT_LEFT + CRAFT_W + CRAFT_GAP;
+const GRID_TOP   = CRAFT_TOP;
 
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
+let selectedSlot = -1;
+let mouseX = W / 2, mouseY = H / 2;
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = e.clientX - r.left;
+  mouseY = e.clientY - r.top;
+});
+canvas.addEventListener('click', e => {
+  if (!inventoryOpen) return;
+  const r = canvas.getBoundingClientRect();
+  handleInventoryClick(e.clientX - r.left, e.clientY - r.top);
+});
+
+// ===================== CRAFTING =====================
+const RECIPES = [
+  {
+    id: 'hatchet',
+    name: 'Hatchet',
+    ingredients: [
+      { id: 'stick', count: 2 },
+      { id: 'rock',  count: 1 },
+    ],
+  },
+];
+
+function canCraft(recipe) {
+  for (const ing of recipe.ingredients) {
+    let total = 0;
+    for (const slot of inventorySlots)
+      if (slot && slot.id === ing.id) total += slot.count;
+    if (total < ing.count) return false;
+  }
+  return true;
+}
+
+function craft(recipe) {
+  if (!canCraft(recipe)) return;
+  for (const ing of recipe.ingredients) {
+    let need = ing.count;
+    for (let i = 0; i < inventorySlots.length && need > 0; i++) {
+      if (inventorySlots[i] && inventorySlots[i].id === ing.id) {
+        const take = Math.min(need, inventorySlots[i].count);
+        inventorySlots[i].count -= take;
+        need -= take;
+        if (inventorySlots[i].count === 0) inventorySlots[i] = null;
+      }
+    }
+  }
+  addToInventory(recipe.id);
+}
+
+function handleInventoryClick(mx, my) {
+  // Inventory slots
+  for (let row = 0; row < INV_ROWS; row++) {
+    for (let col = 0; col < INV_COLS; col++) {
+      const sx = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
+      const sy = GRID_TOP  + row * (SLOT_SIZE + SLOT_GAP);
+      if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE) {
+        const idx = row * INV_COLS + col;
+        if (selectedSlot === -1) {
+          if (inventorySlots[idx]) selectedSlot = idx;
+        } else if (selectedSlot === idx) {
+          selectedSlot = -1;
+        } else {
+          const tmp = inventorySlots[selectedSlot];
+          inventorySlots[selectedSlot] = inventorySlots[idx];
+          inventorySlots[idx] = tmp;
+          selectedSlot = -1;
+        }
+        return;
+      }
+    }
+  }
+  // Craft buttons
+  for (let ri = 0; ri < RECIPES.length; ri++) {
+    const recipe = RECIPES[ri];
+    const ry   = CRAFT_TOP + ri * (RECIPE_H + 8);
+    const btnX = CRAFT_LEFT + CRAFT_W - 50;
+    const btnY = ry + RECIPE_H - 22;
+    if (mx >= btnX && mx < btnX + 48 && my >= btnY && my < btnY + 18) {
+      if (canCraft(recipe)) craft(recipe);
+      return;
+    }
+  }
+  // Click outside — deselect
+  selectedSlot = -1;
+}
+
+// ===================== ITEM ICON HELPER =====================
+function drawItemIcon(id, cx, cy, size) {
+  const s = size;
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  if (id === 'stick') {
+    ctx.rotate(Math.PI / 5);
+    ctx.fillStyle = '#3d1a05';
+    ctx.fillRect(-s * 0.13, -s * 0.5, s * 0.27, s);
+    ctx.fillStyle = '#7a4215';
+    ctx.fillRect(-s * 0.13, -s * 0.5, s * 0.09, s);
+
+  } else if (id === 'rock') {
+    ctx.fillStyle = '#3e3e3e';
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.5, s * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5c5c5c';
+    ctx.beginPath(); ctx.ellipse(-s*0.1, -s*0.1, s*0.28, s*0.2, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#747474';
+    ctx.beginPath(); ctx.ellipse(-s*0.18, -s*0.16, s*0.13, s*0.09, 0, 0, Math.PI*2); ctx.fill();
+
+  } else if (id === 'hatchet') {
+    ctx.rotate(-Math.PI / 4.5);
+    // Handle
+    ctx.fillStyle = '#5c2a0a';
+    ctx.fillRect(-s * 0.11, -s * 0.2, s * 0.22, s * 0.72);
+    ctx.fillStyle = '#8a5020';
+    ctx.fillRect(-s * 0.11, -s * 0.2, s * 0.07, s * 0.72);
+    // Head
+    ctx.fillStyle = '#4e4e4e';
+    ctx.fillRect(-s * 0.36, -s * 0.54, s * 0.72, s * 0.35);
+    ctx.fillStyle = '#727272';
+    ctx.fillRect(-s * 0.36, -s * 0.54, s * 0.72, s * 0.11);
+  }
+
+  ctx.restore();
+}
 
 function drawInventory() {
+  // Dim world
   ctx.fillStyle = 'rgba(4, 3, 12, 0.82)';
   ctx.fillRect(0, 0, W, H);
 
+  // Panel background
   ctx.fillStyle = '#0a0718';
   ctx.fillRect(INV_X, INV_Y, INV_W, INV_H);
 
+  // Panel border
   glow('#a855f7', 14);
   ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5;
   ctx.strokeRect(INV_X, INV_Y, INV_W, INV_H);
   noGlow();
 
+  // Divider line between crafting and inventory
+  ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
+  const divX = CRAFT_LEFT + CRAFT_W + CRAFT_GAP / 2;
+  ctx.beginPath();
+  ctx.moveTo(divX, INV_Y + 12);
+  ctx.lineTo(divX, INV_Y + INV_H - 12);
+  ctx.stroke();
+
+  // ---- CRAFTING PANEL ----
+  ctx.fillStyle = '#a855f7';
+  ctx.font = '600 10px monospace';
+  ctx.letterSpacing = '0.12em';
+  ctx.fillText('CRAFTING', CRAFT_LEFT, INV_Y + INV_PAD + 10);
+  ctx.letterSpacing = '0';
+
+  for (let ri = 0; ri < RECIPES.length; ri++) {
+    const recipe   = RECIPES[ri];
+    const craftable = canCraft(recipe);
+    const ry = CRAFT_TOP + ri * (RECIPE_H + 8);
+
+    // Card background
+    ctx.fillStyle = craftable ? '#0e1c08' : '#0d0a1c';
+    ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
+    ctx.strokeStyle = craftable ? '#2e5818' : '#1e1240';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
+
+    // Result icon
+    drawItemIcon(recipe.id, CRAFT_LEFT + 16, ry + 22, 22);
+
+    // Name
+    ctx.fillStyle = craftable ? '#96d048' : '#5a4870';
+    ctx.font = '700 10px monospace';
+    ctx.fillText(recipe.name.toUpperCase(), CRAFT_LEFT + 32, ry + 16);
+
+    // Ingredients
+    for (let ii = 0; ii < recipe.ingredients.length; ii++) {
+      const ing = recipe.ingredients[ii];
+      const iy  = ry + 30 + ii * 14;
+      drawItemIcon(ing.id, CRAFT_LEFT + 38, iy, 11);
+      ctx.fillStyle = craftable ? '#7a9a50' : '#4a3a60';
+      ctx.font = '500 8px monospace';
+      ctx.fillText(`${ing.count}x ${ing.id}`, CRAFT_LEFT + 46, iy + 4);
+    }
+
+    // Craft button
+    const btnX = CRAFT_LEFT + CRAFT_W - 50;
+    const btnY = ry + RECIPE_H - 22;
+    ctx.fillStyle = craftable ? '#162e0a' : '#120e22';
+    ctx.fillRect(btnX, btnY, 48, 18);
+    if (craftable) {
+      glow('#5aaa28', 6);
+      ctx.strokeStyle = '#5aaa28';
+    } else {
+      ctx.strokeStyle = '#2a1a4a';
+    }
+    ctx.lineWidth = 1;
+    ctx.strokeRect(btnX, btnY, 48, 18);
+    noGlow();
+    ctx.fillStyle = craftable ? '#90d040' : '#3a2a58';
+    ctx.font = '700 8px monospace';
+    ctx.letterSpacing = '0.1em';
+    ctx.textAlign = 'center';
+    ctx.fillText('CRAFT', btnX + 24, btnY + 12);
+    ctx.textAlign = 'left';
+    ctx.letterSpacing = '0';
+  }
+
+  // ---- INVENTORY GRID ----
   ctx.fillStyle = '#a855f7';
   ctx.font = '600 11px monospace';
   ctx.letterSpacing = '0.12em';
-  ctx.fillText('INVENTORY', INV_X + INV_PAD, INV_Y + INV_PAD + 10);
+  ctx.fillText('INVENTORY', GRID_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
 
-  const gridTop = INV_Y + INV_PAD + 28;
   for (let row = 0; row < INV_ROWS; row++) {
     for (let col = 0; col < INV_COLS; col++) {
-      const sx   = INV_X + INV_PAD + col * (SLOT_SIZE + SLOT_GAP);
-      const sy   = gridTop + row * (SLOT_SIZE + SLOT_GAP);
-      const item = inventorySlots[row * INV_COLS + col];
+      const sx  = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
+      const sy  = GRID_TOP  + row * (SLOT_SIZE + SLOT_GAP);
+      const idx = row * INV_COLS + col;
+      const item = inventorySlots[idx];
+      const isSel = selectedSlot === idx;
 
-      ctx.fillStyle = '#0d0a1e';
+      // Slot bg
+      ctx.fillStyle = isSel ? '#1e0e32' : '#0d0a1e';
       ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
-      ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
+
+      // Slot border
+      if (isSel) { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
+      else        { ctx.strokeStyle = '#2a1050'; }
+      ctx.lineWidth = isSel ? 1.5 : 1;
       ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
+      noGlow();
 
       if (item) {
-        const cx = sx + SLOT_SIZE / 2, cy = sy + SLOT_SIZE / 2;
-
-        if (item.id === 'stick') {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(Math.PI / 5);
-          ctx.fillStyle = '#3d1a05';
-          ctx.fillRect(-3, -13, 6, 26);
-          ctx.fillStyle = '#7a4215';
-          ctx.fillRect(-3, -13, 2, 26);
-          ctx.restore();
-        }
-
-        if (item.id === 'rock') {
-          ctx.fillStyle = '#3e3e3e';
-          ctx.beginPath();
-          ctx.ellipse(cx, cy, 14, 10, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#5c5c5c';
-          ctx.beginPath();
-          ctx.ellipse(cx - 3, cy - 2, 8, 6, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#747474';
-          ctx.beginPath();
-          ctx.ellipse(cx - 4, cy - 3, 4, 3, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
+        if (isSel) ctx.globalAlpha = 0.35;
+        drawItemIcon(item.id, sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, 28);
+        ctx.globalAlpha = 1;
         if (item.count > 1) {
           ctx.fillStyle = '#a78bfa';
           ctx.font = '500 9px monospace';
@@ -307,6 +499,13 @@ function drawInventory() {
         }
       }
     }
+  }
+
+  // Held item follows cursor
+  if (selectedSlot !== -1 && inventorySlots[selectedSlot]) {
+    ctx.globalAlpha = 0.85;
+    drawItemIcon(inventorySlots[selectedSlot].id, mouseX, mouseY, 30);
+    ctx.globalAlpha = 1;
   }
 }
 
