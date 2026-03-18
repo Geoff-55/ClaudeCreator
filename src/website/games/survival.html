@@ -275,6 +275,7 @@ function enterCave(entranceIdx) {
 function exitCave(exitIdx) {
   const exit = mineExits[exitIdx];
   inCave = false;
+  mobs.length = 0;
   px = mineEntrances[exit.entranceIdx].x;
   py = mineEntrances[exit.entranceIdx].y;
 }
@@ -287,6 +288,7 @@ const campfires = [];
 const craftingStations = [];
 const mineEntrances = [];
 const furnaces = [];
+const torches  = [];
 const STATION_RANGE = 110;
 const FURNACE_RANGE = 110;
 
@@ -296,6 +298,7 @@ function nearFurnace() {
 
 const mobs = [];
 let lastMobSpawn = -999;
+let lastCaveMobSpawn = -999;
 let playerHp = 100;
 let lastZombieDmg = 0;
 let lastHitTime = -999;
@@ -310,7 +313,7 @@ function trunkRect(t) {
 
 // ===================== INVENTORY + CRAFTING + EQUIP =====================
 let inventoryOpen = false;
-const INV_COLS  = 4, INV_ROWS = 5;
+const INV_COLS  = 4, INV_ROWS = 6;
 const SLOT_SIZE = 52, SLOT_GAP = 6;
 const INV_PAD   = 22;
 const CRAFT_W   = 140;
@@ -433,18 +436,21 @@ const RECIPES = [
     requiresStation: true,
   },
   {
-    id: 'cooked_chicken', name: 'Cooked Chicken',
-    ingredients: [{ id: 'raw_chicken', count: 1 }, { id: 'stick', count: 2 }],
-    requiresFurnace: true,
+    id: 'torch', name: 'Torch',
+    ingredients: [{ id: 'coal', count: 1 }, { id: 'stick', count: 1 }],
+    requiresStation: true,
+    yield: 10,
   },
   {
     id: 'cooked_chicken', name: 'Cooked Chicken',
-    ingredients: [{ id: 'raw_chicken', count: 1 }, { id: 'coal', count: 1 }],
+    ingredients: [{ id: 'raw_chicken', count: 1 }],
+    fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
     requiresFurnace: true,
   },
   {
     id: 'bronze_ingot', name: 'Bronze Ingot',
     ingredients: [{ id: 'rough_bronze', count: 3 }],
+    fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
     requiresFurnace: true,
   },
   {
@@ -471,32 +477,43 @@ function nearCraftingStation() {
   });
 }
 
+function countItem(id) {
+  let n = 0;
+  for (const slot of inventorySlots) if (slot && slot.id === id) n += slot.count;
+  return n;
+}
+
+function consumeItem(id, need) {
+  for (let i = 0; i < inventorySlots.length && need > 0; i++) {
+    if (inventorySlots[i] && inventorySlots[i].id === id) {
+      const take = Math.min(need, inventorySlots[i].count);
+      inventorySlots[i].count -= take; need -= take;
+      if (inventorySlots[i].count === 0) inventorySlots[i] = null;
+    }
+  }
+}
+
 function canCraft(recipe) {
   if (recipe.requiresStation && !nearCraftingStation()) return false;
   if (recipe.requiresFurnace && !nearFurnace()) return false;
-  for (const ing of recipe.ingredients) {
-    let total = 0;
-    for (const slot of inventorySlots)
-      if (slot && slot.id === ing.id) total += slot.count;
-    if (total < ing.count) return false;
+  for (const ing of recipe.ingredients)
+    if (countItem(ing.id) < ing.count) return false;
+  if (recipe.fuelOptions) {
+    const ok = recipe.fuelOptions.some(fuel => fuel.every(ing => countItem(ing.id) >= ing.count));
+    if (!ok) return false;
   }
   return true;
 }
 
 function craft(recipe) {
   if (!canCraft(recipe)) return;
-  for (const ing of recipe.ingredients) {
-    let need = ing.count;
-    for (let i = 0; i < inventorySlots.length && need > 0; i++) {
-      if (inventorySlots[i] && inventorySlots[i].id === ing.id) {
-        const take = Math.min(need, inventorySlots[i].count);
-        inventorySlots[i].count -= take;
-        need -= take;
-        if (inventorySlots[i].count === 0) inventorySlots[i] = null;
-      }
-    }
+  for (const ing of recipe.ingredients) consumeItem(ing.id, ing.count);
+  if (recipe.fuelOptions) {
+    const fuel = recipe.fuelOptions.find(fuel => fuel.every(ing => countItem(ing.id) >= ing.count));
+    if (fuel) for (const ing of fuel) consumeItem(ing.id, ing.count);
   }
-  addToInventory(recipe.id);
+  const n = recipe.yield || 1;
+  for (let i = 0; i < n; i++) addToInventory(recipe.id);
 }
 
 // Which equip slot each item belongs to (items not listed can only go in inventory)
@@ -504,7 +521,7 @@ const ITEM_SLOT = {
   hatchet: 'weapon', pickaxe: 'weapon', sword: 'weapon',
   bronze_hatchet: 'weapon', bronze_pickaxe: 'weapon', bronze_sword: 'weapon',
   campfire: 'weapon', crafting_station: 'weapon', mine_entrance: 'weapon', furnace: 'weapon',
-  sapling: 'weapon',
+  sapling: 'weapon', torch: 'weapon',
   feather_hat: 'helmet',
   bone_armor: 'chestplate',
   raw_chicken: 'food', cooked_chicken: 'food',
@@ -743,6 +760,15 @@ function drawItemIcon(id, cx, cy, size) {
      [D,2,5],[D,3,5],[D,4,5],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
+  } else if (id === 'torch') {
+    const T = '#5c2a0a', F = '#e05010', Y = '#ffa020', W2 = '#ffe060';
+    [[F,2,0],[F,3,0],[F,4,0],[F,5,0],
+     [F,1,1],[Y,2,1],[Y,3,1],[Y,4,1],[F,5,1],
+     [F,2,2],[Y,3,2],[W2,3,3],[F,4,2],
+     [T,3,4],[T,3,5],[T,3,6],[T,3,7],
+     [T,2,6],[T,4,6],[T,2,7],[T,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
   } else if (id === 'sapling') {
     const T = '#5c2a0a', L = '#2a6614', M = '#3a8020', H = '#4a9a28';
     [[T,3,5],[T,3,6],[T,4,5],[T,4,6],
@@ -862,7 +888,8 @@ function drawInventory() {
 
     ctx.fillStyle = ok ? '#96d048' : '#5a4870';
     ctx.font = '700 10px monospace';
-    ctx.fillText(recipe.name.toUpperCase(), CRAFT_LEFT + 32, ry + 16);
+    const nameLabel = recipe.yield > 1 ? `${recipe.name.toUpperCase()} x${recipe.yield}` : recipe.name.toUpperCase();
+    ctx.fillText(nameLabel, CRAFT_LEFT + 32, ry + 16);
     if (recipe.requiresStation && !nearCraftingStation()) {
       ctx.fillStyle = '#a06030'; ctx.font = '500 7px monospace';
       ctx.fillText('req. station', CRAFT_LEFT + 32, ry + 26);
@@ -879,6 +906,13 @@ function drawInventory() {
       ctx.fillStyle = ok ? '#7a9a50' : '#4a3a60';
       ctx.font = '500 8px monospace';
       ctx.fillText(`${ing.count}x ${ing.id}`, CRAFT_LEFT + 46, iy + 4);
+    }
+    if (recipe.fuelOptions) {
+      const iy = ry + 30 + recipe.ingredients.length * 14;
+      const fuelStr = recipe.fuelOptions.map(f => f.map(i => `${i.count}x ${i.id}`).join('+')).join(' or ');
+      ctx.fillStyle = ok ? '#7a9a50' : '#4a3a60';
+      ctx.font = '500 7px monospace';
+      ctx.fillText(fuelStr, CRAFT_LEFT + 30, iy + 4);
     }
 
     const btnX = CRAFT_LEFT + CRAFT_W - 50, btnY = ry + RECIPE_H - 22;
@@ -1254,11 +1288,12 @@ function handleInteract() {
   }
   // Place items if equipped in weapon slot
   const weapon = equipSlots['weapon'];
-  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace', 'sapling'].includes(weapon.id)) {
+  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
     if (weapon.id === 'campfire') campfires.push({ x: px, y: py });
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py });
     else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'sapling') saplings.push({ x: px, y: py, plantedTime: gameNow });
+    else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave });
     else mineEntrances.push({ x: px, y: py });
     weapon.count--;
     if (weapon.count <= 0) equipSlots['weapon'] = null;
@@ -1605,8 +1640,8 @@ function killMob(m) {
 const MAX_MOBS = 8;
 const MOB_COLL_R = 14;
 
-function spawnMob(type) {
-  if (mobs.filter(m => !m.dead && m.type === type).length >= MAX_MOBS) return;
+function spawnMob(type, cap) {
+  if (mobs.filter(m => !m.dead && m.type === type).length >= (cap || MAX_MOBS)) return;
   const edge = Math.floor(Math.random() * 4);
   let x, y;
   if      (edge === 0) { x = camX + Math.random() * W; y = camY - 80; }
@@ -1635,10 +1670,14 @@ function updateMobs(dt, now) {
     if (darkAlpha > 0.6) spawnMob('zombie');
     if (darkAlpha < 0.4) spawnMob('chicken');
   }
+  if (inCave && now - lastCaveMobSpawn > 28) {
+    lastCaveMobSpawn = now;
+    spawnMob('zombie', 3);
+  }
   for (let i = mobs.length - 1; i >= 0; i--) {
     const m = mobs[i];
     if (m.dead) { m.deathTimer += dt; if (m.deathTimer > 1) mobs.splice(i, 1); continue; }
-    if (m.type === 'zombie' && darkAlpha < 0.3) { m.dead = true; continue; }
+    if (!inCave && m.type === 'zombie' && darkAlpha < 0.3) { m.dead = true; continue; }
     if (m.type === 'chicken' && darkAlpha > 0.7) { m.dead = true; continue; }
     m.animTimer += dt;
     const dx = px - m.x, dy = py - m.y;
@@ -1763,6 +1802,27 @@ function drawCampfires() {
   }
 }
 
+// ===================== TORCHES (WORLD) =====================
+function drawTorches() {
+  const t = performance.now() / 1000;
+  for (const f of torches) {
+    if (f.cave !== inCave) continue;
+    const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
+    if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
+    // Stake
+    ctx.fillStyle = '#5c2a0a';
+    ctx.fillRect(sx-2, sy-2, 4, 14);
+    // Flame
+    const flick = Math.sin(t * 11 + f.x * 0.02) * 1.5;
+    ctx.fillStyle = '#e05010';
+    ctx.beginPath(); ctx.ellipse(sx, sy-9, 3+flick, 6+flick, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffa020';
+    ctx.beginPath(); ctx.ellipse(sx, sy-10, 2+flick*0.4, 4+flick*0.8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffe060';
+    ctx.beginPath(); ctx.ellipse(sx, sy-9, 1, 2, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
 // ===================== NIGHT OVERLAY =====================
 function drawNightOverlay() {
   const effectiveDark = inCave ? 1 : darkAlpha;
@@ -1789,6 +1849,17 @@ function drawNightOverlay() {
     fg.addColorStop(0.5, `rgba(255,160,60,${(0.55 * effectiveDark).toFixed(3)})`);
     fg.addColorStop(1, 'rgba(255,100,20,0)');
     lctx.fillStyle = fg; lctx.fillRect(0, 0, W, H);
+  }
+  // Torches
+  for (const f of torches) {
+    if (f.cave !== inCave) continue;
+    const fx = f.x - camX, fy = f.y - camY;
+    if (fx < -120 || fx > W+120 || fy < -120 || fy > H+120) continue;
+    const tg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 100);
+    tg.addColorStop(0, `rgba(255,200,100,${(0.85 * effectiveDark).toFixed(3)})`);
+    tg.addColorStop(0.5, `rgba(255,150,50,${(0.4 * effectiveDark).toFixed(3)})`);
+    tg.addColorStop(1, 'rgba(255,100,20,0)');
+    lctx.fillStyle = tg; lctx.fillRect(0, 0, W, H);
   }
   lctx.globalCompositeOperation = 'source-over';
   ctx.drawImage(lightCanvas, 0, 0);
@@ -1960,6 +2031,11 @@ function drawCampfirePreview() {
     ctx.fillStyle = '#4a3828'; ctx.fillRect(sx-18, sy-18, 36, 36);
     ctx.fillStyle = '#e05010'; ctx.fillRect(sx-8, sy-8, 16, 16);
     ctx.fillStyle = '#ffa020'; ctx.fillRect(sx-5, sy-6, 10, 12);
+  } else if (weapon.id === 'torch') {
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#5c2a0a'; ctx.fillRect(sx-2, sy-2, 4, 12);
+    ctx.fillStyle = '#e05010'; ctx.fillRect(sx-3, sy-10, 6, 7);
+    ctx.fillStyle = '#ffc020'; ctx.fillRect(sx-2, sy-9, 3, 5);
   } else {
     ctx.restore(); return;
   }
@@ -2042,7 +2118,7 @@ function checkGameOver() {
 function restartGame() {
   playerHp = 100; score = 0; gameOver = false; lastHitTime = -999;
   mobs.length = 0; campfires.length = 0; craftingStations.length = 0;
-  mineEntrances.length = 0; furnaces.length = 0; saplings.length = 0;
+  mineEntrances.length = 0; furnaces.length = 0; torches.length = 0; saplings.length = 0;
   inCave = false; mineExits.length = 0;
   inventorySlots.fill(null);
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
@@ -2202,6 +2278,7 @@ function loop(ts) {
   if (!inCave) drawTreeBases();
   drawRockBases();
   if (!inCave) drawCampfires();
+  drawTorches();
   if (!inCave) drawCraftingStations();
   drawFurnaces();
   if (!inCave) drawMineEntrances();
