@@ -149,72 +149,76 @@ const worldChunks      = [];
 const worldGroundItems = [];
 const worldRocks       = [];
 
-for (let cy = 0; cy < CHUNKS_Y; cy++) {
-  for (let cx = 0; cx < CHUNKS_X; cx++) {
-    const rng = chunkRNG(cx, cy);
-    const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
+function generateSurfaceWorld() {
+  worldChunks.length = 0; worldGroundItems.length = 0; worldRocks.length = 0;
+  for (let cy = 0; cy < CHUNKS_Y; cy++) {
+    for (let cx = 0; cx < CHUNKS_X; cx++) {
+      const rng = chunkRNG(cx, cy);
+      const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
 
-    const grass = [];
-    const n = 2 + Math.floor(rng() * 3);
-    for (let i = 0; i < n; i++) {
-      grass.push({
-        x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
-        y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
-        v: Math.floor(rng() * GRASS_VARIANTS.length),
-      });
-    }
-
-    let tree = null;
-    if (rng() < 0.35) {
-      const numSegs = Math.ceil(TH / SEG_H);
-      const segs = [];
-      let drift = 0;
-      for (let i = 0; i < numSegs; i++) {
-        drift += Math.round(rng() * 6 - 3);
-        drift = Math.max(-6, Math.min(6, drift));
-        segs.push(drift);
+      const grass = [];
+      const n = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < n; i++) {
+        grass.push({
+          x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
+          y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
+          v: Math.floor(rng() * GRASS_VARIANTS.length),
+        });
       }
-      tree = {
-        x: wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
-        y: wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
-        segs,
-        chopped: false,
-        chopHealth: undefined, chopsLeft: undefined,
-      };
-    }
 
-    const numSticks = Math.floor(rng() * 3);
-    for (let i = 0; i < numSticks; i++) {
-      worldGroundItems.push({
-        type: 'stick',
-        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
-        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
-        pickedUp: false,
-      });
-    }
+      let tree = null;
+      if (rng() < 0.35) {
+        const numSegs = Math.ceil(TH / SEG_H);
+        const segs = [];
+        let drift = 0;
+        for (let i = 0; i < numSegs; i++) {
+          drift += Math.round(rng() * 6 - 3);
+          drift = Math.max(-6, Math.min(6, drift));
+          segs.push(drift);
+        }
+        tree = {
+          x: wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
+          y: wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
+          segs,
+          chopped: false,
+          chopHealth: undefined, chopsLeft: undefined,
+        };
+      }
 
-    if (rng() < 0.25) {
-      worldRocks.push({
-        x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
-        y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
-        mined: false,
-        mineHealth: undefined, hitsLeft: undefined,
-      });
-    }
+      const numSticks = Math.floor(rng() * 3);
+      for (let i = 0; i < numSticks; i++) {
+        worldGroundItems.push({
+          type: 'stick',
+          x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+          y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+          pickedUp: false,
+        });
+      }
 
-    const numSmallRocks = Math.floor(rng() * 3);
-    for (let i = 0; i < numSmallRocks; i++) {
-      worldGroundItems.push({
-        type: 'rock',
-        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
-        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
-        pickedUp: false,
-      });
-    }
+      if (rng() < 0.25) {
+        worldRocks.push({
+          x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
+          y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+          mined: false,
+          mineHealth: undefined, hitsLeft: undefined,
+        });
+      }
 
-    worldChunks.push({ grass, tree });
+      const numSmallRocks = Math.floor(rng() * 3);
+      for (let i = 0; i < numSmallRocks; i++) {
+        worldGroundItems.push({
+          type: 'rock',
+          x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+          y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+          pickedUp: false,
+        });
+      }
+
+      worldChunks.push({ grass, tree });
+    }
   }
 }
+generateSurfaceWorld();
 
 // ===================== CAVE WORLD =====================
 const CAVE_CHUNKS = 8;
@@ -222,6 +226,9 @@ const CAVE_W = CHUNK_W * CAVE_CHUNKS;
 const CAVE_H = CHUNK_H * CAVE_CHUNKS;
 const caveRocks       = [];
 const caveGroundItems = [];
+
+function generateCaveWorld() {
+  caveRocks.length = 0; caveGroundItems.length = 0;
 
 for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
   for (let cx = 0; cx < CAVE_CHUNKS; cx++) {
@@ -249,6 +256,8 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
     }
   }
 }
+}
+generateCaveWorld();
 
 // ===================== CAVE STATE =====================
 let inCave = false;
@@ -2124,6 +2133,10 @@ function restartGame() {
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
   px = WORLD_W / 2; py = WORLD_H / 2;
   heldSlot = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
+  cycleTime = 0; darkAlpha = 0; respawnTimer = 0;
+  lastMobSpawn = -999; lastCaveMobSpawn = -999;
+  generateSurfaceWorld();
+  generateCaveWorld();
 }
 
 function drawGameOver() {
@@ -2160,13 +2173,13 @@ function initGameOverClick() {
 
 // ===================== PLAYER HP =====================
 function drawPlayerHp() {
-  const BAR_W = 80, BAR_H = 6, bx = 120, by = H - 24;
+  const BAR_W = 80, BAR_H = 6, bx = 14, by = H - 36;
   ctx.fillStyle = '#2a0808'; ctx.fillRect(bx, by, BAR_W, BAR_H);
   const fill = (playerHp / 100) * BAR_W;
   const col = playerHp > 50 ? '#4aaa28' : playerHp > 25 ? '#e87820' : '#cc2020';
   if (fill > 0) { glow(col, 5); ctx.fillStyle = col; ctx.fillRect(bx, by, fill, BAR_H); noGlow(); }
   ctx.strokeStyle = '#3a1010'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, BAR_W, BAR_H);
-  ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx - 16, by + 5);
+  ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx + BAR_W + 4, by + 5);
 }
 
 // ===================== SAPLINGS =====================
