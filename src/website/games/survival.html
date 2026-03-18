@@ -1234,7 +1234,15 @@ function killMob(m) {
       worldGroundItems.push({ type: 'feather', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     spawnParticles(m.x, m.y, '#e8e0c8', 8);
   } else if (m.type === 'zombie') {
-    score += m.subtype === 'brute' ? 100 : m.subtype === 'quick' ? 30 : 50;
+    score += m.subtype === 'brute' ? 100 : m.subtype === 'quick' ? 75 : 50;
+    if (m.subtype === 'brute') {
+      const numRocks = 1 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < numRocks; i++) {
+        const a = Math.random() * Math.PI * 2, d = 10 + Math.random() * 20;
+        worldGroundItems.push({ type: 'rock', x: m.x + Math.cos(a)*d, y: m.y + Math.sin(a)*d, pickedUp: false });
+      }
+      spawnParticles(m.x, m.y, '#909090', 8);
+    }
   }
 }
 
