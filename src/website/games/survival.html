@@ -254,6 +254,24 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
         pickedUp: false,
       });
     }
+    // Rare loose coal nugget (~15% per chunk)
+    if (rng() < 0.15) {
+      caveGroundItems.push({
+        type: 'coal',
+        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+        pickedUp: false,
+      });
+    }
+    // Super rare loose copper nugget (~4% per chunk)
+    if (rng() < 0.04) {
+      caveGroundItems.push({
+        type: 'copper',
+        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+        pickedUp: false,
+      });
+    }
   }
 }
 }
@@ -846,6 +864,15 @@ function drawItemIcon(id, cx, cy, size) {
      [D,0,5],[D,1,5],[D,2,5],[D,3,5],[D,4,5],[D,5,5],[D,6,5],[D,7,5],
      [D,0,6],[D,1,6],[D,6,6],[D,7,6],
      [D,0,7],[D,1,7],[D,6,7],[D,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'copper') {
+    const D = '#7a2c08', M = '#c05018', H = '#e87840', S = '#f0a870';
+    [[D,2,1],[D,3,1],[D,4,1],
+     [D,1,2],[M,2,2],[H,3,2],[M,4,2],[D,5,2],
+     [D,1,3],[H,2,3],[S,3,3],[H,4,3],[M,5,3],[D,6,3],
+     [D,2,4],[M,3,4],[H,4,4],[M,5,4],[D,6,4],
+     [D,3,5],[D,4,5],[D,5,5],
     ].forEach(([c,x,y]) => dot(c,x,y));
   }
 }
