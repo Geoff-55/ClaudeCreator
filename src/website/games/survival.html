@@ -216,6 +216,8 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
 
 // ===================== CAMPFIRES + MOBS =====================
 const campfires = [];
+const craftingStations = [];
+const STATION_RANGE = 110;
 
 const mobs = [];
 let lastMobSpawn = -999;
@@ -223,6 +225,8 @@ let playerHp = 100;
 let lastZombieDmg = 0;
 let lastHitTime = -999;
 let respawnTimer = 0;
+let score = 0;
+let gameOver = false;
 
 function trunkRect(t) {
   const trunkBot = t.y + CRY * CBS + TH;
@@ -326,9 +330,22 @@ const RECIPES = [
     id: 'crafting_station', name: 'Craft Station',
     ingredients: [{ id: 'stick', count: 25 }, { id: 'rock', count: 10 }],
   },
+  {
+    id: 'feather_hat', name: 'Feather Hat',
+    ingredients: [{ id: 'feather', count: 4 }],
+    requiresStation: true,
+  },
 ];
 
+function nearCraftingStation() {
+  return craftingStations.some(s => {
+    const dx = s.x - px, dy = s.y - py;
+    return Math.sqrt(dx*dx + dy*dy) < STATION_RANGE;
+  });
+}
+
 function canCraft(recipe) {
+  if (recipe.requiresStation && !nearCraftingStation()) return false;
   for (const ing of recipe.ingredients) {
     let total = 0;
     for (const slot of inventorySlots)
@@ -492,6 +509,18 @@ function drawItemIcon(id, cx, cy, size) {
      [D,1,4],[D,6,4],[D,1,5],[D,6,5],[D,1,6],[D,6,6],[D,1,7],[D,6,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
+  } else if (id === 'feather_hat') {
+    const F = '#d4c89a', B = '#7a5820', H = '#5a4010', W = '#f0ecd0';
+    // feather plumes
+    [[F,2,0],[F,5,0],[F,3,1],[F,4,1],[W,3,2],[F,2,2],[F,5,2],[F,4,2],
+     // brim
+     [B,0,3],[B,1,3],[B,2,3],[B,3,3],[B,4,3],[B,5,3],[B,6,3],[B,7,3],
+     // crown
+     [H,1,4],[H,2,4],[H,3,4],[H,4,4],[H,5,4],[H,6,4],
+     [H,1,5],[H,2,5],[H,3,5],[H,4,5],[H,5,5],[H,6,5],
+     [H,0,6],[H,1,6],[H,2,6],[H,3,6],[H,4,6],[H,5,6],[H,6,6],[H,7,6],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
   } else if (id === 'feather') {
     const F = '#d0cca8', W = '#f4f2e0';
     [[W,7,0],
@@ -554,6 +583,10 @@ function drawInventory() {
     ctx.fillStyle = ok ? '#96d048' : '#5a4870';
     ctx.font = '700 10px monospace';
     ctx.fillText(recipe.name.toUpperCase(), CRAFT_LEFT + 32, ry + 16);
+    if (recipe.requiresStation && !nearCraftingStation()) {
+      ctx.fillStyle = '#a06030'; ctx.font = '500 7px monospace';
+      ctx.fillText('req. station', CRAFT_LEFT + 32, ry + 26);
+    }
 
     for (let ii = 0; ii < recipe.ingredients.length; ii++) {
       const ing = recipe.ingredients[ii];
@@ -875,6 +908,7 @@ function chopTree(tree) {
 
   if (tree.chopsLeft <= 0) {
     tree.chopped = true;
+    score += 20;
     const dropY  = tree.y + CRY * CBS + TH;
     const numDrop = 7 + Math.floor(Math.random() * 4);
     for (let i = 0; i < numDrop; i++) {
@@ -899,6 +933,7 @@ function mineRock(rock) {
 
   if (rock.hitsLeft <= 0) {
     rock.mined = true;
+    score += 40;
     const numDrop = 3 + Math.floor(Math.random() * 2);
     for (let i = 0; i < numDrop; i++) {
       const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 38;
@@ -913,15 +948,22 @@ function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
   if (inventoryOpen) return;
-  // Place campfire if equipped in weapon slot
+  // Place campfire or crafting station if equipped in weapon slot
   const weapon = equipSlots['weapon'];
-  if (weapon && weapon.id === 'campfire') {
-    campfires.push({ x: px, y: py });
+  if (weapon && (weapon.id === 'campfire' || weapon.id === 'crafting_station')) {
+    if (weapon.id === 'campfire') campfires.push({ x: px, y: py });
+    else craftingStations.push({ x: px, y: py });
     weapon.count--;
     if (weapon.count <= 0) equipSlots['weapon'] = null;
     return;
   }
-  if (nearbyItem) { nearbyItem.pickedUp = true; addToInventory(nearbyItem.type); return; }
+  if (nearbyItem) {
+    nearbyItem.pickedUp = true;
+    addToInventory(nearbyItem.type);
+    if (nearbyItem.type === 'stick') score += 5;
+    else if (nearbyItem.type === 'rock') score += 10;
+    return;
+  }
 }
 
 function updateMovement(dt) {
@@ -1186,10 +1228,13 @@ function handleAttackClick(mx, my) {
 
 function killMob(m) {
   if (m.type === 'chicken') {
+    score += 25;
     worldGroundItems.push({ type: 'raw_chicken', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     if (Math.random() < 0.5)
       worldGroundItems.push({ type: 'feather', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     spawnParticles(m.x, m.y, '#e8e0c8', 8);
+  } else if (m.type === 'zombie') {
+    score += m.subtype === 'brute' ? 100 : m.subtype === 'quick' ? 30 : 50;
   }
 }
 
@@ -1207,10 +1252,15 @@ function spawnMob(type) {
   else                 { x = camX + W + 80;            y = camY + Math.random() * H; }
   x = Math.max(50, Math.min(WORLD_W - 50, x));
   y = Math.max(50, Math.min(WORLD_H - 50, y));
+  let subtype = 'normal', hp = 10;
+  if (type === 'zombie') {
+    const r = Math.random();
+    if      (r < 1/15)        { subtype = 'brute'; hp = 25; }
+    else if (r < 1/15 + 1/10) { subtype = 'quick'; hp = 4; }
+  }
   mobs.push({
-    type, x, y,
-    hp: type === 'zombie' ? 10 : 5,
-    maxHp: type === 'zombie' ? 10 : 5,
+    type, subtype, x, y,
+    hp, maxHp: hp,
     vx: 0, vy: 0, dir: 1, drawScale: 1, animTimer: 0,
     dead: false, deathTimer: 0,
   });
@@ -1238,17 +1288,21 @@ function updateMobs(dt, now) {
         const fd = Math.sqrt(fdx*fdx + fdy*fdy);
         if (fd < 180 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
       }
+      const spd = m.subtype === 'brute' ? 32 : m.subtype === 'quick' ? 105 : 55;
+      const dmg = m.subtype === 'brute' ? 12 : m.subtype === 'quick' ? 2  : 5;
+      const cd  = m.subtype === 'brute' ? 1.2 : m.subtype === 'quick' ? 0.35 : 0.8;
       if (nearFire) {
         const fl = Math.sqrt(fleeX*fleeX + fleeY*fleeY);
-        m.vx = (fleeX/fl)*75; m.vy = (fleeY/fl)*75;
+        m.vx = (fleeX/fl)*spd; m.vy = (fleeY/fl)*spd;
       } else if (dist > 0) {
-        m.vx = (dx/dist)*55; m.vy = (dy/dist)*55;
+        m.vx = (dx/dist)*spd; m.vy = (dy/dist)*spd;
       }
       if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
-      if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > 0.8) {
-        playerHp = Math.max(0, playerHp - 5);
-        lastZombieDmg = now;
-        lastHitTime = now;
+      if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > cd) {
+        const helmet = equipSlots['helmet'];
+        const armor  = (helmet && helmet.id === 'feather_hat') ? 3 : 0;
+        playerHp = Math.max(0, playerHp - Math.max(1, dmg - armor));
+        lastZombieDmg = now; lastHitTime = now;
         spawnParticles(px, py, '#cc2020', 3);
       }
     } else {
@@ -1277,16 +1331,27 @@ function drawMobs() {
     ctx.globalAlpha = alpha;
     const bob = Math.sin(m.animTimer * 5) * 1.5;
     if (m.type === 'zombie') {
-      ctx.fillStyle = '#1e3a12'; ctx.fillRect(sx-8, sy-18+bob, 16, 20);
-      ctx.fillStyle = '#2a4a18'; ctx.fillRect(sx-7, sy-32+bob, 14, 14);
-      ctx.fillStyle = '#cc2020';
-      ctx.fillRect(sx-4, sy-27+bob, 3, 3); ctx.fillRect(sx+1, sy-27+bob, 3, 3);
-      const aw = Math.sin(m.animTimer*4)*3;
-      ctx.fillStyle = '#1a3010'; ctx.fillRect(sx-15, sy-16+aw, 7, 12); ctx.fillRect(sx+8, sy-16-aw, 7, 12);
+      const zs  = m.subtype === 'brute' ? 1.5 : m.subtype === 'quick' ? 0.72 : 1.0;
+      const bcol = m.subtype === 'brute' ? '#14280a' : m.subtype === 'quick' ? '#2a5a18' : '#1e3a12';
+      const hcol = m.subtype === 'brute' ? '#1c3410' : m.subtype === 'quick' ? '#3a7020' : '#2a4a18';
+      const zb = bob * zs;
+      ctx.fillStyle = bcol; ctx.fillRect(sx-8*zs, sy-18*zs+zb, 16*zs, 20*zs);
+      ctx.fillStyle = hcol; ctx.fillRect(sx-7*zs, sy-32*zs+zb, 14*zs, 14*zs);
+      ctx.fillStyle = m.subtype === 'quick' ? '#ff8020' : '#cc2020';
+      ctx.fillRect(sx-4*zs, sy-27*zs+zb, 3*zs, 3*zs); ctx.fillRect(sx+1*zs, sy-27*zs+zb, 3*zs, 3*zs);
+      const aw = Math.sin(m.animTimer*4)*3*zs;
+      ctx.fillStyle = bcol; ctx.fillRect(sx-15*zs, sy-16*zs+aw, 7*zs, 12*zs); ctx.fillRect(sx+8*zs, sy-16*zs-aw, 7*zs, 12*zs);
       if (m.hp < m.maxHp) {
-        const bx = sx-12, by = sy-38+bob;
-        ctx.fillStyle = '#300'; ctx.fillRect(bx, by, 24, 3);
-        ctx.fillStyle = '#a03020'; ctx.fillRect(bx, by, 24*m.hp/m.maxHp, 3);
+        const bw = 24*zs, bx2 = sx - bw/2, by2 = sy - 40*zs + zb;
+        ctx.fillStyle = '#300'; ctx.fillRect(bx2, by2, bw, 3);
+        ctx.fillStyle = '#a03020'; ctx.fillRect(bx2, by2, bw * m.hp/m.maxHp, 3);
+      }
+      // Label for brute/quick
+      if (m.subtype !== 'normal') {
+        ctx.fillStyle = m.subtype === 'brute' ? '#ff8040' : '#80ff80';
+        ctx.font = '500 7px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(m.subtype.toUpperCase(), sx, sy - 42*zs + zb);
+        ctx.textAlign = 'left';
       }
     } else {
       // Pixel art chicken — drawn facing right, flipped via drawScale
@@ -1384,25 +1449,114 @@ function drawAttackRadius() {
   ctx.setLineDash([]); ctx.restore();
 }
 
-// ===================== CAMPFIRE PLACEMENT PREVIEW =====================
+// ===================== CRAFTING STATIONS (WORLD) =====================
+function drawCraftingStations() {
+  for (const s of craftingStations) {
+    const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
+    if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
+    // Tabletop
+    ctx.fillStyle = '#5c2a0a'; ctx.fillRect(sx-16, sy-5, 32, 7);
+    ctx.fillStyle = '#8a5020'; ctx.fillRect(sx-16, sy-5, 32, 2);
+    ctx.fillStyle = '#3d1a05'; ctx.fillRect(sx-16, sy+1,  32, 1);
+    // Legs
+    ctx.fillStyle = '#4a2208';
+    ctx.fillRect(sx-13, sy+2, 4, 12); ctx.fillRect(sx+9, sy+2, 4, 12);
+    // Range indicator when nearby
+    const dist = Math.sqrt((s.x-px)**2 + (s.y-py)**2);
+    if (dist < STATION_RANGE) {
+      ctx.save();
+      ctx.globalAlpha = 0.07; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.arc(sx, sy, STATION_RANGE, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+  }
+}
+
+// ===================== PLACEMENT PREVIEW =====================
 function drawCampfirePreview() {
   const weapon = equipSlots['weapon'];
-  if (!weapon || weapon.id !== 'campfire') return;
+  if (!weapon) return;
   const sx = Math.round(px - camX), sy = Math.round(py - camY);
   ctx.save();
-  ctx.globalAlpha = 0.55;
-  // Logs
-  ctx.fillStyle = '#3d1a05';
-  ctx.fillRect(sx-9, sy-2, 18, 4); ctx.fillRect(sx-2, sy-9, 4, 11);
-  // Flame (static preview)
-  ctx.fillStyle = '#e05010'; ctx.fillRect(sx-3, sy-16, 6, 8);
-  ctx.fillStyle = '#ffc020'; ctx.fillRect(sx-2, sy-16, 3, 6);
+  if (weapon.id === 'campfire') {
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#3d1a05';
+    ctx.fillRect(sx-9, sy-2, 18, 4); ctx.fillRect(sx-2, sy-9, 4, 11);
+    ctx.fillStyle = '#e05010'; ctx.fillRect(sx-3, sy-16, 6, 8);
+    ctx.fillStyle = '#ffc020'; ctx.fillRect(sx-2, sy-16, 3, 6);
+  } else if (weapon.id === 'crafting_station') {
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#5c2a0a'; ctx.fillRect(sx-16, sy-5, 32, 7);
+    ctx.fillStyle = '#8a5020'; ctx.fillRect(sx-16, sy-5, 32, 2);
+    ctx.fillStyle = '#4a2208';
+    ctx.fillRect(sx-13, sy+2, 4, 10); ctx.fillRect(sx+9, sy+2, 4, 10);
+  } else {
+    ctx.restore(); return;
+  }
   ctx.globalAlpha = 0.9;
   ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
   ctx.textAlign = 'center';
   ctx.fillText('[E] place', sx, sy - 22);
   ctx.textAlign = 'left';
   ctx.restore();
+}
+
+// ===================== SCORE =====================
+function drawScore() {
+  ctx.save();
+  ctx.textAlign = 'right';
+  ctx.font = '600 11px monospace';
+  ctx.fillStyle = '#a855f7';
+  ctx.fillText(`SCORE  ${score}`, W - 14, 20);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+// ===================== GAME OVER =====================
+function checkGameOver() {
+  if (!gameOver && playerHp <= 0) { gameOver = true; playerHp = 0; }
+}
+
+function restartGame() {
+  playerHp = 100; score = 0; gameOver = false; lastHitTime = -999;
+  mobs.length = 0; campfires.length = 0; craftingStations.length = 0;
+  inventorySlots.fill(null);
+  for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
+  px = WORLD_W / 2; py = WORLD_H / 2;
+  heldSlot = null; inventoryOpen = false; craftScrollY = 0;
+}
+
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.80)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.textAlign = 'center';
+  glow('#ff4040', 22); ctx.fillStyle = '#ff4040';
+  ctx.font = '700 52px monospace'; ctx.fillText('GAME OVER', W/2, H/2 - 70);
+  noGlow();
+  ctx.fillStyle = '#c084fc'; ctx.font = '600 20px monospace';
+  ctx.fillText(`SCORE: ${score}`, W/2, H/2 - 20);
+  // Restart button
+  const bx = W/2 - 90, by = H/2 + 14, bw = 180, bh = 44;
+  ctx.fillStyle = '#0a0718'; ctx.fillRect(bx, by, bw, bh);
+  glow('#a855f7', 10); ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(bx, by, bw, bh); noGlow();
+  ctx.fillStyle = '#e0d0ff'; ctx.font = '700 16px monospace';
+  ctx.fillText('PLAY AGAIN', W/2, by + 28);
+  ctx.restore();
+}
+
+let _gameOverClickBound = false;
+function initGameOverClick() {
+  if (_gameOverClickBound) return;
+  _gameOverClickBound = true;
+  canvas.addEventListener('click', e => {
+    if (!gameOver) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const bx = W/2 - 90, by = H/2 + 14, bw = 180, bh = 44;
+    if (mx >= bx && mx < bx+bw && my >= by && my < by+bh) restartGame();
+  });
 }
 
 // ===================== PLAYER HP =====================
@@ -1453,24 +1607,29 @@ function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   const now = ts / 1000;
-  updateDayNight(dt);
-  updateFacing();
-  nearbyItem       = getNearbyInteractable();
-  nearbyChopTarget = getNearbyChopTarget();
-  nearbyMineTarget = getNearbyMineTarget();
-  handleInteract();
-  updateMovement(dt);
-  updateMobs(dt, now);
-  updatePlayerRegen(dt, now);
-  updateRespawns(dt);
-  updateParticles(dt);
-  updateCamera();
+  initGameOverClick();
+  if (!gameOver) {
+    updateDayNight(dt);
+    updateFacing();
+    nearbyItem       = getNearbyInteractable();
+    nearbyChopTarget = getNearbyChopTarget();
+    nearbyMineTarget = getNearbyMineTarget();
+    handleInteract();
+    updateMovement(dt);
+    updateMobs(dt, now);
+    updatePlayerRegen(dt, now);
+    updateRespawns(dt);
+    updateParticles(dt);
+    checkGameOver();
+    updateCamera();
+  }
   drawBg();
   drawGrass();
   drawGroundItemBodies();
   drawTreeBases();
   drawRockBases();
   drawCampfires();
+  drawCraftingStations();
   drawPlayer();
   drawMobs();
   drawTreeTops();
@@ -1483,7 +1642,9 @@ function loop(ts) {
   drawBorder();
   drawStamina();
   drawPlayerHp();
-  if (inventoryOpen) drawInventory();
+  drawScore();
+  if (inventoryOpen && !gameOver) drawInventory();
+  if (gameOver) drawGameOver();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
