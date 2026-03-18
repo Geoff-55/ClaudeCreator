@@ -215,6 +215,61 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
   }
 }
 
+// ===================== CAVE WORLD =====================
+const CAVE_CHUNKS = 8;
+const CAVE_W = CHUNK_W * CAVE_CHUNKS;
+const CAVE_H = CHUNK_H * CAVE_CHUNKS;
+const caveRocks       = [];
+const caveGroundItems = [];
+
+for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
+  for (let cx = 0; cx < CAVE_CHUNKS; cx++) {
+    const rng = chunkRNG(cx + 500, cy + 500); // offset seed from surface
+    const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
+    const numBig = 2 + Math.floor(rng() * 4);
+    for (let i = 0; i < numBig; i++) {
+      caveRocks.push({
+        x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
+        y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+        mined: false, mineHealth: undefined, hitsLeft: undefined,
+      });
+    }
+    const numSmall = 1 + Math.floor(rng() * 4);
+    for (let i = 0; i < numSmall; i++) {
+      caveGroundItems.push({
+        type: 'rock',
+        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+        pickedUp: false,
+      });
+    }
+  }
+}
+
+// ===================== CAVE STATE =====================
+let inCave = false;
+const mineExits = [];
+let surfacePx = 0, surfacePy = 0;
+
+function curRocks()  { return inCave ? caveRocks  : worldRocks; }
+function curGround() { return inCave ? caveGroundItems : worldGroundItems; }
+function curWorldW() { return inCave ? CAVE_W : WORLD_W; }
+function curWorldH() { return inCave ? CAVE_H : WORLD_H; }
+
+function enterCave(ex, ey) {
+  inCave = true;
+  surfacePx = px; surfacePy = py;
+  mineExits.push({ x: ex, y: ey });
+  px = ex; py = ey;
+  mobs.length = 0;
+}
+
+function exitCave() {
+  inCave = false;
+  mineExits.length = 0;
+  px = surfacePx; py = surfacePy;
+}
+
 // ===================== CAMPFIRES + MOBS =====================
 const campfires = [];
 const craftingStations = [];
@@ -868,8 +923,8 @@ function updateDayNight(dt) {
 let camX = 0, camY = 0;
 
 function updateCamera() {
-  camX = Math.max(0, Math.min(WORLD_W - W, px - W / 2));
-  camY = Math.max(0, Math.min(WORLD_H - H, py - H / 2));
+  camX = Math.max(0, Math.min(curWorldW() - W, px - W / 2));
+  camY = Math.max(0, Math.min(curWorldH() - H, py - H / 2));
 }
 
 // ===================== UPDATE =====================
@@ -880,6 +935,7 @@ function updateFacing() {
 }
 
 function resolveTreeCollisions() {
+  if (inCave) return;
   for (const chunk of worldChunks) {
     if (!chunk.tree || chunk.tree.chopped) continue;
     const r  = trunkRect(chunk.tree);
@@ -895,7 +951,7 @@ function resolveTreeCollisions() {
 }
 
 function resolveRockCollisions() {
-  for (const rock of worldRocks) {
+  for (const rock of curRocks()) {
     if (rock.mined) continue;
     const dx   = px - rock.x, dy = py - rock.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
@@ -916,7 +972,7 @@ const FACING_DOT   = 0.45;
 function getNearbyInteractable() {
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
-  for (const item of worldGroundItems) {
+  for (const item of curGround()) {
     if (item.pickedUp) continue;
     const dx = item.x - px, dy = item.y - py;
     const dist = Math.sqrt(dx*dx + dy*dy);
@@ -950,7 +1006,7 @@ function getNearbyMineTarget() {
   if (!weapon || weapon.id !== 'pickaxe') return null;
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
-  for (const rock of worldRocks) {
+  for (const rock of curRocks()) {
     if (rock.mined) continue;
     const dx = rock.x - px, dy = rock.y - py;
     const dist = Math.sqrt(dx*dx + dy*dy);
@@ -1015,7 +1071,7 @@ function mineRock(rock) {
     const numDrop = 3 + Math.floor(Math.random() * 2);
     for (let i = 0; i < numDrop; i++) {
       const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 38;
-      worldGroundItems.push({ type: 'rock', x: rock.x + Math.cos(a)*d, y: rock.y + Math.sin(a)*d, pickedUp: false });
+      curGround().push({ type: 'rock', x: rock.x + Math.cos(a)*d, y: rock.y + Math.sin(a)*d, pickedUp: false });
     }
     spawnParticles(rock.x, rock.y, '#7a7a7a', 20);
     spawnParticles(rock.x, rock.y, '#484848', 12);
@@ -1026,6 +1082,13 @@ function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
   if (inventoryOpen) return;
+  // Cave exit
+  if (inCave) {
+    for (const exit of mineExits) {
+      const dx = exit.x - px, dy = exit.y - py;
+      if (Math.sqrt(dx*dx + dy*dy) < 70) { exitCave(); return; }
+    }
+  }
   // Place campfire or crafting station if equipped in weapon slot
   const weapon = equipSlots['weapon'];
   if (weapon && ['campfire', 'crafting_station', 'mine_entrance'].includes(weapon.id)) {
@@ -1035,6 +1098,13 @@ function handleInteract() {
     weapon.count--;
     if (weapon.count <= 0) equipSlots['weapon'] = null;
     return;
+  }
+  // Enter mine entrance
+  if (!inCave) {
+    for (const me of mineEntrances) {
+      const dx = me.x - px, dy = me.y - py;
+      if (Math.sqrt(dx*dx + dy*dy) < 70) { enterCave(me.x, me.y); return; }
+    }
   }
   if (nearbyItem) {
     nearbyItem.pickedUp = true;
@@ -1065,8 +1135,8 @@ function updateMovement(dt) {
     const speed = sprinting ? SPEED * SPRINT_MULT : SPEED;
     px += Math.cos(facingAngle) * speed * dt;
     py += Math.sin(facingAngle) * speed * dt;
-    px = Math.max(BODY_R, Math.min(WORLD_W - BODY_R, px));
-    py = Math.max(BODY_R, Math.min(WORLD_H - BODY_R, py));
+    px = Math.max(BODY_R, Math.min(curWorldW() - BODY_R, px));
+    py = Math.max(BODY_R, Math.min(curWorldH() - BODY_R, py));
   }
 
   resolveTreeCollisions();
@@ -1077,27 +1147,36 @@ function updateMovement(dt) {
 const GRID = 40;
 
 function drawBg() {
-  ctx.fillStyle = '#2a5412';
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#254d10'; ctx.lineWidth = 0.5;
   const ox = camX % GRID, oy = camY % GRID;
-  for (let x = -ox; x < W; x += GRID) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y = -oy; y < H; y += GRID) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-  ctx.strokeStyle = '#1e4010'; ctx.lineWidth = 1;
-  for (let cx = 0; cx <= CHUNKS_X; cx++) {
-    const sx = cx * CHUNK_W - camX;
-    ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,H); ctx.stroke();
-  }
-  for (let cy = 0; cy <= CHUNKS_Y; cy++) {
-    const sy = cy * CHUNK_H - camY;
-    ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke();
+  if (inCave) {
+    ctx.fillStyle = '#18150f';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#111008'; ctx.lineWidth = 0.5;
+    for (let x = -ox; x < W; x += GRID) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = -oy; y < H; y += GRID) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  } else {
+    ctx.fillStyle = '#2a5412';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#254d10'; ctx.lineWidth = 0.5;
+    for (let x = -ox; x < W; x += GRID) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = -oy; y < H; y += GRID) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    ctx.strokeStyle = '#1e4010'; ctx.lineWidth = 1;
+    for (let cx = 0; cx <= CHUNKS_X; cx++) {
+      const sx = cx * CHUNK_W - camX;
+      ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,H); ctx.stroke();
+    }
+    for (let cy = 0; cy <= CHUNKS_Y; cy++) {
+      const sy = cy * CHUNK_H - camY;
+      ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke();
+    }
   }
 }
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  glow('#3a5a20', 18); ctx.strokeStyle = '#4a6a28'; ctx.lineWidth = 4;
-  ctx.strokeRect(bx, by, WORLD_W, WORLD_H); noGlow();
+  const gc = inCave ? '#6a4820' : '#3a5a20', sc = inCave ? '#8a6030' : '#4a6a28';
+  glow(gc, 18); ctx.strokeStyle = sc; ctx.lineWidth = 4;
+  ctx.strokeRect(bx, by, curWorldW(), curWorldH()); noGlow();
 }
 
 function drawGrass() {
@@ -1141,11 +1220,11 @@ function drawTreeBases() {
 }
 
 function drawRockBases() {
-  for (const rock of worldRocks) {
+  for (const rock of curRocks()) {
     if (rock.mined) continue;
     const sx = rock.x - camX, sy = rock.y - camY;
     if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
-    ctx.fillStyle = '#1c3a0c';
+    ctx.fillStyle = inCave ? '#100e08' : '#1c3a0c';
     ctx.beginPath();
     ctx.ellipse(sx+4, sy + ROCK_R*0.58, ROCK_R*0.92, ROCK_R*0.28, 0, 0, Math.PI*2);
     ctx.fill();
@@ -1182,23 +1261,27 @@ function drawTreeTops() {
 }
 
 function drawRockTops() {
-  for (const rock of worldRocks) {
+  for (const rock of curRocks()) {
     if (rock.mined) continue;
     const sx = rock.x - camX, sy = rock.y - camY;
     if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
-    glow('#181818', 10); ctx.fillStyle = '#363636';
+    const c1 = inCave ? '#2a2820' : '#363636';
+    const c2 = inCave ? '#3c3830' : '#4c4c4c';
+    const c3 = inCave ? '#504c42' : '#646464';
+    const c4 = inCave ? '#6a6458' : '#7e7e7e';
+    glow('#181818', 10); ctx.fillStyle = c1;
     ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R, ROCK_R*0.72, 0, 0, Math.PI*2); ctx.fill(); noGlow();
-    ctx.fillStyle = '#4c4c4c';
+    ctx.fillStyle = c2;
     ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R*0.8, ROCK_R*0.58, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#646464';
+    ctx.fillStyle = c3;
     ctx.beginPath(); ctx.ellipse(sx-ROCK_R*0.16, sy-ROCK_R*0.18, ROCK_R*0.44, ROCK_R*0.31, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#7e7e7e';
+    ctx.fillStyle = c4;
     ctx.beginPath(); ctx.ellipse(sx-ROCK_R*0.24, sy-ROCK_R*0.26, ROCK_R*0.18, ROCK_R*0.13, 0, 0, Math.PI*2); ctx.fill();
   }
 }
 
 function drawGroundItemBodies() {
-  for (const item of worldGroundItems) {
+  for (const item of curGround()) {
     if (item.pickedUp) continue;
     const sx = item.x - camX, sy = item.y - camY;
     if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
@@ -1295,7 +1378,7 @@ function handleAttackClick(mx, my) {
     if (best) chopTree(best);
   } else if (w.id === 'pickaxe') {
     let best = null, bestD = Infinity;
-    for (const rock of worldRocks) {
+    for (const rock of curRocks()) {
       if (rock.mined) continue;
       const dx = rock.x - px, dy = rock.y - py;
       const d = Math.sqrt(dx*dx + dy*dy);
@@ -1341,8 +1424,8 @@ function spawnMob(type) {
   else if (edge === 1) { x = camX + Math.random() * W; y = camY + H + 80; }
   else if (edge === 2) { x = camX - 80;                y = camY + Math.random() * H; }
   else                 { x = camX + W + 80;            y = camY + Math.random() * H; }
-  x = Math.max(50, Math.min(WORLD_W - 50, x));
-  y = Math.max(50, Math.min(WORLD_H - 50, y));
+  x = Math.max(50, Math.min(curWorldW() - 50, x));
+  y = Math.max(50, Math.min(curWorldH() - 50, y));
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
     const r = Math.random();
@@ -1358,7 +1441,7 @@ function spawnMob(type) {
 }
 
 function updateMobs(dt, now) {
-  if (now - lastMobSpawn > 5) {
+  if (!inCave && now - lastMobSpawn > 5) {
     lastMobSpawn = now;
     if (darkAlpha > 0.6) spawnMob('zombie');
     if (darkAlpha < 0.4) spawnMob('chicken');
@@ -1412,8 +1495,8 @@ function updateMobs(dt, now) {
       m.drawScale += (m.dir - m.drawScale) * Math.min(1, dt * 10);
     }
     m.x += m.vx * dt; m.y += m.vy * dt;
-    m.x = Math.max(30, Math.min(WORLD_W-30, m.x));
-    m.y = Math.max(30, Math.min(WORLD_H-30, m.y));
+    m.x = Math.max(30, Math.min(curWorldW()-30, m.x));
+    m.y = Math.max(30, Math.min(curWorldH()-30, m.y));
   }
 }
 
@@ -1439,13 +1522,6 @@ function drawMobs() {
         const bw = 24*zs, bx2 = sx - bw/2, by2 = sy - 40*zs + zb;
         ctx.fillStyle = '#300'; ctx.fillRect(bx2, by2, bw, 3);
         ctx.fillStyle = '#a03020'; ctx.fillRect(bx2, by2, bw * m.hp/m.maxHp, 3);
-      }
-      // Label for brute/quick
-      if (m.subtype !== 'normal') {
-        ctx.fillStyle = m.subtype === 'brute' ? '#ff8040' : '#80ff80';
-        ctx.font = '500 7px monospace'; ctx.textAlign = 'center';
-        ctx.fillText(m.subtype.toUpperCase(), sx, sy - 42*zs + zb);
-        ctx.textAlign = 'left';
       }
     } else {
       // Pixel art chicken — drawn facing right, flipped via drawScale
@@ -1500,15 +1576,18 @@ function drawCampfires() {
 
 // ===================== NIGHT OVERLAY =====================
 function drawNightOverlay() {
-  if (darkAlpha <= 0.01) return;
+  const effectiveDark = inCave ? 1 : darkAlpha;
+  if (effectiveDark <= 0.01) return;
   lctx.clearRect(0, 0, W, H);
-  lctx.fillStyle = `rgba(0, 5, 25, ${(darkAlpha * 0.9).toFixed(3)})`;
+  lctx.fillStyle = inCave
+    ? `rgba(5, 3, 0, 0.92)`
+    : `rgba(0, 5, 25, ${(effectiveDark * 0.9).toFixed(3)})`;
   lctx.fillRect(0, 0, W, H);
   lctx.globalCompositeOperation = 'destination-out';
   // Player ambient glow
   const psx = px - camX, psy = py - camY;
   const pg = lctx.createRadialGradient(psx, psy, 0, psx, psy, 70);
-  pg.addColorStop(0, `rgba(255,255,255,${(0.35 * darkAlpha).toFixed(3)})`);
+  pg.addColorStop(0, `rgba(255,255,255,${(0.35 * effectiveDark).toFixed(3)})`);
   pg.addColorStop(1, 'rgba(255,255,255,0)');
   lctx.fillStyle = pg; lctx.fillRect(0, 0, W, H);
   // Campfires
@@ -1516,8 +1595,8 @@ function drawNightOverlay() {
     const fx = f.x - camX, fy = f.y - camY;
     if (fx < -220 || fx > W+220 || fy < -220 || fy > H+220) continue;
     const fg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 180);
-    fg.addColorStop(0, `rgba(255,200,100,${(0.95 * darkAlpha).toFixed(3)})`);
-    fg.addColorStop(0.5, `rgba(255,160,60,${(0.55 * darkAlpha).toFixed(3)})`);
+    fg.addColorStop(0, `rgba(255,200,100,${(0.95 * effectiveDark).toFixed(3)})`);
+    fg.addColorStop(0.5, `rgba(255,160,60,${(0.55 * effectiveDark).toFixed(3)})`);
     fg.addColorStop(1, 'rgba(255,100,20,0)');
     lctx.fillStyle = fg; lctx.fillRect(0, 0, W, H);
   }
@@ -1584,11 +1663,48 @@ function drawMineEntrances() {
     // Cap stones
     ctx.fillStyle = '#2a2018';
     ctx.fillRect(sx-22, sy-22, 44, 5);
-    // Label
-    ctx.fillStyle = '#a08060'; ctx.font = '500 7px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('MINE', sx, sy - 28);
-    ctx.textAlign = 'left';
+    // E prompt when nearby
+    const mdist = Math.sqrt((m.x-px)**2 + (m.y-py)**2);
+    if (mdist < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('[E] enter', sx, sy - 28);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+// ===================== MINE EXITS (CAVE) =====================
+function drawMineExits() {
+  for (const m of mineExits) {
+    const sx = Math.round(m.x - camX), sy = Math.round(m.y - camY);
+    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
+    // Stone frame
+    ctx.fillStyle = '#3a3028'; ctx.fillRect(sx-22, sy-22, 44, 36);
+    // Bright opening (daylight glow)
+    ctx.fillStyle = '#b09060'; ctx.fillRect(sx-15, sy-18, 30, 28);
+    ctx.fillStyle = '#d4b870'; ctx.fillRect(sx-12, sy-15, 24, 22);
+    // Ladder rungs
+    ctx.fillStyle = '#6a4820';
+    ctx.fillRect(sx-5, sy-12, 10, 2); ctx.fillRect(sx-5, sy-5, 10, 2);
+    ctx.fillRect(sx-5, sy+2,  10, 2); ctx.fillRect(sx-5, sy+9, 10, 2);
+    ctx.fillStyle = '#4a3010';
+    ctx.fillRect(sx-7, sy-14, 3, 26); ctx.fillRect(sx+4, sy-14, 3, 26);
+    // Lintel
+    ctx.fillStyle = '#4a3820'; ctx.fillRect(sx-22, sy+12, 44, 7);
+    // Side pillars
+    ctx.fillStyle = '#5a4830';
+    ctx.fillRect(sx-22, sy-22, 7, 34); ctx.fillRect(sx+15, sy-22, 7, 34);
+    // Cap stones
+    ctx.fillStyle = '#2a2018'; ctx.fillRect(sx-22, sy-22, 44, 5);
+    // E prompt when nearby
+    const mdist = Math.sqrt((m.x-px)**2 + (m.y-py)**2);
+    if (mdist < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('[E] exit', sx, sy - 28);
+      ctx.textAlign = 'left';
+    }
   }
 }
 
@@ -1638,27 +1754,30 @@ function drawMap() {
 
   ctx.fillStyle = '#a855f7'; ctx.font = '600 10px monospace';
   ctx.letterSpacing = '0.12em'; ctx.textAlign = 'center';
-  ctx.fillText('MAP', mx + MW/2, my + 16);
+  ctx.fillText(inCave ? 'MAP — CAVE' : 'MAP', mx + MW/2, my + 16);
   ctx.letterSpacing = '0'; ctx.textAlign = 'left';
 
   // World area inside panel
   const WX = mx + PAD, WY = my + 26, WW = MW - PAD*2, WH = MH - 26 - PAD;
-  const scaleX = WW / WORLD_W, scaleY = WH / WORLD_H;
+  const ww = curWorldW(), wh = curWorldH();
+  const scaleX = WW / ww, scaleY = WH / wh;
 
   // World border
-  ctx.fillStyle = '#0a1a06'; ctx.fillRect(WX, WY, WW, WH);
-  ctx.strokeStyle = '#2a4a14'; ctx.lineWidth = 1;
+  ctx.fillStyle = inCave ? '#0d0c08' : '#0a1a06'; ctx.fillRect(WX, WY, WW, WH);
+  ctx.strokeStyle = inCave ? '#3a2a10' : '#2a4a14'; ctx.lineWidth = 1;
   ctx.strokeRect(WX, WY, WW, WH);
 
-  // Chunk grid lines
-  ctx.strokeStyle = '#162810'; ctx.lineWidth = 0.5;
-  for (let cx = 1; cx < CHUNKS_X; cx++) {
-    const sx = WX + cx * CHUNK_W * scaleX;
-    ctx.beginPath(); ctx.moveTo(sx, WY); ctx.lineTo(sx, WY+WH); ctx.stroke();
-  }
-  for (let cy = 1; cy < CHUNKS_Y; cy++) {
-    const sy = WY + cy * CHUNK_H * scaleY;
-    ctx.beginPath(); ctx.moveTo(WX, sy); ctx.lineTo(WX+WW, sy); ctx.stroke();
+  // Chunk grid lines (surface only)
+  if (!inCave) {
+    ctx.strokeStyle = '#162810'; ctx.lineWidth = 0.5;
+    for (let cx = 1; cx < CHUNKS_X; cx++) {
+      const sx = WX + cx * CHUNK_W * scaleX;
+      ctx.beginPath(); ctx.moveTo(sx, WY); ctx.lineTo(sx, WY+WH); ctx.stroke();
+    }
+    for (let cy = 1; cy < CHUNKS_Y; cy++) {
+      const sy = WY + cy * CHUNK_H * scaleY;
+      ctx.beginPath(); ctx.moveTo(WX, sy); ctx.lineTo(WX+WW, sy); ctx.stroke();
+    }
   }
 
   // Player dot
@@ -1694,6 +1813,7 @@ function checkGameOver() {
 function restartGame() {
   playerHp = 100; score = 0; gameOver = false; lastHitTime = -999;
   mobs.length = 0; campfires.length = 0; craftingStations.length = 0; mineEntrances.length = 0;
+  inCave = false; mineExits.length = 0; surfacePx = 0; surfacePy = 0;
   inventorySlots.fill(null);
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
   px = WORLD_W / 2; py = WORLD_H / 2;
@@ -1797,16 +1917,17 @@ function loop(ts) {
     updateCamera();
   }
   drawBg();
-  drawGrass();
+  if (!inCave) drawGrass();
   drawGroundItemBodies();
-  drawTreeBases();
+  if (!inCave) drawTreeBases();
   drawRockBases();
-  drawCampfires();
-  drawCraftingStations();
-  drawMineEntrances();
+  if (!inCave) drawCampfires();
+  if (!inCave) drawCraftingStations();
+  if (!inCave) drawMineEntrances();
+  if (inCave) drawMineExits();
   drawPlayer();
   drawMobs();
-  drawTreeTops();
+  if (!inCave) drawTreeTops();
   drawRockTops();
   drawParticles();
   drawAttackRadius();
