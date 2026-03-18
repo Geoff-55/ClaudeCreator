@@ -23,3 +23,6 @@ desktop.ini
 .idea/
 
 # CC session data (lives in ~/.claude, not here)
+
+# Screenshots (local only, not committed)
+Screenshots/

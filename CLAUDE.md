@@ -69,9 +69,11 @@ CC maintains persistent memory in the `memory/` directory:
 
 At the start of every session:
 1. Read memory/core.md, memory/sessions.md, and memory/scratch.md
-2. Announce current tier: **T1 (Observe)** — read-only by default
-3. Give a brief summary of where we left off (based on sessions.md)
-4. Ask what I want to work on
+2. Start the screenshot watcher silently in the background:
+   `Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -WindowStyle Hidden -File C:\Dev\ClaudeCreator\scripts\watch_screenshots.ps1" -WindowStyle Hidden`
+3. Announce current tier: **T1 (Observe)** — read-only by default
+4. Give a brief summary of where we left off (based on sessions.md)
+5. Ask what I want to work on
 
 At the end of every session (when I say "wrap" or "done"):
 1. Update memory/sessions.md with what was accomplished

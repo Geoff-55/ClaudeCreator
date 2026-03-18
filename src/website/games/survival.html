@@ -31,12 +31,12 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">solid grass ground with patches, gray rocks like trees, small rocks like sticks. outside stays purple.</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">equip panel right side, hatchet chops trees, pickaxe mines rocks, particles on hit</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact / chop / mine</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -121,23 +121,20 @@ for (let row = -CRY; row <= CRY; row++) {
 }
 
 // ===================== ROCK GEOMETRY =====================
-const ROCK_R      = 30;   // visual radius (px)
-const ROCK_COLL_R = 24;   // collision radius
+const ROCK_R      = 30;
+const ROCK_COLL_R = 24;
 
 // ===================== GRASS VARIANTS =====================
 const GRASS_VARIANTS = [
-  // A: dark shadow tufts
   [
     { dx: -4, w: 4, h: 10, c: '#1a3c0a' },
     { dx:  3, w: 4, h:  7, c: '#234810' },
   ],
-  // B: mixed medium tufts
   [
     { dx: -5, w: 4, h: 6, c: '#2e6018' },
     { dx:  0, w: 4, h: 9, c: '#1c3e0c' },
     { dx:  5, w: 4, h: 5, c: '#3a7020' },
   ],
-  // C: bright highlight clumps
   [
     { dx: -6, w: 4, h: 8, c: '#3a7020' },
     { dx:  0, w: 5, h: 11, c: '#4a8828' },
@@ -146,16 +143,15 @@ const GRASS_VARIANTS = [
 ];
 
 // ===================== WORLD GENERATION =====================
-const worldChunks     = [];
-const worldGroundItems = [];  // { type:'stick'|'rock', x, y, pickedUp }
-const worldRocks      = [];   // large rocks { x, y }
+const worldChunks      = [];
+const worldGroundItems = [];
+const worldRocks       = [];
 
 for (let cy = 0; cy < CHUNKS_Y; cy++) {
   for (let cx = 0; cx < CHUNKS_X; cx++) {
     const rng = chunkRNG(cx, cy);
     const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
 
-    // Grass patches (2–4)
     const grass = [];
     const n = 2 + Math.floor(rng() * 3);
     for (let i = 0; i < n; i++) {
@@ -166,7 +162,6 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
       });
     }
 
-    // 35% tree
     let tree = null;
     if (rng() < 0.35) {
       const numSegs = Math.ceil(TH / SEG_H);
@@ -181,10 +176,11 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
         x: wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
         y: wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
         segs,
+        chopped: false,
+        chopHealth: undefined, chopsLeft: undefined,
       };
     }
 
-    // 0–2 sticks (ground items)
     const numSticks = Math.floor(rng() * 3);
     for (let i = 0; i < numSticks; i++) {
       worldGroundItems.push({
@@ -195,15 +191,15 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
       });
     }
 
-    // 25% large rock
     if (rng() < 0.25) {
       worldRocks.push({
         x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
         y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+        mined: false,
+        mineHealth: undefined, hitsLeft: undefined,
       });
     }
 
-    // 0–2 small rocks (ground items)
     const numSmallRocks = Math.floor(rng() * 3);
     for (let i = 0; i < numSmallRocks; i++) {
       worldGroundItems.push({
@@ -218,45 +214,67 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
   }
 }
 
-// Trunk collision rect
 function trunkRect(t) {
   const trunkBot = t.y + CRY * CBS + TH;
-  return {
-    x1: t.x - TW / 2, x2: t.x + TW / 2,
-    y1: trunkBot - TCOL, y2: trunkBot,
-  };
+  return { x1: t.x - TW/2, x2: t.x + TW/2, y1: trunkBot - TCOL, y2: trunkBot };
 }
 
-// ===================== INVENTORY + CRAFTING =====================
+// ===================== INVENTORY + CRAFTING + EQUIP =====================
 let inventoryOpen = false;
 const INV_COLS  = 4, INV_ROWS = 5;
 const SLOT_SIZE = 52, SLOT_GAP = 6;
 const INV_PAD   = 22;
-const CRAFT_W   = 140;  // crafting panel content width
-const CRAFT_GAP = 16;   // gap / divider between panels
-const RECIPE_H  = 76;   // height per recipe card
+const CRAFT_W   = 140;
+const CRAFT_GAP = 16;
+const EQUIP_W   = 100;  // slot(52) + gap(6) + label(42)
+const EQUIP_GAP = 16;
+const RECIPE_H  = 76;
 
 const GRID_W = INV_COLS * SLOT_SIZE + (INV_COLS - 1) * SLOT_GAP;
 const GRID_H = INV_ROWS * SLOT_SIZE + (INV_ROWS - 1) * SLOT_GAP;
-const INV_W  = INV_PAD + CRAFT_W + CRAFT_GAP + GRID_W + INV_PAD;
+const INV_W  = INV_PAD + CRAFT_W + CRAFT_GAP + GRID_W + EQUIP_GAP + EQUIP_W + INV_PAD;
 const INV_H  = GRID_H + INV_PAD * 2 + 28;
 const INV_X  = Math.round((W - INV_W) / 2);
 const INV_Y  = Math.round((H - INV_H) / 2);
 
-// Derived layout positions (computed after INV_X/Y)
 const CRAFT_LEFT = INV_X + INV_PAD;
 const CRAFT_TOP  = INV_Y + INV_PAD + 28;
 const GRID_LEFT  = CRAFT_LEFT + CRAFT_W + CRAFT_GAP;
 const GRID_TOP   = CRAFT_TOP;
+const EQUIP_LEFT = GRID_LEFT + GRID_W + EQUIP_GAP;
+const EQUIP_TOP  = GRID_TOP;
 
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
-let selectedSlot = -1;
+
+const EQUIP_SLOT_DEFS = [
+  { name: 'weapon',     label: 'WEAPON' },
+  { name: 'shield',     label: 'SHIELD' },
+  { name: 'helmet',     label: 'HELMET' },
+  { name: 'chestplate', label: 'CHEST'  },
+  { name: 'pants',      label: 'PANTS'  },
+];
+const equipSlots = {};
+for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
+
+let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | null
 let mouseX = W / 2, mouseY = H / 2;
+
+function getSlotItem(slot) {
+  if (!slot) return null;
+  return slot.type === 'inv' ? inventorySlots[slot.idx] : equipSlots[slot.name];
+}
+function setSlotItem(slot, item) {
+  if (slot.type === 'inv') inventorySlots[slot.idx] = item;
+  else equipSlots[slot.name] = item;
+}
+function slotsEqual(a, b) {
+  if (!a || !b || a.type !== b.type) return false;
+  return a.type === 'inv' ? a.idx === b.idx : a.name === b.name;
+}
 
 canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
-  mouseX = e.clientX - r.left;
-  mouseY = e.clientY - r.top;
+  mouseX = e.clientX - r.left; mouseY = e.clientY - r.top;
 });
 canvas.addEventListener('click', e => {
   if (!inventoryOpen) return;
@@ -267,12 +285,12 @@ canvas.addEventListener('click', e => {
 // ===================== CRAFTING =====================
 const RECIPES = [
   {
-    id: 'hatchet',
-    name: 'Hatchet',
-    ingredients: [
-      { id: 'stick', count: 2 },
-      { id: 'rock',  count: 1 },
-    ],
+    id: 'hatchet', name: 'Hatchet',
+    ingredients: [{ id: 'stick', count: 2 }, { id: 'rock', count: 1 }],
+  },
+  {
+    id: 'pickaxe', name: 'Pickaxe',
+    ingredients: [{ id: 'stick', count: 2 }, { id: 'rock', count: 1 }],
   },
 ];
 
@@ -302,6 +320,20 @@ function craft(recipe) {
   addToInventory(recipe.id);
 }
 
+function handleSlotInteract(slot) {
+  if (!heldSlot) {
+    if (getSlotItem(slot)) heldSlot = slot;
+  } else if (slotsEqual(heldSlot, slot)) {
+    heldSlot = null;
+  } else {
+    const a = getSlotItem(heldSlot);
+    const b = getSlotItem(slot);
+    setSlotItem(slot, a);
+    setSlotItem(heldSlot, b);
+    heldSlot = null;
+  }
+}
+
 function handleInventoryClick(mx, my) {
   // Inventory slots
   for (let row = 0; row < INV_ROWS; row++) {
@@ -309,34 +341,31 @@ function handleInventoryClick(mx, my) {
       const sx = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
       const sy = GRID_TOP  + row * (SLOT_SIZE + SLOT_GAP);
       if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE) {
-        const idx = row * INV_COLS + col;
-        if (selectedSlot === -1) {
-          if (inventorySlots[idx]) selectedSlot = idx;
-        } else if (selectedSlot === idx) {
-          selectedSlot = -1;
-        } else {
-          const tmp = inventorySlots[selectedSlot];
-          inventorySlots[selectedSlot] = inventorySlots[idx];
-          inventorySlots[idx] = tmp;
-          selectedSlot = -1;
-        }
+        handleSlotInteract({ type: 'inv', idx: row * INV_COLS + col });
         return;
       }
     }
   }
+  // Equip slots
+  for (let i = 0; i < EQUIP_SLOT_DEFS.length; i++) {
+    const sx = EQUIP_LEFT;
+    const sy = EQUIP_TOP + i * (SLOT_SIZE + SLOT_GAP);
+    if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE) {
+      handleSlotInteract({ type: 'equip', name: EQUIP_SLOT_DEFS[i].name });
+      return;
+    }
+  }
   // Craft buttons
   for (let ri = 0; ri < RECIPES.length; ri++) {
-    const recipe = RECIPES[ri];
     const ry   = CRAFT_TOP + ri * (RECIPE_H + 8);
     const btnX = CRAFT_LEFT + CRAFT_W - 50;
     const btnY = ry + RECIPE_H - 22;
     if (mx >= btnX && mx < btnX + 48 && my >= btnY && my < btnY + 18) {
-      if (canCraft(recipe)) craft(recipe);
-      return;
+      if (canCraft(RECIPES[ri])) craft(RECIPES[ri]);
+      heldSlot = null; return;
     }
   }
-  // Click outside — deselect
-  selectedSlot = -1;
+  heldSlot = null;
 }
 
 // ===================== ITEM ICON HELPER =====================
@@ -348,13 +377,13 @@ function drawItemIcon(id, cx, cy, size) {
   if (id === 'stick') {
     ctx.rotate(Math.PI / 5);
     ctx.fillStyle = '#3d1a05';
-    ctx.fillRect(-s * 0.13, -s * 0.5, s * 0.27, s);
+    ctx.fillRect(-s*0.13, -s*0.5, s*0.27, s);
     ctx.fillStyle = '#7a4215';
-    ctx.fillRect(-s * 0.13, -s * 0.5, s * 0.09, s);
+    ctx.fillRect(-s*0.13, -s*0.5, s*0.09, s);
 
   } else if (id === 'rock') {
     ctx.fillStyle = '#3e3e3e';
-    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.5, s * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, s*0.5, s*0.36, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#5c5c5c';
     ctx.beginPath(); ctx.ellipse(-s*0.1, -s*0.1, s*0.28, s*0.2, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#747474';
@@ -362,43 +391,50 @@ function drawItemIcon(id, cx, cy, size) {
 
   } else if (id === 'hatchet') {
     ctx.rotate(-Math.PI / 4.5);
-    // Handle
     ctx.fillStyle = '#5c2a0a';
-    ctx.fillRect(-s * 0.11, -s * 0.2, s * 0.22, s * 0.72);
+    ctx.fillRect(-s*0.11, -s*0.2, s*0.22, s*0.72);
     ctx.fillStyle = '#8a5020';
-    ctx.fillRect(-s * 0.11, -s * 0.2, s * 0.07, s * 0.72);
-    // Head
+    ctx.fillRect(-s*0.11, -s*0.2, s*0.07, s*0.72);
     ctx.fillStyle = '#4e4e4e';
-    ctx.fillRect(-s * 0.36, -s * 0.54, s * 0.72, s * 0.35);
+    ctx.fillRect(-s*0.36, -s*0.54, s*0.72, s*0.35);
     ctx.fillStyle = '#727272';
-    ctx.fillRect(-s * 0.36, -s * 0.54, s * 0.72, s * 0.11);
+    ctx.fillRect(-s*0.36, -s*0.54, s*0.72, s*0.11);
+
+  } else if (id === 'pickaxe') {
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillStyle = '#5c2a0a';
+    ctx.fillRect(-s*0.11, s*0.05, s*0.22, s*0.65);
+    ctx.fillStyle = '#8a5020';
+    ctx.fillRect(-s*0.11, s*0.05, s*0.07, s*0.65);
+    ctx.fillStyle = '#525252';
+    ctx.fillRect(-s*0.5,  -s*0.42, s*0.5,  s*0.2);
+    ctx.fillRect(0,        -s*0.36, s*0.24, s*0.14);
+    ctx.fillStyle = '#767676';
+    ctx.fillRect(-s*0.5,  -s*0.42, s*0.5,  s*0.07);
   }
 
   ctx.restore();
 }
 
 function drawInventory() {
-  // Dim world
   ctx.fillStyle = 'rgba(4, 3, 12, 0.82)';
   ctx.fillRect(0, 0, W, H);
 
-  // Panel background
   ctx.fillStyle = '#0a0718';
   ctx.fillRect(INV_X, INV_Y, INV_W, INV_H);
 
-  // Panel border
   glow('#a855f7', 14);
   ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5;
   ctx.strokeRect(INV_X, INV_Y, INV_W, INV_H);
   noGlow();
 
-  // Divider line between crafting and inventory
+  // Dividers
   ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
-  const divX = CRAFT_LEFT + CRAFT_W + CRAFT_GAP / 2;
-  ctx.beginPath();
-  ctx.moveTo(divX, INV_Y + 12);
-  ctx.lineTo(divX, INV_Y + INV_H - 12);
-  ctx.stroke();
+  const div1X = CRAFT_LEFT + CRAFT_W + CRAFT_GAP / 2;
+  const div2X = EQUIP_LEFT - EQUIP_GAP / 2;
+  for (const dx of [div1X, div2X]) {
+    ctx.beginPath(); ctx.moveTo(dx, INV_Y + 12); ctx.lineTo(dx, INV_Y + INV_H - 12); ctx.stroke();
+  }
 
   // ---- CRAFTING PANEL ----
   ctx.fillStyle = '#a855f7';
@@ -409,90 +445,71 @@ function drawInventory() {
 
   for (let ri = 0; ri < RECIPES.length; ri++) {
     const recipe   = RECIPES[ri];
-    const craftable = canCraft(recipe);
-    const ry = CRAFT_TOP + ri * (RECIPE_H + 8);
+    const ok       = canCraft(recipe);
+    const ry       = CRAFT_TOP + ri * (RECIPE_H + 8);
 
-    // Card background
-    ctx.fillStyle = craftable ? '#0e1c08' : '#0d0a1c';
+    ctx.fillStyle = ok ? '#0e1c08' : '#0d0a1c';
     ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
-    ctx.strokeStyle = craftable ? '#2e5818' : '#1e1240';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = ok ? '#2e5818' : '#1e1240'; ctx.lineWidth = 1;
     ctx.strokeRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
 
-    // Result icon
     drawItemIcon(recipe.id, CRAFT_LEFT + 16, ry + 22, 22);
 
-    // Name
-    ctx.fillStyle = craftable ? '#96d048' : '#5a4870';
+    ctx.fillStyle = ok ? '#96d048' : '#5a4870';
     ctx.font = '700 10px monospace';
     ctx.fillText(recipe.name.toUpperCase(), CRAFT_LEFT + 32, ry + 16);
 
-    // Ingredients
     for (let ii = 0; ii < recipe.ingredients.length; ii++) {
       const ing = recipe.ingredients[ii];
       const iy  = ry + 30 + ii * 14;
       drawItemIcon(ing.id, CRAFT_LEFT + 38, iy, 11);
-      ctx.fillStyle = craftable ? '#7a9a50' : '#4a3a60';
+      ctx.fillStyle = ok ? '#7a9a50' : '#4a3a60';
       ctx.font = '500 8px monospace';
       ctx.fillText(`${ing.count}x ${ing.id}`, CRAFT_LEFT + 46, iy + 4);
     }
 
-    // Craft button
-    const btnX = CRAFT_LEFT + CRAFT_W - 50;
-    const btnY = ry + RECIPE_H - 22;
-    ctx.fillStyle = craftable ? '#162e0a' : '#120e22';
+    const btnX = CRAFT_LEFT + CRAFT_W - 50, btnY = ry + RECIPE_H - 22;
+    ctx.fillStyle = ok ? '#162e0a' : '#120e22';
     ctx.fillRect(btnX, btnY, 48, 18);
-    if (craftable) {
-      glow('#5aaa28', 6);
-      ctx.strokeStyle = '#5aaa28';
-    } else {
-      ctx.strokeStyle = '#2a1a4a';
-    }
-    ctx.lineWidth = 1;
-    ctx.strokeRect(btnX, btnY, 48, 18);
-    noGlow();
-    ctx.fillStyle = craftable ? '#90d040' : '#3a2a58';
-    ctx.font = '700 8px monospace';
-    ctx.letterSpacing = '0.1em';
+    if (ok) { glow('#5aaa28', 6); ctx.strokeStyle = '#5aaa28'; }
+    else      ctx.strokeStyle = '#2a1a4a';
+    ctx.lineWidth = 1; ctx.strokeRect(btnX, btnY, 48, 18); noGlow();
+    ctx.fillStyle = ok ? '#90d040' : '#3a2a58';
+    ctx.font = '700 8px monospace'; ctx.letterSpacing = '0.1em';
     ctx.textAlign = 'center';
     ctx.fillText('CRAFT', btnX + 24, btnY + 12);
-    ctx.textAlign = 'left';
-    ctx.letterSpacing = '0';
+    ctx.textAlign = 'left'; ctx.letterSpacing = '0';
   }
 
   // ---- INVENTORY GRID ----
   ctx.fillStyle = '#a855f7';
-  ctx.font = '600 11px monospace';
-  ctx.letterSpacing = '0.12em';
+  ctx.font = '600 11px monospace'; ctx.letterSpacing = '0.12em';
   ctx.fillText('INVENTORY', GRID_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
 
   for (let row = 0; row < INV_ROWS; row++) {
     for (let col = 0; col < INV_COLS; col++) {
-      const sx  = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
-      const sy  = GRID_TOP  + row * (SLOT_SIZE + SLOT_GAP);
-      const idx = row * INV_COLS + col;
+      const sx   = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
+      const sy   = GRID_TOP  + row * (SLOT_SIZE + SLOT_GAP);
+      const idx  = row * INV_COLS + col;
       const item = inventorySlots[idx];
-      const isSel = selectedSlot === idx;
+      const slot = { type: 'inv', idx };
+      const isH  = slotsEqual(heldSlot, slot);
 
-      // Slot bg
-      ctx.fillStyle = isSel ? '#1e0e32' : '#0d0a1e';
+      ctx.fillStyle = isH ? '#1e0e32' : '#0d0a1e';
       ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
-
-      // Slot border
-      if (isSel) { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
-      else        { ctx.strokeStyle = '#2a1050'; }
-      ctx.lineWidth = isSel ? 1.5 : 1;
+      if (isH) { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
+      else       ctx.strokeStyle = '#2a1050';
+      ctx.lineWidth = isH ? 1.5 : 1;
       ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
       noGlow();
 
       if (item) {
-        if (isSel) ctx.globalAlpha = 0.35;
-        drawItemIcon(item.id, sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, 28);
+        if (isH) ctx.globalAlpha = 0.35;
+        drawItemIcon(item.id, sx + SLOT_SIZE/2, sy + SLOT_SIZE/2, 28);
         ctx.globalAlpha = 1;
         if (item.count > 1) {
-          ctx.fillStyle = '#a78bfa';
-          ctx.font = '500 9px monospace';
+          ctx.fillStyle = '#a78bfa'; ctx.font = '500 9px monospace';
           ctx.textAlign = 'right';
           ctx.fillText(item.count, sx + SLOT_SIZE - 4, sy + SLOT_SIZE - 4);
           ctx.textAlign = 'left';
@@ -501,10 +518,48 @@ function drawInventory() {
     }
   }
 
+  // ---- EQUIP PANEL ----
+  ctx.fillStyle = '#a855f7';
+  ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
+  ctx.fillText('EQUIP', EQUIP_LEFT, INV_Y + INV_PAD + 10);
+  ctx.letterSpacing = '0';
+
+  for (let i = 0; i < EQUIP_SLOT_DEFS.length; i++) {
+    const def  = EQUIP_SLOT_DEFS[i];
+    const sx   = EQUIP_LEFT;
+    const sy   = EQUIP_TOP + i * (SLOT_SIZE + SLOT_GAP);
+    const slot = { type: 'equip', name: def.name };
+    const item = equipSlots[def.name];
+    const isH  = slotsEqual(heldSlot, slot);
+    const isActiveWeapon = def.name === 'weapon' && item;
+
+    ctx.fillStyle = isH ? '#1e0e32' : '#0d0a1e';
+    ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
+
+    if (isH) { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
+    else if (isActiveWeapon) { glow('#c09030', 6); ctx.strokeStyle = '#8a6020'; }
+    else if (item)  ctx.strokeStyle = '#3a2060';
+    else            ctx.strokeStyle = '#1a0e30';
+    ctx.lineWidth = isH ? 1.5 : 1;
+    ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
+    noGlow();
+
+    if (item) {
+      if (isH) ctx.globalAlpha = 0.35;
+      drawItemIcon(item.id, sx + SLOT_SIZE/2, sy + SLOT_SIZE/2, 28);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.fillStyle = item ? '#7a5a9a' : '#3a2a50';
+    ctx.font = '500 8px monospace';
+    ctx.fillText(def.label, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 3);
+  }
+
   // Held item follows cursor
-  if (selectedSlot !== -1 && inventorySlots[selectedSlot]) {
+  const heldItem = getSlotItem(heldSlot);
+  if (heldItem) {
     ctx.globalAlpha = 0.85;
-    drawItemIcon(inventorySlots[selectedSlot].id, mouseX, mouseY, 30);
+    drawItemIcon(heldItem.id, mouseX, mouseY, 30);
     ctx.globalAlpha = 1;
   }
 }
@@ -518,7 +573,9 @@ const SPRINT_MULT = 1.75;
 
 let px = WORLD_W / 2, py = WORLD_H / 2;
 let facingAngle = -Math.PI / 2;
-let nearbyItem  = null;
+let nearbyItem        = null;
+let nearbyChopTarget  = null;
+let nearbyMineTarget  = null;
 
 // ===================== STAMINA =====================
 const STAM_MAX         = 100;
@@ -529,6 +586,46 @@ const STAM_REGEN_DELAY = 3;
 let stamina      = STAM_MAX;
 let staminaReady = false;
 let walkingTimer = 0;
+
+// ===================== PARTICLES =====================
+const particles = [];
+
+function spawnParticles(wx, wy, color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 45 + Math.random() * 90;
+    particles.push({
+      wx, wy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      r:  2 + Math.random() * 2.5,
+      color,
+      life:  1.0,
+      decay: 1.4 + Math.random() * 1.2,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.wx += p.vx * dt; p.wy += p.vy * dt;
+    p.vx *= 0.88;      p.vy *= 0.88;
+    p.life -= p.decay * dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const sx = p.wx - camX, sy = p.wy - camY;
+    if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(sx - p.r/2, sy - p.r/2, p.r, p.r);
+  }
+  ctx.globalAlpha = 1;
+}
 
 // ===================== CAMERA =====================
 let camX = 0, camY = 0;
@@ -547,38 +644,36 @@ function updateFacing() {
 
 function resolveTreeCollisions() {
   for (const chunk of worldChunks) {
-    if (!chunk.tree) continue;
+    if (!chunk.tree || chunk.tree.chopped) continue;
     const r  = trunkRect(chunk.tree);
     const cx = Math.max(r.x1, Math.min(r.x2, px));
     const cy = Math.max(r.y1, Math.min(r.y2, py));
     const dx = px - cx, dy = py - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.sqrt(dx*dx + dy*dy);
     if (dist < BODY_R) {
-      if (dist === 0) { py = r.y1 - BODY_R; }
-      else {
-        const ov = BODY_R - dist;
-        px += (dx / dist) * ov;
-        py += (dy / dist) * ov;
-      }
+      if (dist === 0) py = r.y1 - BODY_R;
+      else { const ov = BODY_R - dist; px += (dx/dist)*ov; py += (dy/dist)*ov; }
     }
   }
 }
 
 function resolveRockCollisions() {
   for (const rock of worldRocks) {
+    if (rock.mined) continue;
     const dx   = px - rock.x, dy = py - rock.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.sqrt(dx*dx + dy*dy);
     const min  = BODY_R + ROCK_COLL_R;
     if (dist < min && dist > 0) {
       const ov = min - dist;
-      px += (dx / dist) * ov;
-      py += (dy / dist) * ov;
+      px += (dx/dist)*ov; py += (dy/dist)*ov;
     }
   }
 }
 
 // ===================== INTERACT =====================
 const PICKUP_RANGE = 65;
+const CHOP_RANGE   = 90;
+const MINE_RANGE   = 75;
 const FACING_DOT   = 0.45;
 
 function getNearbyInteractable() {
@@ -587,11 +682,44 @@ function getNearbyInteractable() {
   for (const item of worldGroundItems) {
     if (item.pickedUp) continue;
     const dx = item.x - px, dy = item.y - py;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.sqrt(dx*dx + dy*dy);
     if (dist > PICKUP_RANGE || dist === 0) continue;
-    const dot = fx * (dx / dist) + fy * (dy / dist);
-    if (dot < FACING_DOT) continue;
+    if (fx*(dx/dist) + fy*(dy/dist) < FACING_DOT) continue;
     if (dist < bestDist) { bestDist = dist; best = item; }
+  }
+  return best;
+}
+
+function getNearbyChopTarget() {
+  const weapon = equipSlots['weapon'];
+  if (!weapon || weapon.id !== 'hatchet') return null;
+  let best = null, bestDist = Infinity;
+  const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
+  for (const chunk of worldChunks) {
+    if (!chunk.tree || chunk.tree.chopped) continue;
+    const t  = chunk.tree;
+    const ty = t.y + CRY * CBS + TH * 0.6;
+    const dx = t.x - px, dy = ty - py;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > CHOP_RANGE || dist === 0) continue;
+    if (fx*(dx/dist) + fy*(dy/dist) < FACING_DOT) continue;
+    if (dist < bestDist) { bestDist = dist; best = t; }
+  }
+  return best;
+}
+
+function getNearbyMineTarget() {
+  const weapon = equipSlots['weapon'];
+  if (!weapon || weapon.id !== 'pickaxe') return null;
+  let best = null, bestDist = Infinity;
+  const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
+  for (const rock of worldRocks) {
+    if (rock.mined) continue;
+    const dx = rock.x - px, dy = rock.y - py;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > MINE_RANGE || dist === 0) continue;
+    if (fx*(dx/dist) + fy*(dy/dist) < FACING_DOT) continue;
+    if (dist < bestDist) { bestDist = dist; best = rock; }
   }
   return best;
 }
@@ -599,8 +727,7 @@ function getNearbyInteractable() {
 function addToInventory(id) {
   for (let i = 0; i < inventorySlots.length; i++) {
     if (inventorySlots[i] && inventorySlots[i].id === id && inventorySlots[i].count < 99) {
-      inventorySlots[i].count++;
-      return;
+      inventorySlots[i].count++; return;
     }
   }
   for (let i = 0; i < inventorySlots.length; i++) {
@@ -608,10 +735,61 @@ function addToInventory(id) {
   }
 }
 
+function chopTree(tree) {
+  if (tree.chopHealth === undefined) {
+    tree.chopHealth = 4 + Math.floor(Math.random() * 3);
+    tree.chopsLeft  = tree.chopHealth;
+  }
+  tree.chopsLeft--;
+
+  const wx = tree.x, wy = tree.y + CRY * CBS + TH * 0.6;
+  spawnParticles(wx, wy, '#5c2a0a', 4);
+  spawnParticles(wx, wy, '#4a8a1c', 5);
+  spawnParticles(wx, wy, '#7a4215', 2);
+
+  if (tree.chopsLeft <= 0) {
+    tree.chopped = true;
+    const dropY  = tree.y + CRY * CBS + TH;
+    const numDrop = 7 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < numDrop; i++) {
+      const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 55;
+      worldGroundItems.push({ type: 'stick', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
+    }
+    spawnParticles(wx, dropY, '#4a8a1c', 18);
+    spawnParticles(wx, dropY, '#5c2a0a', 10);
+    spawnParticles(wx, dropY, '#3a7018', 10);
+  }
+}
+
+function mineRock(rock) {
+  if (rock.mineHealth === undefined) {
+    rock.mineHealth = 5 + Math.floor(Math.random() * 3);
+    rock.hitsLeft   = rock.mineHealth;
+  }
+  rock.hitsLeft--;
+
+  spawnParticles(rock.x, rock.y, '#909090', 4);
+  spawnParticles(rock.x, rock.y, '#555555', 3);
+
+  if (rock.hitsLeft <= 0) {
+    rock.mined = true;
+    const numDrop = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < numDrop; i++) {
+      const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 38;
+      worldGroundItems.push({ type: 'rock', x: rock.x + Math.cos(a)*d, y: rock.y + Math.sin(a)*d, pickedUp: false });
+    }
+    spawnParticles(rock.x, rock.y, '#7a7a7a', 20);
+    spawnParticles(rock.x, rock.y, '#484848', 12);
+  }
+}
+
 function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
-  if (inventoryOpen || !nearbyItem) return;
+  if (inventoryOpen) return;
+  if (nearbyChopTarget) { chopTree(nearbyChopTarget); return; }
+  if (nearbyMineTarget) { mineRock(nearbyMineTarget); return; }
+  if (!nearbyItem) return;
   nearbyItem.pickedUp = true;
   addToInventory(nearbyItem.type);
 }
@@ -648,45 +826,34 @@ function updateMovement(dt) {
 const GRID = 40;
 
 function drawBg() {
-  // Solid grass ground
   ctx.fillStyle = '#2a5412';
   ctx.fillRect(0, 0, W, H);
-
-  // Subtle grid lines on grass
   ctx.strokeStyle = '#254d10'; ctx.lineWidth = 0.5;
   const ox = camX % GRID, oy = camY % GRID;
-  for (let x = -ox; x < W; x += GRID) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = -oy; y < H; y += GRID) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // Chunk boundary lines
+  for (let x = -ox; x < W; x += GRID) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = -oy; y < H; y += GRID) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
   ctx.strokeStyle = '#1e4010'; ctx.lineWidth = 1;
   for (let cx = 0; cx <= CHUNKS_X; cx++) {
     const sx = cx * CHUNK_W - camX;
-    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,H); ctx.stroke();
   }
   for (let cy = 0; cy <= CHUNKS_Y; cy++) {
     const sy = cy * CHUNK_H - camY;
-    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke();
   }
 }
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  glow('#3a5a20', 18);
-  ctx.strokeStyle = '#4a6a28'; ctx.lineWidth = 4;
-  ctx.strokeRect(bx, by, WORLD_W, WORLD_H);
-  noGlow();
+  glow('#3a5a20', 18); ctx.strokeStyle = '#4a6a28'; ctx.lineWidth = 4;
+  ctx.strokeRect(bx, by, WORLD_W, WORLD_H); noGlow();
 }
 
 function drawGrass() {
   for (const chunk of worldChunks) {
     for (const g of chunk.grass) {
       const sx = g.x - camX, sy = g.y - camY;
-      if (sx < -30 || sx > W + 30 || sy < -30 || sy > H + 30) continue;
+      if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
       for (const b of GRASS_VARIANTS[g.v]) {
         ctx.fillStyle = b.c;
         ctx.fillRect(sx + b.dx, sy - b.h, b.w, b.h);
@@ -695,27 +862,23 @@ function drawGrass() {
   }
 }
 
-// Trunk segment
 function drawTrunkSeg(sx, segTopY, segH, dx) {
   ctx.fillStyle = '#2a1205';
-  ctx.fillRect(sx - TW / 2 + dx, segTopY, TW, segH);
+  ctx.fillRect(sx - TW/2 + dx, segTopY, TW, segH);
   ctx.fillStyle = '#4a2410';
-  ctx.fillRect(sx - TW / 2 + dx,     segTopY, 2, segH);
-  ctx.fillRect(sx + TW / 2 - 2 + dx, segTopY, 2, segH);
+  ctx.fillRect(sx - TW/2 + dx,     segTopY, 2, segH);
+  ctx.fillRect(sx + TW/2 - 2 + dx, segTopY, 2, segH);
 }
 
-// Trunk base — before player
 function drawTreeBases() {
   for (const chunk of worldChunks) {
-    if (!chunk.tree) continue;
+    if (!chunk.tree || chunk.tree.chopped) continue;
     const t  = chunk.tree;
     const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
-    if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 160) continue;
-
+    if (sx < -120 || sx > W+120 || sy < -120 || sy > H+160) continue;
     const trunkTopY = sy + CRY * CBS;
     const trunkBotY = trunkTopY + TH;
     const splitY    = trunkBotY - TCOL;
-
     for (let i = 0; i < t.segs.length; i++) {
       const segTopY = trunkTopY + i * SEG_H;
       const segBotY = Math.min(segTopY + SEG_H, trunkBotY);
@@ -726,179 +889,139 @@ function drawTreeBases() {
   }
 }
 
-// Rock shadow — before player (so player appears in front of rock base)
 function drawRockBases() {
   for (const rock of worldRocks) {
+    if (rock.mined) continue;
     const sx = rock.x - camX, sy = rock.y - camY;
-    if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
-    // Ground shadow cast southward
+    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
     ctx.fillStyle = '#1c3a0c';
     ctx.beginPath();
-    ctx.ellipse(sx + 4, sy + ROCK_R * 0.58, ROCK_R * 0.92, ROCK_R * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx+4, sy + ROCK_R*0.58, ROCK_R*0.92, ROCK_R*0.28, 0, 0, Math.PI*2);
     ctx.fill();
   }
 }
 
-// Rock body — after player (player appears behind rock)
-function drawRockTops() {
-  for (const rock of worldRocks) {
-    const sx = rock.x - camX, sy = rock.y - camY;
-    if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
-
-    // Outer dark ring
-    glow('#181818', 10);
-    ctx.fillStyle = '#363636';
-    ctx.beginPath();
-    ctx.ellipse(sx, sy, ROCK_R, ROCK_R * 0.72, 0, 0, Math.PI * 2);
-    ctx.fill();
-    noGlow();
-
-    // Mid body
-    ctx.fillStyle = '#4c4c4c';
-    ctx.beginPath();
-    ctx.ellipse(sx, sy, ROCK_R * 0.8, ROCK_R * 0.58, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Highlight
-    ctx.fillStyle = '#646464';
-    ctx.beginPath();
-    ctx.ellipse(sx - ROCK_R * 0.16, sy - ROCK_R * 0.18, ROCK_R * 0.44, ROCK_R * 0.31, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Bright glint
-    ctx.fillStyle = '#7e7e7e';
-    ctx.beginPath();
-    ctx.ellipse(sx - ROCK_R * 0.24, sy - ROCK_R * 0.26, ROCK_R * 0.18, ROCK_R * 0.13, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-// Ground items (sticks + small rocks)
-function drawGroundItemBodies() {
-  for (const item of worldGroundItems) {
-    if (item.pickedUp) continue;
-    const sx = item.x - camX, sy = item.y - camY;
-    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
-
-    if (item.type === 'stick') {
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(Math.PI / 5.5);
-      ctx.fillStyle = '#3d1a05';
-      ctx.fillRect(-2, -9, 4, 18);
-      ctx.fillStyle = '#7a4215';
-      ctx.fillRect(-2, -9, 1, 18);
-      ctx.restore();
-    }
-
-    if (item.type === 'rock') {
-      ctx.fillStyle = '#3e3e3e';
-      ctx.beginPath();
-      ctx.ellipse(sx, sy, 8, 5.5, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#5c5c5c';
-      ctx.beginPath();
-      ctx.ellipse(sx - 2, sy - 1.5, 4.5, 3, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-}
-
-function drawGroundItemArrows() {
-  if (!nearbyItem || nearbyItem.pickedUp) return;
-  const sx  = nearbyItem.x - camX, sy = nearbyItem.y - camY;
-  const bob = Math.sin(performance.now() / 280) * 2.5;
-  const ay  = sy - 22 + bob;
-  glow('#e8e8a0', 10);
-  ctx.fillStyle = '#e8e8a0';
-  ctx.beginPath();
-  ctx.moveTo(sx,      ay - 5);
-  ctx.lineTo(sx + 6,  ay + 2);
-  ctx.lineTo(sx - 6,  ay + 2);
-  ctx.closePath();
-  ctx.fill();
-  noGlow();
-}
-
-// Canopy + upper trunk — after player
 function drawTreeTops() {
   for (const chunk of worldChunks) {
-    if (!chunk.tree) continue;
+    if (!chunk.tree || chunk.tree.chopped) continue;
     const t  = chunk.tree;
     const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
-    if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 160) continue;
-
+    if (sx < -120 || sx > W+120 || sy < -120 || sy > H+160) continue;
     const trunkTopY = sy + CRY * CBS;
     const trunkBotY = trunkTopY + TH;
     const splitY    = trunkBotY - TCOL;
-
     for (let i = 0; i < t.segs.length; i++) {
       const segTopY = trunkTopY + i * SEG_H;
       const segBotY = Math.min(segTopY + SEG_H, trunkBotY);
       if (segTopY >= splitY) break;
-      const clampBot = Math.min(segBotY, splitY);
-      drawTrunkSeg(sx, segTopY, clampBot - segTopY, t.segs[i]);
+      drawTrunkSeg(sx, segTopY, Math.min(segBotY, splitY) - segTopY, t.segs[i]);
     }
-
-    // Canopy outer shadow ring
-    glow('#0e2a06', 8);
-    ctx.fillStyle = '#0f2408';
-    for (const [row, col] of C_OUTER)
-      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
+    glow('#0e2a06', 8); ctx.fillStyle = '#0f2408';
+    for (const [row, col] of C_OUTER) ctx.fillRect(sx+col*CBS, sy+row*CBS, CBS, CBS);
     noGlow();
-
     ctx.fillStyle = '#1e4a0e';
-    for (const [row, col] of C_MID)
-      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
-
+    for (const [row, col] of C_MID) ctx.fillRect(sx+col*CBS, sy+row*CBS, CBS, CBS);
     ctx.fillStyle = '#2a6614';
-    for (const [row, col] of C_INNER)
-      ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
-
+    for (const [row, col] of C_INNER) ctx.fillRect(sx+col*CBS, sy+row*CBS, CBS, CBS);
     ctx.fillStyle = '#3a8a1c';
-    ctx.fillRect(sx - CBS,     sy - CBS, CBS, CBS);
-    ctx.fillRect(sx + CBS * 2, sy + CBS, CBS, CBS);
-    ctx.fillRect(sx - CBS * 3, sy,       CBS, CBS);
+    ctx.fillRect(sx-CBS, sy-CBS, CBS, CBS);
+    ctx.fillRect(sx+CBS*2, sy+CBS, CBS, CBS);
+    ctx.fillRect(sx-CBS*3, sy, CBS, CBS);
+  }
+}
+
+function drawRockTops() {
+  for (const rock of worldRocks) {
+    if (rock.mined) continue;
+    const sx = rock.x - camX, sy = rock.y - camY;
+    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
+    glow('#181818', 10); ctx.fillStyle = '#363636';
+    ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R, ROCK_R*0.72, 0, 0, Math.PI*2); ctx.fill(); noGlow();
+    ctx.fillStyle = '#4c4c4c';
+    ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R*0.8, ROCK_R*0.58, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#646464';
+    ctx.beginPath(); ctx.ellipse(sx-ROCK_R*0.16, sy-ROCK_R*0.18, ROCK_R*0.44, ROCK_R*0.31, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#7e7e7e';
+    ctx.beginPath(); ctx.ellipse(sx-ROCK_R*0.24, sy-ROCK_R*0.26, ROCK_R*0.18, ROCK_R*0.13, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawGroundItemBodies() {
+  for (const item of worldGroundItems) {
+    if (item.pickedUp) continue;
+    const sx = item.x - camX, sy = item.y - camY;
+    if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
+    if (item.type === 'stick') {
+      ctx.save(); ctx.translate(sx, sy); ctx.rotate(Math.PI / 5.5);
+      ctx.fillStyle = '#3d1a05'; ctx.fillRect(-2, -9, 4, 18);
+      ctx.fillStyle = '#7a4215'; ctx.fillRect(-2, -9, 1, 18);
+      ctx.restore();
+    }
+    if (item.type === 'rock') {
+      ctx.fillStyle = '#3e3e3e';
+      ctx.beginPath(); ctx.ellipse(sx, sy, 8, 5.5, 0.3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#5c5c5c';
+      ctx.beginPath(); ctx.ellipse(sx-2, sy-1.5, 4.5, 3, 0.3, 0, Math.PI*2); ctx.fill();
+    }
   }
 }
 
 function drawPlayer() {
   const sx = px - camX, sy = py - camY;
-
-  glow('#7ab038', 16);
-  ctx.fillStyle = '#111a08';
-  ctx.strokeStyle = '#7ab038'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(sx, sy, BODY_R, 0, Math.PI * 2);
-  ctx.fill(); ctx.stroke();
-  noGlow();
-
+  glow('#7ab038', 16); ctx.fillStyle = '#111a08'; ctx.strokeStyle = '#7ab038'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(sx, sy, BODY_R, 0, Math.PI*2); ctx.fill(); ctx.stroke(); noGlow();
   const hx = sx + Math.cos(facingAngle) * HEAD_DIST;
   const hy = sy + Math.sin(facingAngle) * HEAD_DIST;
-  glow('#d4b058', 10);
-  ctx.fillStyle = '#d4b058';
-  ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI * 2);
-  ctx.fill();
-  noGlow();
+  glow('#d4b058', 10); ctx.fillStyle = '#d4b058';
+  ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI*2); ctx.fill(); noGlow();
+}
+
+function drawArrow(sx, sy, color) {
+  const bob = Math.sin(performance.now() / 280) * 2.5;
+  const ay  = sy - 16 + bob;
+  glow(color, 10); ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(sx, ay-5); ctx.lineTo(sx+6, ay+2); ctx.lineTo(sx-6, ay+2);
+  ctx.closePath(); ctx.fill(); noGlow();
+}
+
+function drawHealthBar(sx, sy, current, max, color) {
+  const bw = 40, bh = 4, bx = sx - bw/2;
+  ctx.fillStyle = '#1a1a1a'; ctx.fillRect(bx, sy, bw, bh);
+  ctx.fillStyle = color;     ctx.fillRect(bx, sy, bw * (current/max), bh);
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 0.5; ctx.strokeRect(bx, sy, bw, bh);
+}
+
+function drawTargetIndicators() {
+  // Ground item pickup
+  if (nearbyItem && !nearbyItem.pickedUp)
+    drawArrow(nearbyItem.x - camX, nearbyItem.y - camY, '#e8e8a0');
+
+  // Tree chop
+  if (nearbyChopTarget && !nearbyChopTarget.chopped) {
+    const sx = nearbyChopTarget.x - camX;
+    const sy = nearbyChopTarget.y - camY - CRY * CBS;
+    drawArrow(sx, sy, '#90d040');
+    if (nearbyChopTarget.chopsLeft !== undefined)
+      drawHealthBar(sx, sy - 18, nearbyChopTarget.chopsLeft, nearbyChopTarget.chopHealth, '#5aaa28');
+  }
+
+  // Rock mine
+  if (nearbyMineTarget && !nearbyMineTarget.mined) {
+    const sx = nearbyMineTarget.x - camX;
+    const sy = nearbyMineTarget.y - camY - ROCK_R - 4;
+    drawArrow(sx, sy, '#b8b8b8');
+    if (nearbyMineTarget.hitsLeft !== undefined)
+      drawHealthBar(sx, sy - 18, nearbyMineTarget.hitsLeft, nearbyMineTarget.mineHealth, '#888888');
+  }
 }
 
 function drawStamina() {
-  const BAR_W = 100, BAR_H = 6;
-  const bx = 14, by = H - 24;
+  const BAR_W = 100, BAR_H = 6, bx = 14, by = H - 24;
   const fill  = (stamina / STAM_MAX) * BAR_W;
-  const color = keys['shift'] && stamina > 0 ? '#e87820'
-              : staminaReady                  ? '#5aaa28'
-                                              : '#1e3a10';
-
-  ctx.fillStyle = '#1a3010';
-  ctx.fillRect(bx, by, BAR_W, BAR_H);
-  if (fill > 0) {
-    glow(color, keys['shift'] ? 10 : 5);
-    ctx.fillStyle = color;
-    ctx.fillRect(bx, by, fill, BAR_H);
-    noGlow();
-  }
-  ctx.strokeStyle = '#264018'; ctx.lineWidth = 1;
-  ctx.strokeRect(bx, by, BAR_W, BAR_H);
+  const color = keys['shift'] && stamina > 0 ? '#e87820' : staminaReady ? '#5aaa28' : '#1e3a10';
+  ctx.fillStyle = '#1a3010'; ctx.fillRect(bx, by, BAR_W, BAR_H);
+  if (fill > 0) { glow(color, keys['shift'] ? 10 : 5); ctx.fillStyle = color; ctx.fillRect(bx, by, fill, BAR_H); noGlow(); }
+  ctx.strokeStyle = '#264018'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, BAR_W, BAR_H);
 }
 
 // ===================== LOOP =====================
@@ -907,19 +1030,23 @@ function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   updateFacing();
-  nearbyItem = getNearbyInteractable();
+  nearbyItem       = getNearbyInteractable();
+  nearbyChopTarget = getNearbyChopTarget();
+  nearbyMineTarget = getNearbyMineTarget();
   handleInteract();
   updateMovement(dt);
+  updateParticles(dt);
   updateCamera();
   drawBg();
   drawGrass();
-  drawGroundItemBodies();  // sticks + small rocks on ground
-  drawTreeBases();         // trunk base — player in front
-  drawRockBases();         // rock shadow — player in front
+  drawGroundItemBodies();
+  drawTreeBases();
+  drawRockBases();
   drawPlayer();
-  drawTreeTops();          // canopy — player behind
-  drawRockTops();          // rock body — player behind
-  drawGroundItemArrows();  // pickup indicators on top
+  drawTreeTops();
+  drawRockTops();
+  drawParticles();
+  drawTargetIndicators();
   drawBorder();
   drawStamina();
   if (inventoryOpen) drawInventory();
