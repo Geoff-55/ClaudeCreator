@@ -261,6 +261,11 @@ const EQUIP_LEFT = GRID_LEFT + GRID_W + EQUIP_GAP;
 const EQUIP_TOP  = GRID_TOP;
 
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
+// TEST ITEMS
+inventorySlots[0] = { id: 'stick',   count: 99 };
+inventorySlots[1] = { id: 'rock',    count: 99 };
+inventorySlots[2] = { id: 'feather', count: 99 };
+inventorySlots[3] = { id: 'bone',    count: 99 };
 
 const EQUIP_SLOT_DEFS = [
   { name: 'weapon',     label: 'WEAPON' },
