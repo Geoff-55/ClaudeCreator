@@ -7,36 +7,36 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #07060f;
+      background: #060c05;
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; overflow: hidden;
     }
     canvas {
       display: block;
-      border: 1px solid #2a1050;
-      box-shadow: 0 0 12px #1a0838;
+      border: 1px solid #1a2e0e;
+      box-shadow: 0 0 18px #0a1a06;
     }
     .back-btn {
       position: fixed; top: 1rem; right: 1.2rem;
-      padding: 0.35rem 1rem; border: 1px solid #a855f7;
-      color: #a855f7; font-size: 0.8rem; font-weight: 600;
+      padding: 0.35rem 1rem; border: 1px solid #5a8a2a;
+      color: #5a8a2a; font-size: 0.8rem; font-weight: 600;
       letter-spacing: 0.08em; text-decoration: none; text-transform: uppercase;
       font-family: monospace; transition: background 0.2s, box-shadow 0.2s;
     }
-    .back-btn:hover { background: #a855f720; box-shadow: 0 0 10px #a855f7; }
+    .back-btn:hover { background: #5a8a2a20; box-shadow: 0 0 10px #5a8a2a; }
   </style>
 </head>
 <body>
   <a class="back-btn" id="backBtn" href="#">Back</a>
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
-    <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">make the trees look 2D facing up toward the sky. trunk base blocks movement, player walks behind the rest. make grass more varied, a couple different versions, more pixelated and less detail.</p>
+    <p style="color:#5a8a2a; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
+    <p style="color:#3a5a1a; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">overhaul the style to be grassy and natural, not neon focused. make everything correctly themed.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
-    <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact</p>
+    <p style="color:#5a8a2a; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.55; margin-bottom:0.3rem;">Controls</p>
+    <p style="color:#2e4e18; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.8;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -122,18 +122,24 @@ for (let row = -CRY; row <= CRY; row++) {
 }
 
 // ===================== GRASS VARIANTS =====================
-// Two simple chunky variants — each blade is a solid rectangle
+// Three chunky natural variants
 const GRASS_VARIANTS = [
-  // A: two blades, simple
+  // A: two blades
   [
-    { dx: -4, w: 4, h: 10, c: '#6b21a8' },
-    { dx:  3, w: 4, h:  7, c: '#7c3aed' },
+    { dx: -4, w: 4, h: 10, c: '#2a5218' },
+    { dx:  3, w: 4, h:  7, c: '#3a6e22' },
   ],
   // B: three shorter chunkier blocks
   [
-    { dx: -5, w: 4, h: 6, c: '#7c3aed' },
-    { dx:  0, w: 4, h: 9, c: '#6b21a8' },
-    { dx:  5, w: 4, h: 5, c: '#9333ea' },
+    { dx: -5, w: 4, h: 6, c: '#3a6e22' },
+    { dx:  0, w: 4, h: 9, c: '#225018' },
+    { dx:  5, w: 4, h: 5, c: '#4a8a2c' },
+  ],
+  // C: single wide clump
+  [
+    { dx: -6, w: 4, h: 8, c: '#1e4a10' },
+    { dx:  0, w: 5, h: 11, c: '#2d6018' },
+    { dx:  6, w: 3, h: 6, c: '#3a7820' },
   ],
 ];
 
@@ -152,20 +158,19 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
       grass.push({
         x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
         y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
-        v: Math.floor(rng() * GRASS_VARIANTS.length),  // variant index
+        v: Math.floor(rng() * GRASS_VARIANTS.length),
       });
     }
 
     // 35% tree — canopy center stored as t.x, t.y
     let tree = null;
     if (rng() < 0.35) {
-      // Generate trunk bend: each segment drifts slightly left/right
       const numSegs = Math.ceil(TH / SEG_H);
       const segs = [];
       let drift = 0;
       for (let i = 0; i < numSegs; i++) {
-        drift += Math.round(rng() * 6 - 3);   // step -3..+3
-        drift = Math.max(-6, Math.min(6, drift)); // clamp total drift
+        drift += Math.round(rng() * 6 - 3);
+        drift = Math.max(-6, Math.min(6, drift));
         segs.push(drift);
       }
       tree = {
@@ -175,7 +180,7 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
       };
     }
 
-    // 0–2 sticks per chunk (after tree gen so existing RNG sequence is unchanged)
+    // 0–2 sticks per chunk
     const numSticks = Math.floor(rng() * 3);
     for (let i = 0; i < numSticks; i++) {
       worldSticks.push({
@@ -210,26 +215,25 @@ const INV_H = INV_ROWS * SLOT_SIZE + (INV_ROWS - 1) * SLOT_GAP + INV_PAD * 2 + 2
 const INV_X = Math.round((W - INV_W) / 2);
 const INV_Y = Math.round((H - INV_H) / 2);
 
-// Placeholder item slots (null = empty)
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
 
 function drawInventory() {
   // Dim background
-  ctx.fillStyle = 'rgba(4, 3, 12, 0.78)';
+  ctx.fillStyle = 'rgba(3, 7, 2, 0.82)';
   ctx.fillRect(0, 0, W, H);
 
   // Panel background
-  ctx.fillStyle = '#0a0718';
+  ctx.fillStyle = '#080f05';
   ctx.fillRect(INV_X, INV_Y, INV_W, INV_H);
 
-  // Panel border with glow
-  neon('#a855f7', 14);
-  ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5;
+  // Panel border with soft glow
+  neon('#3a7a1a', 10);
+  ctx.strokeStyle = '#2d5e14'; ctx.lineWidth = 1.5;
   ctx.strokeRect(INV_X, INV_Y, INV_W, INV_H);
   noNeon();
 
   // Title
-  ctx.fillStyle = '#a855f7';
+  ctx.fillStyle = '#78b030';
   ctx.font = '600 11px monospace';
   ctx.letterSpacing = '0.12em';
   ctx.fillText('INVENTORY', INV_X + INV_PAD, INV_Y + INV_PAD + 10);
@@ -244,11 +248,11 @@ function drawInventory() {
       const item = inventorySlots[row * INV_COLS + col];
 
       // Slot bg
-      ctx.fillStyle = '#0d0a1e';
+      ctx.fillStyle = '#0b1408';
       ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
 
       // Slot border
-      ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
+      ctx.strokeStyle = '#1e3410'; ctx.lineWidth = 1;
       ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
 
       if (item) {
@@ -263,7 +267,7 @@ function drawInventory() {
           ctx.restore();
         }
         if (item.count > 1) {
-          ctx.fillStyle = '#a78bfa';
+          ctx.fillStyle = '#96c050';
           ctx.font = '500 9px monospace';
           ctx.textAlign = 'right';
           ctx.fillText(item.count, sx + SLOT_SIZE - 4, sy + SLOT_SIZE - 4);
@@ -283,7 +287,7 @@ const SPRINT_MULT = 1.75;
 
 let px = WORLD_W / 2, py = WORLD_H / 2;
 let facingAngle = -Math.PI / 2;
-let nearbyStick = null;  // stick eligible for pickup this frame
+let nearbyStick = null;
 
 // ===================== STAMINA =====================
 const STAM_MAX         = 100;
@@ -314,14 +318,13 @@ function resolveTreeCollisions() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
     const r = trunkRect(chunk.tree);
-    // Closest point on rect to player circle
     const cx = Math.max(r.x1, Math.min(r.x2, px));
     const cy = Math.max(r.y1, Math.min(r.y2, py));
     const dx = px - cx, dy = py - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < BODY_R) {
       if (dist === 0) {
-        py = r.y1 - BODY_R;  // centre inside rect — push up
+        py = r.y1 - BODY_R;
       } else {
         const overlap = BODY_R - dist;
         px += (dx / dist) * overlap;
@@ -333,7 +336,7 @@ function resolveTreeCollisions() {
 
 // ===================== INTERACT =====================
 const PICKUP_RANGE = 65;
-const FACING_DOT   = 0.45;  // ~63° half-angle — fairly forgiving
+const FACING_DOT   = 0.45;
 
 function getNearbyInteractable() {
   let best = null, bestDist = Infinity;
@@ -351,14 +354,12 @@ function getNearbyInteractable() {
 }
 
 function addToInventory(id) {
-  // Stack onto existing slot
   for (let i = 0; i < inventorySlots.length; i++) {
     if (inventorySlots[i] && inventorySlots[i].id === id && inventorySlots[i].count < 99) {
       inventorySlots[i].count++;
       return;
     }
   }
-  // Empty slot
   for (let i = 0; i < inventorySlots.length; i++) {
     if (!inventorySlots[i]) { inventorySlots[i] = { id, count: 1 }; return; }
   }
@@ -406,10 +407,10 @@ function updateMovement(dt) {
 const GRID = 40;
 
 function drawBg() {
-  ctx.fillStyle = '#07060f';
+  ctx.fillStyle = '#090e06';
   ctx.fillRect(0, 0, W, H);
 
-  ctx.strokeStyle = '#0e0720'; ctx.lineWidth = 0.5;
+  ctx.strokeStyle = '#0e160a'; ctx.lineWidth = 0.5;
   const ox = camX % GRID, oy = camY % GRID;
   for (let x = -ox; x < W; x += GRID) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
@@ -418,7 +419,7 @@ function drawBg() {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  ctx.strokeStyle = '#1e0f38'; ctx.lineWidth = 1;
+  ctx.strokeStyle = '#162210'; ctx.lineWidth = 1;
   for (let cx = 0; cx <= CHUNKS_X; cx++) {
     const sx = cx * CHUNK_W - camX;
     ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
@@ -431,8 +432,8 @@ function drawBg() {
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  neon('#a855f7', 22);
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4;
+  neon('#3a7a1a', 20);
+  ctx.strokeStyle = '#4a8a24'; ctx.lineWidth = 4;
   ctx.strokeRect(bx, by, WORLD_W, WORLD_H);
   noNeon();
 }
@@ -452,9 +453,9 @@ function drawGrass() {
 
 // Draw one trunk segment (both colour passes)
 function drawTrunkSeg(sx, segTopY, segH, dx) {
-  ctx.fillStyle = '#0d051a';
+  ctx.fillStyle = '#1e0a03';
   ctx.fillRect(sx - TW / 2 + dx, segTopY, TW, segH);
-  ctx.fillStyle = '#1e0a38';
+  ctx.fillStyle = '#3d1e08';
   ctx.fillRect(sx - TW / 2 + dx,     segTopY, 2, segH);
   ctx.fillRect(sx + TW / 2 - 2 + dx, segTopY, 2, segH);
 }
@@ -471,11 +472,10 @@ function drawTreeBases() {
     const trunkBotY = trunkTopY + TH;
     const splitY    = trunkBotY - TCOL;
 
-    // Only segments that fall below the split point
     for (let i = 0; i < t.segs.length; i++) {
       const segTopY = trunkTopY + i * SEG_H;
       const segBotY = Math.min(segTopY + SEG_H, trunkBotY);
-      if (segBotY <= splitY) continue;          // above split — skip
+      if (segBotY <= splitY) continue;
       const clampTop = Math.max(segTopY, splitY);
       drawTrunkSeg(sx, clampTop, segBotY - clampTop, t.segs[i]);
     }
@@ -494,34 +494,33 @@ function drawTreeTops() {
     const trunkBotY = trunkTopY + TH;
     const splitY    = trunkBotY - TCOL;
 
-    // Segments above the split point
     for (let i = 0; i < t.segs.length; i++) {
       const segTopY = trunkTopY + i * SEG_H;
       const segBotY = Math.min(segTopY + SEG_H, trunkBotY);
-      if (segTopY >= splitY) break;             // at or below split — stop
+      if (segTopY >= splitY) break;
       const clampBot = Math.min(segBotY, splitY);
       drawTrunkSeg(sx, segTopY, clampBot - segTopY, t.segs[i]);
     }
 
-    // Canopy — outer glow ring
-    neon('#3b1a6b', 10);
-    ctx.fillStyle = '#160630';
+    // Canopy — outer shadow ring
+    neon('#0e2a06', 8);
+    ctx.fillStyle = '#0f2408';
     for (const [row, col] of C_OUTER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
     noNeon();
 
     // Mid ring
-    ctx.fillStyle = '#21094a';
+    ctx.fillStyle = '#1e4a0e';
     for (const [row, col] of C_MID)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
     // Inner
-    ctx.fillStyle = '#2e1260';
+    ctx.fillStyle = '#2a6614';
     for (const [row, col] of C_INNER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
     // Highlight flecks
-    ctx.fillStyle = '#4a1a78';
+    ctx.fillStyle = '#3a8a1c';
     ctx.fillRect(sx - CBS,      sy - CBS,      CBS, CBS);
     ctx.fillRect(sx + CBS * 2,  sy + CBS,      CBS, CBS);
     ctx.fillRect(sx - CBS * 3,  sy,            CBS, CBS);
@@ -539,7 +538,7 @@ function drawStickBodies() {
     ctx.fillStyle = '#3d1a05';
     ctx.fillRect(-2, -9, 4, 18);
     ctx.fillStyle = '#7a4215';
-    ctx.fillRect(-2, -9, 1, 18);  // left edge highlight
+    ctx.fillRect(-2, -9, 1, 18);
     ctx.restore();
   }
 }
@@ -547,11 +546,10 @@ function drawStickBodies() {
 function drawStickArrows() {
   if (!nearbyStick || nearbyStick.pickedUp) return;
   const sx = nearbyStick.x - camX, sy = nearbyStick.y - camY;
-  // Bouncy offset
   const bob = Math.sin(performance.now() / 280) * 2.5;
   const ay = sy - 22 + bob;
-  neon('#c4b5fd', 12);
-  ctx.fillStyle = '#c4b5fd';
+  neon('#c8e870', 10);
+  ctx.fillStyle = '#c8e870';
   ctx.beginPath();
   ctx.moveTo(sx,      ay - 5);
   ctx.lineTo(sx + 6,  ay + 2);
@@ -564,17 +562,17 @@ function drawStickArrows() {
 function drawPlayer() {
   const sx = px - camX, sy = py - camY;
 
-  neon('#a855f7', 20);
-  ctx.fillStyle = '#0d0a1a';
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
+  neon('#7ab038', 16);
+  ctx.fillStyle = '#111a08';
+  ctx.strokeStyle = '#7ab038'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(sx, sy, BODY_R, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
   noNeon();
 
   const hx = sx + Math.cos(facingAngle) * HEAD_DIST;
   const hy = sy + Math.sin(facingAngle) * HEAD_DIST;
-  neon('#d8b4fe', 12);
-  ctx.fillStyle = '#d8b4fe';
+  neon('#d4b058', 10);
+  ctx.fillStyle = '#d4b058';
   ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI * 2);
   ctx.fill();
   noNeon();
@@ -584,19 +582,19 @@ function drawStamina() {
   const BAR_W = 100, BAR_H = 6;
   const bx = 14, by = H - 24;
   const fill  = (stamina / STAM_MAX) * BAR_W;
-  const color = keys['shift'] && stamina > 0 ? '#00d4ff'
-              : staminaReady                  ? '#a855f7'
-                                              : '#3b1a6b';
+  const color = keys['shift'] && stamina > 0 ? '#e87820'
+              : staminaReady                  ? '#5aaa28'
+                                              : '#1e3a10';
 
-  ctx.fillStyle = '#0d0a1a';
+  ctx.fillStyle = '#0b1408';
   ctx.fillRect(bx, by, BAR_W, BAR_H);
   if (fill > 0) {
-    neon(color, keys['shift'] ? 10 : 6);
+    neon(color, keys['shift'] ? 10 : 5);
     ctx.fillStyle = color;
     ctx.fillRect(bx, by, fill, BAR_H);
     noNeon();
   }
-  ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
+  ctx.strokeStyle = '#1a3010'; ctx.lineWidth = 1;
   ctx.strokeRect(bx, by, BAR_W, BAR_H);
 }
 
@@ -612,11 +610,11 @@ function loop(ts) {
   updateCamera();
   drawBg();
   drawGrass();
-  drawStickBodies();   // sticks on ground, under player
-  drawTreeBases();     // trunk base — in front of player
+  drawStickBodies();
+  drawTreeBases();
   drawPlayer();
-  drawTreeTops();      // canopy + upper trunk — behind player
-  drawStickArrows();   // pickup indicators on top of everything
+  drawTreeTops();
+  drawStickArrows();
   drawBorder();
   drawStamina();
   if (inventoryOpen) drawInventory();
