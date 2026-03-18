@@ -7,36 +7,36 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #060c05;
+      background: #07060f;
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; overflow: hidden;
     }
     canvas {
       display: block;
-      border: 1px solid #1a2e0e;
-      box-shadow: 0 0 18px #0a1a06;
+      border: 1px solid #2a1050;
+      box-shadow: 0 0 12px #1a0838;
     }
     .back-btn {
       position: fixed; top: 1rem; right: 1.2rem;
-      padding: 0.35rem 1rem; border: 1px solid #5a8a2a;
-      color: #5a8a2a; font-size: 0.8rem; font-weight: 600;
+      padding: 0.35rem 1rem; border: 1px solid #a855f7;
+      color: #a855f7; font-size: 0.8rem; font-weight: 600;
       letter-spacing: 0.08em; text-decoration: none; text-transform: uppercase;
       font-family: monospace; transition: background 0.2s, box-shadow 0.2s;
     }
-    .back-btn:hover { background: #5a8a2a20; box-shadow: 0 0 10px #5a8a2a; }
+    .back-btn:hover { background: #a855f720; box-shadow: 0 0 10px #a855f7; }
   </style>
 </head>
 <body>
   <a class="back-btn" id="backBtn" href="#">Back</a>
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
-    <p style="color:#5a8a2a; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#3a5a1a; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">overhaul the style to be grassy and natural, not neon focused. make everything correctly themed.</p>
+    <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">solid grass ground with patches, gray rocks like trees, small rocks like sticks. outside stays purple.</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
-    <p style="color:#5a8a2a; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.55; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#2e4e18; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.8;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact</p>
+    <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -57,12 +57,12 @@ const ctx    = canvas.getContext('2d');
 canvas.width  = W;
 canvas.height = H;
 
-function neon(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
-function noNeon()           { ctx.shadowBlur = 0; }
+function glow(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function noGlow()           { ctx.shadowBlur = 0; }
 
 // ===================== INPUT =====================
-const keys      = {};
-const released  = {};
+const keys       = {};
+const released   = {};
 const justPressed = new Set();
 const DIAG_GRACE = 50;
 
@@ -89,8 +89,8 @@ function active(k) {
 // ===================== WORLD =====================
 const CHUNK_W = W, CHUNK_H = H;
 const CHUNKS_X = 5, CHUNKS_Y = 7;
-const WORLD_W = CHUNK_W * CHUNKS_X;
-const WORLD_H = CHUNK_H * CHUNKS_Y;
+const WORLD_W  = CHUNK_W * CHUNKS_X;
+const WORLD_H  = CHUNK_H * CHUNKS_Y;
 
 function chunkRNG(cx, cy) {
   let s = (cx * 73856093 ^ cy * 19349663) >>> 0;
@@ -101,57 +101,61 @@ function chunkRNG(cx, cy) {
 }
 
 // ===================== TREE GEOMETRY =====================
-const CBS  = 5;   // canopy block size (px)
-const CRX  = 12;  // canopy horizontal radius in blocks → 60px
-const CRY  = 9;   // canopy vertical radius in blocks   → 45px
-const TW   = 14;  // trunk width (px)
-const TH   = 52;  // trunk height (px) below canopy bottom
-const TCOL = 20;  // trunk base collision zone height (px)
-const SEG_H = 8;  // trunk segment height for bend drawing
+const CBS   = 5;
+const CRX   = 12;
+const CRY   = 9;
+const TW    = 14;
+const TH    = 52;
+const TCOL  = 20;
+const SEG_H = 8;
 
-// Precompute oval canopy block rings (done once at startup)
 const C_OUTER = [], C_MID = [], C_INNER = [];
 for (let row = -CRY; row <= CRY; row++) {
   for (let col = -CRX; col <= CRX; col++) {
     const d2 = (col / CRX) ** 2 + (row / CRY) ** 2;
-    if (d2 > 1.0)  continue;
-    if (d2 > 0.65) C_OUTER.push([row, col]);
+    if (d2 > 1.0) continue;
+    if      (d2 > 0.65) C_OUTER.push([row, col]);
     else if (d2 > 0.28) C_MID.push([row, col]);
-    else           C_INNER.push([row, col]);
+    else                C_INNER.push([row, col]);
   }
 }
 
+// ===================== ROCK GEOMETRY =====================
+const ROCK_R      = 30;   // visual radius (px)
+const ROCK_COLL_R = 24;   // collision radius
+
 // ===================== GRASS VARIANTS =====================
-// Three chunky natural variants
 const GRASS_VARIANTS = [
-  // A: two blades
+  // A: dark shadow tufts
   [
-    { dx: -4, w: 4, h: 10, c: '#2a5218' },
-    { dx:  3, w: 4, h:  7, c: '#3a6e22' },
+    { dx: -4, w: 4, h: 10, c: '#1a3c0a' },
+    { dx:  3, w: 4, h:  7, c: '#234810' },
   ],
-  // B: three shorter chunkier blocks
+  // B: mixed medium tufts
   [
-    { dx: -5, w: 4, h: 6, c: '#3a6e22' },
-    { dx:  0, w: 4, h: 9, c: '#225018' },
-    { dx:  5, w: 4, h: 5, c: '#4a8a2c' },
+    { dx: -5, w: 4, h: 6, c: '#2e6018' },
+    { dx:  0, w: 4, h: 9, c: '#1c3e0c' },
+    { dx:  5, w: 4, h: 5, c: '#3a7020' },
   ],
-  // C: single wide clump
+  // C: bright highlight clumps
   [
-    { dx: -6, w: 4, h: 8, c: '#1e4a10' },
-    { dx:  0, w: 5, h: 11, c: '#2d6018' },
-    { dx:  6, w: 3, h: 6, c: '#3a7820' },
+    { dx: -6, w: 4, h: 8, c: '#3a7020' },
+    { dx:  0, w: 5, h: 11, c: '#4a8828' },
+    { dx:  6, w: 3, h: 6, c: '#2a5c14' },
   ],
 ];
 
 // ===================== WORLD GENERATION =====================
-const worldChunks = [];
-const worldSticks = [];   // flat list — mutable (pickedUp state)
+const worldChunks     = [];
+const worldGroundItems = [];  // { type:'stick'|'rock', x, y, pickedUp }
+const worldRocks      = [];   // large rocks { x, y }
+
 for (let cy = 0; cy < CHUNKS_Y; cy++) {
   for (let cx = 0; cx < CHUNKS_X; cx++) {
     const rng = chunkRNG(cx, cy);
-    const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
+    const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
 
-    // 2–4 grass patches, each assigned a variant
+    // Grass patches (2–4)
     const grass = [];
     const n = 2 + Math.floor(rng() * 3);
     for (let i = 0; i < n; i++) {
@@ -162,7 +166,7 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
       });
     }
 
-    // 35% tree — canopy center stored as t.x, t.y
+    // 35% tree
     let tree = null;
     if (rng() < 0.35) {
       const numSegs = Math.ceil(TH / SEG_H);
@@ -174,16 +178,36 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
         segs.push(drift);
       }
       tree = {
-        x:    wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
-        y:    wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
+        x: wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
+        y: wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
         segs,
       };
     }
 
-    // 0–2 sticks per chunk
+    // 0–2 sticks (ground items)
     const numSticks = Math.floor(rng() * 3);
     for (let i = 0; i < numSticks; i++) {
-      worldSticks.push({
+      worldGroundItems.push({
+        type: 'stick',
+        x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+        y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+        pickedUp: false,
+      });
+    }
+
+    // 25% large rock
+    if (rng() < 0.25) {
+      worldRocks.push({
+        x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
+        y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+      });
+    }
+
+    // 0–2 small rocks (ground items)
+    const numSmallRocks = Math.floor(rng() * 3);
+    for (let i = 0; i < numSmallRocks; i++) {
+      worldGroundItems.push({
+        type: 'rock',
         x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
         y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
         pickedUp: false,
@@ -194,14 +218,12 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
   }
 }
 
-// Helper: trunk base collision rect in world coords for a tree
+// Trunk collision rect
 function trunkRect(t) {
   const trunkBot = t.y + CRY * CBS + TH;
   return {
-    x1: t.x - TW / 2,
-    x2: t.x + TW / 2,
-    y1: trunkBot - TCOL,
-    y2: trunkBot,
+    x1: t.x - TW / 2, x2: t.x + TW / 2,
+    y1: trunkBot - TCOL, y2: trunkBot,
   };
 }
 
@@ -218,47 +240,41 @@ const INV_Y = Math.round((H - INV_H) / 2);
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
 
 function drawInventory() {
-  // Dim background
-  ctx.fillStyle = 'rgba(3, 7, 2, 0.82)';
+  ctx.fillStyle = 'rgba(4, 3, 12, 0.82)';
   ctx.fillRect(0, 0, W, H);
 
-  // Panel background
-  ctx.fillStyle = '#080f05';
+  ctx.fillStyle = '#0a0718';
   ctx.fillRect(INV_X, INV_Y, INV_W, INV_H);
 
-  // Panel border with soft glow
-  neon('#3a7a1a', 10);
-  ctx.strokeStyle = '#2d5e14'; ctx.lineWidth = 1.5;
+  glow('#a855f7', 14);
+  ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5;
   ctx.strokeRect(INV_X, INV_Y, INV_W, INV_H);
-  noNeon();
+  noGlow();
 
-  // Title
-  ctx.fillStyle = '#78b030';
+  ctx.fillStyle = '#a855f7';
   ctx.font = '600 11px monospace';
   ctx.letterSpacing = '0.12em';
   ctx.fillText('INVENTORY', INV_X + INV_PAD, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
 
-  // Slots
   const gridTop = INV_Y + INV_PAD + 28;
   for (let row = 0; row < INV_ROWS; row++) {
     for (let col = 0; col < INV_COLS; col++) {
-      const sx = INV_X + INV_PAD + col * (SLOT_SIZE + SLOT_GAP);
-      const sy = gridTop + row * (SLOT_SIZE + SLOT_GAP);
+      const sx   = INV_X + INV_PAD + col * (SLOT_SIZE + SLOT_GAP);
+      const sy   = gridTop + row * (SLOT_SIZE + SLOT_GAP);
       const item = inventorySlots[row * INV_COLS + col];
 
-      // Slot bg
-      ctx.fillStyle = '#0b1408';
+      ctx.fillStyle = '#0d0a1e';
       ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
-
-      // Slot border
-      ctx.strokeStyle = '#1e3410'; ctx.lineWidth = 1;
+      ctx.strokeStyle = '#2a1050'; ctx.lineWidth = 1;
       ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
 
       if (item) {
+        const cx = sx + SLOT_SIZE / 2, cy = sy + SLOT_SIZE / 2;
+
         if (item.id === 'stick') {
           ctx.save();
-          ctx.translate(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2);
+          ctx.translate(cx, cy);
           ctx.rotate(Math.PI / 5);
           ctx.fillStyle = '#3d1a05';
           ctx.fillRect(-3, -13, 6, 26);
@@ -266,8 +282,24 @@ function drawInventory() {
           ctx.fillRect(-3, -13, 2, 26);
           ctx.restore();
         }
+
+        if (item.id === 'rock') {
+          ctx.fillStyle = '#3e3e3e';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, 14, 10, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#5c5c5c';
+          ctx.beginPath();
+          ctx.ellipse(cx - 3, cy - 2, 8, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#747474';
+          ctx.beginPath();
+          ctx.ellipse(cx - 4, cy - 3, 4, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
         if (item.count > 1) {
-          ctx.fillStyle = '#96c050';
+          ctx.fillStyle = '#a78bfa';
           ctx.font = '500 9px monospace';
           ctx.textAlign = 'right';
           ctx.fillText(item.count, sx + SLOT_SIZE - 4, sy + SLOT_SIZE - 4);
@@ -287,7 +319,7 @@ const SPRINT_MULT = 1.75;
 
 let px = WORLD_W / 2, py = WORLD_H / 2;
 let facingAngle = -Math.PI / 2;
-let nearbyStick = null;
+let nearbyItem  = null;
 
 // ===================== STAMINA =====================
 const STAM_MAX         = 100;
@@ -317,19 +349,31 @@ function updateFacing() {
 function resolveTreeCollisions() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
-    const r = trunkRect(chunk.tree);
+    const r  = trunkRect(chunk.tree);
     const cx = Math.max(r.x1, Math.min(r.x2, px));
     const cy = Math.max(r.y1, Math.min(r.y2, py));
     const dx = px - cx, dy = py - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < BODY_R) {
-      if (dist === 0) {
-        py = r.y1 - BODY_R;
-      } else {
-        const overlap = BODY_R - dist;
-        px += (dx / dist) * overlap;
-        py += (dy / dist) * overlap;
+      if (dist === 0) { py = r.y1 - BODY_R; }
+      else {
+        const ov = BODY_R - dist;
+        px += (dx / dist) * ov;
+        py += (dy / dist) * ov;
       }
+    }
+  }
+}
+
+function resolveRockCollisions() {
+  for (const rock of worldRocks) {
+    const dx   = px - rock.x, dy = py - rock.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const min  = BODY_R + ROCK_COLL_R;
+    if (dist < min && dist > 0) {
+      const ov = min - dist;
+      px += (dx / dist) * ov;
+      py += (dy / dist) * ov;
     }
   }
 }
@@ -341,14 +385,14 @@ const FACING_DOT   = 0.45;
 function getNearbyInteractable() {
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
-  for (const stick of worldSticks) {
-    if (stick.pickedUp) continue;
-    const dx = stick.x - px, dy = stick.y - py;
+  for (const item of worldGroundItems) {
+    if (item.pickedUp) continue;
+    const dx = item.x - px, dy = item.y - py;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > PICKUP_RANGE || dist === 0) continue;
     const dot = fx * (dx / dist) + fy * (dy / dist);
     if (dot < FACING_DOT) continue;
-    if (dist < bestDist) { bestDist = dist; best = stick; }
+    if (dist < bestDist) { bestDist = dist; best = item; }
   }
   return best;
 }
@@ -368,10 +412,9 @@ function addToInventory(id) {
 function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
-  if (inventoryOpen) return;
-  if (!nearbyStick) return;
-  nearbyStick.pickedUp = true;
-  addToInventory('stick');
+  if (inventoryOpen || !nearbyItem) return;
+  nearbyItem.pickedUp = true;
+  addToInventory(nearbyItem.type);
 }
 
 function updateMovement(dt) {
@@ -380,11 +423,9 @@ function updateMovement(dt) {
 
   if (sprinting) {
     stamina = Math.max(0, stamina - STAM_DRAIN * dt);
-    walkingTimer = 0;
-    staminaReady = false;
+    walkingTimer = 0; staminaReady = false;
   } else if (!moving) {
-    staminaReady = true;
-    walkingTimer = 0;
+    staminaReady = true; walkingTimer = 0;
   } else {
     walkingTimer += dt;
     if (walkingTimer >= STAM_REGEN_DELAY) staminaReady = true;
@@ -401,16 +442,19 @@ function updateMovement(dt) {
   }
 
   resolveTreeCollisions();
+  resolveRockCollisions();
 }
 
 // ===================== DRAW =====================
 const GRID = 40;
 
 function drawBg() {
-  ctx.fillStyle = '#090e06';
+  // Solid grass ground
+  ctx.fillStyle = '#2a5412';
   ctx.fillRect(0, 0, W, H);
 
-  ctx.strokeStyle = '#0e160a'; ctx.lineWidth = 0.5;
+  // Subtle grid lines on grass
+  ctx.strokeStyle = '#254d10'; ctx.lineWidth = 0.5;
   const ox = camX % GRID, oy = camY % GRID;
   for (let x = -ox; x < W; x += GRID) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
@@ -419,7 +463,8 @@ function drawBg() {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  ctx.strokeStyle = '#162210'; ctx.lineWidth = 1;
+  // Chunk boundary lines
+  ctx.strokeStyle = '#1e4010'; ctx.lineWidth = 1;
   for (let cx = 0; cx <= CHUNKS_X; cx++) {
     const sx = cx * CHUNK_W - camX;
     ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
@@ -432,10 +477,10 @@ function drawBg() {
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  neon('#3a7a1a', 20);
-  ctx.strokeStyle = '#4a8a24'; ctx.lineWidth = 4;
+  glow('#3a5a20', 18);
+  ctx.strokeStyle = '#4a6a28'; ctx.lineWidth = 4;
   ctx.strokeRect(bx, by, WORLD_W, WORLD_H);
-  noNeon();
+  noGlow();
 }
 
 function drawGrass() {
@@ -451,20 +496,20 @@ function drawGrass() {
   }
 }
 
-// Draw one trunk segment (both colour passes)
+// Trunk segment
 function drawTrunkSeg(sx, segTopY, segH, dx) {
-  ctx.fillStyle = '#1e0a03';
+  ctx.fillStyle = '#2a1205';
   ctx.fillRect(sx - TW / 2 + dx, segTopY, TW, segH);
-  ctx.fillStyle = '#3d1e08';
+  ctx.fillStyle = '#4a2410';
   ctx.fillRect(sx - TW / 2 + dx,     segTopY, 2, segH);
   ctx.fillRect(sx + TW / 2 - 2 + dx, segTopY, 2, segH);
 }
 
-// Trunk base — drawn before player so player appears IN FRONT
+// Trunk base — before player
 function drawTreeBases() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
-    const t = chunk.tree;
+    const t  = chunk.tree;
     const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
     if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 160) continue;
 
@@ -482,11 +527,105 @@ function drawTreeBases() {
   }
 }
 
-// Canopy + upper trunk — drawn after player so player appears BEHIND
+// Rock shadow — before player (so player appears in front of rock base)
+function drawRockBases() {
+  for (const rock of worldRocks) {
+    const sx = rock.x - camX, sy = rock.y - camY;
+    if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
+    // Ground shadow cast southward
+    ctx.fillStyle = '#1c3a0c';
+    ctx.beginPath();
+    ctx.ellipse(sx + 4, sy + ROCK_R * 0.58, ROCK_R * 0.92, ROCK_R * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Rock body — after player (player appears behind rock)
+function drawRockTops() {
+  for (const rock of worldRocks) {
+    const sx = rock.x - camX, sy = rock.y - camY;
+    if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
+
+    // Outer dark ring
+    glow('#181818', 10);
+    ctx.fillStyle = '#363636';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, ROCK_R, ROCK_R * 0.72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    noGlow();
+
+    // Mid body
+    ctx.fillStyle = '#4c4c4c';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, ROCK_R * 0.8, ROCK_R * 0.58, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = '#646464';
+    ctx.beginPath();
+    ctx.ellipse(sx - ROCK_R * 0.16, sy - ROCK_R * 0.18, ROCK_R * 0.44, ROCK_R * 0.31, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bright glint
+    ctx.fillStyle = '#7e7e7e';
+    ctx.beginPath();
+    ctx.ellipse(sx - ROCK_R * 0.24, sy - ROCK_R * 0.26, ROCK_R * 0.18, ROCK_R * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Ground items (sticks + small rocks)
+function drawGroundItemBodies() {
+  for (const item of worldGroundItems) {
+    if (item.pickedUp) continue;
+    const sx = item.x - camX, sy = item.y - camY;
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+
+    if (item.type === 'stick') {
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(Math.PI / 5.5);
+      ctx.fillStyle = '#3d1a05';
+      ctx.fillRect(-2, -9, 4, 18);
+      ctx.fillStyle = '#7a4215';
+      ctx.fillRect(-2, -9, 1, 18);
+      ctx.restore();
+    }
+
+    if (item.type === 'rock') {
+      ctx.fillStyle = '#3e3e3e';
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 8, 5.5, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#5c5c5c';
+      ctx.beginPath();
+      ctx.ellipse(sx - 2, sy - 1.5, 4.5, 3, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawGroundItemArrows() {
+  if (!nearbyItem || nearbyItem.pickedUp) return;
+  const sx  = nearbyItem.x - camX, sy = nearbyItem.y - camY;
+  const bob = Math.sin(performance.now() / 280) * 2.5;
+  const ay  = sy - 22 + bob;
+  glow('#e8e8a0', 10);
+  ctx.fillStyle = '#e8e8a0';
+  ctx.beginPath();
+  ctx.moveTo(sx,      ay - 5);
+  ctx.lineTo(sx + 6,  ay + 2);
+  ctx.lineTo(sx - 6,  ay + 2);
+  ctx.closePath();
+  ctx.fill();
+  noGlow();
+}
+
+// Canopy + upper trunk — after player
 function drawTreeTops() {
   for (const chunk of worldChunks) {
     if (!chunk.tree) continue;
-    const t = chunk.tree;
+    const t  = chunk.tree;
     const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
     if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 160) continue;
 
@@ -502,80 +641,45 @@ function drawTreeTops() {
       drawTrunkSeg(sx, segTopY, clampBot - segTopY, t.segs[i]);
     }
 
-    // Canopy — outer shadow ring
-    neon('#0e2a06', 8);
+    // Canopy outer shadow ring
+    glow('#0e2a06', 8);
     ctx.fillStyle = '#0f2408';
     for (const [row, col] of C_OUTER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
-    noNeon();
+    noGlow();
 
-    // Mid ring
     ctx.fillStyle = '#1e4a0e';
     for (const [row, col] of C_MID)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
-    // Inner
     ctx.fillStyle = '#2a6614';
     for (const [row, col] of C_INNER)
       ctx.fillRect(sx + col * CBS, sy + row * CBS, CBS, CBS);
 
-    // Highlight flecks
     ctx.fillStyle = '#3a8a1c';
-    ctx.fillRect(sx - CBS,      sy - CBS,      CBS, CBS);
-    ctx.fillRect(sx + CBS * 2,  sy + CBS,      CBS, CBS);
-    ctx.fillRect(sx - CBS * 3,  sy,            CBS, CBS);
+    ctx.fillRect(sx - CBS,     sy - CBS, CBS, CBS);
+    ctx.fillRect(sx + CBS * 2, sy + CBS, CBS, CBS);
+    ctx.fillRect(sx - CBS * 3, sy,       CBS, CBS);
   }
-}
-
-function drawStickBodies() {
-  for (const stick of worldSticks) {
-    if (stick.pickedUp) continue;
-    const sx = stick.x - camX, sy = stick.y - camY;
-    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.rotate(Math.PI / 5.5);
-    ctx.fillStyle = '#3d1a05';
-    ctx.fillRect(-2, -9, 4, 18);
-    ctx.fillStyle = '#7a4215';
-    ctx.fillRect(-2, -9, 1, 18);
-    ctx.restore();
-  }
-}
-
-function drawStickArrows() {
-  if (!nearbyStick || nearbyStick.pickedUp) return;
-  const sx = nearbyStick.x - camX, sy = nearbyStick.y - camY;
-  const bob = Math.sin(performance.now() / 280) * 2.5;
-  const ay = sy - 22 + bob;
-  neon('#c8e870', 10);
-  ctx.fillStyle = '#c8e870';
-  ctx.beginPath();
-  ctx.moveTo(sx,      ay - 5);
-  ctx.lineTo(sx + 6,  ay + 2);
-  ctx.lineTo(sx - 6,  ay + 2);
-  ctx.closePath();
-  ctx.fill();
-  noNeon();
 }
 
 function drawPlayer() {
   const sx = px - camX, sy = py - camY;
 
-  neon('#7ab038', 16);
+  glow('#7ab038', 16);
   ctx.fillStyle = '#111a08';
   ctx.strokeStyle = '#7ab038'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(sx, sy, BODY_R, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
-  noNeon();
+  noGlow();
 
   const hx = sx + Math.cos(facingAngle) * HEAD_DIST;
   const hy = sy + Math.sin(facingAngle) * HEAD_DIST;
-  neon('#d4b058', 10);
+  glow('#d4b058', 10);
   ctx.fillStyle = '#d4b058';
   ctx.beginPath(); ctx.arc(hx, hy, HEAD_R, 0, Math.PI * 2);
   ctx.fill();
-  noNeon();
+  noGlow();
 }
 
 function drawStamina() {
@@ -586,15 +690,15 @@ function drawStamina() {
               : staminaReady                  ? '#5aaa28'
                                               : '#1e3a10';
 
-  ctx.fillStyle = '#0b1408';
+  ctx.fillStyle = '#1a3010';
   ctx.fillRect(bx, by, BAR_W, BAR_H);
   if (fill > 0) {
-    neon(color, keys['shift'] ? 10 : 5);
+    glow(color, keys['shift'] ? 10 : 5);
     ctx.fillStyle = color;
     ctx.fillRect(bx, by, fill, BAR_H);
-    noNeon();
+    noGlow();
   }
-  ctx.strokeStyle = '#1a3010'; ctx.lineWidth = 1;
+  ctx.strokeStyle = '#264018'; ctx.lineWidth = 1;
   ctx.strokeRect(bx, by, BAR_W, BAR_H);
 }
 
@@ -604,17 +708,19 @@ function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   updateFacing();
-  nearbyStick = getNearbyInteractable();
+  nearbyItem = getNearbyInteractable();
   handleInteract();
   updateMovement(dt);
   updateCamera();
   drawBg();
   drawGrass();
-  drawStickBodies();
-  drawTreeBases();
+  drawGroundItemBodies();  // sticks + small rocks on ground
+  drawTreeBases();         // trunk base — player in front
+  drawRockBases();         // rock shadow — player in front
   drawPlayer();
-  drawTreeTops();
-  drawStickArrows();
+  drawTreeTops();          // canopy — player behind
+  drawRockTops();          // rock body — player behind
+  drawGroundItemArrows();  // pickup indicators on top
   drawBorder();
   drawStamina();
   if (inventoryOpen) drawInventory();
