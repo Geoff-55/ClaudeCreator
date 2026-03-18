@@ -36,7 +36,7 @@
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — interact / chop / mine</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — pickup / place campfire<br>Click — attack / chop / mine</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -214,6 +214,14 @@ for (let cy = 0; cy < CHUNKS_Y; cy++) {
   }
 }
 
+// ===================== CAMPFIRES + MOBS =====================
+const campfires = [];
+
+const mobs = [];
+let lastMobSpawn = -999;
+let playerHp = 100;
+let lastZombieDmg = 0;
+
 function trunkRect(t) {
   const trunkBot = t.y + CRY * CBS + TH;
   return { x1: t.x - TW/2, x2: t.x + TW/2, y1: trunkBot - TCOL, y2: trunkBot };
@@ -277,9 +285,10 @@ canvas.addEventListener('mousemove', e => {
   mouseX = e.clientX - r.left; mouseY = e.clientY - r.top;
 });
 canvas.addEventListener('click', e => {
-  if (!inventoryOpen) return;
   const r = canvas.getBoundingClientRect();
-  handleInventoryClick(e.clientX - r.left, e.clientY - r.top);
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (inventoryOpen) { handleInventoryClick(mx, my); return; }
+  handleAttackClick(mx, my);
 });
 
 // ===================== CRAFTING =====================
@@ -291,6 +300,14 @@ const RECIPES = [
   {
     id: 'pickaxe', name: 'Pickaxe',
     ingredients: [{ id: 'stick', count: 2 }, { id: 'rock', count: 1 }],
+  },
+  {
+    id: 'campfire', name: 'Campfire',
+    ingredients: [{ id: 'stick', count: 5 }],
+  },
+  {
+    id: 'sword', name: 'Sword',
+    ingredients: [{ id: 'stick', count: 20 }, { id: 'rock', count: 10 }],
   },
 ];
 
@@ -412,6 +429,50 @@ function drawItemIcon(id, cx, cy, size) {
      [D,1,2],[D,2,2],[D,3,2],[S,4,2],[D,5,2],[D,6,2],
      [D,2,3],[D,3,3],[S,4,3],[D,5,3],
      [H,3,4],[h,4,4],[H,3,5],[h,4,5],[H,3,6],[h,4,6],[h,3,7],[h,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'sword') {
+    const S = '#e0e0e0', D = '#909090', G = '#b07830', h = '#5c2a0a';
+    [[S,6,0],
+     [S,5,1],[D,6,1],
+     [S,4,2],[D,5,2],
+     [S,3,3],[D,4,3],
+     [G,1,4],[G,2,4],[D,3,4],
+     [G,0,5],[G,1,5],
+     [h,1,6],[h,2,6],
+     [h,1,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'campfire') {
+    const F = '#e05010', Y = '#ffc020', L = '#3d1a05', M = '#5c2a0a';
+    [[F,2,0],[F,4,0],
+     [F,2,1],[Y,3,1],[F,4,1],
+     [F,1,2],[Y,2,2],[Y,3,2],[F,4,2],
+     [F,2,3],[F,3,3],
+     [L,0,4],[L,1,4],[M,2,4],[M,3,4],[L,4,4],[L,5,4],
+     [L,1,5],[L,2,5],[L,3,5],[L,4,5],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'raw_chicken') {
+    const P = '#e07868', D = '#c05848', W = '#f0a890';
+    [[P,2,0],[P,3,0],[P,4,0],
+     [P,1,1],[W,2,1],[D,3,1],[P,4,1],[P,5,1],
+     [P,0,2],[W,1,2],[P,2,2],[D,3,2],[P,4,2],[P,5,2],
+     [P,0,3],[P,1,3],[P,2,3],[P,3,3],[P,4,3],[P,5,3],
+     [P,1,4],[P,2,4],[P,3,4],[P,4,4],[P,5,4],
+     [P,2,5],[P,3,5],[P,4,5],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'feather') {
+    const F = '#d0cca8', W = '#f4f2e0';
+    [[W,7,0],
+     [F,6,1],[W,7,1],
+     [F,5,2],[W,6,2],
+     [F,4,3],[W,5,3],
+     [F,3,4],[W,4,4],
+     [F,2,5],[W,3,5],
+     [F,1,6],[W,2,6],
+     [F,0,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
   }
 }
@@ -627,6 +688,26 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
+// ===================== DAY/NIGHT CYCLE =====================
+const DAY_DUR   = 30;
+const NIGHT_DUR = 30;
+const TRANS_DUR = 5;
+const CYCLE_LEN = DAY_DUR + TRANS_DUR + NIGHT_DUR + TRANS_DUR; // 70s
+let cycleTime = 0;
+let darkAlpha  = 0;
+
+const lightCanvas = document.createElement('canvas');
+lightCanvas.width = W; lightCanvas.height = H;
+const lctx = lightCanvas.getContext('2d');
+
+function updateDayNight(dt) {
+  cycleTime = (cycleTime + dt) % CYCLE_LEN;
+  if      (cycleTime < DAY_DUR)                                darkAlpha = 0;
+  else if (cycleTime < DAY_DUR + TRANS_DUR)                    darkAlpha = (cycleTime - DAY_DUR) / TRANS_DUR;
+  else if (cycleTime < DAY_DUR + TRANS_DUR + NIGHT_DUR)        darkAlpha = 1;
+  else                                                         darkAlpha = 1 - (cycleTime - DAY_DUR - TRANS_DUR - NIGHT_DUR) / TRANS_DUR;
+}
+
 // ===================== CAMERA =====================
 let camX = 0, camY = 0;
 
@@ -787,11 +868,14 @@ function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
   if (inventoryOpen) return;
-  if (nearbyChopTarget) { chopTree(nearbyChopTarget); return; }
-  if (nearbyMineTarget) { mineRock(nearbyMineTarget); return; }
-  if (!nearbyItem) return;
-  nearbyItem.pickedUp = true;
-  addToInventory(nearbyItem.type);
+  if (nearbyItem) { nearbyItem.pickedUp = true; addToInventory(nearbyItem.type); return; }
+  // Place campfire at player feet
+  const fireIdx = inventorySlots.findIndex(s => s && s.id === 'campfire');
+  if (fireIdx !== -1) {
+    campfires.push({ x: px, y: py });
+    inventorySlots[fireIdx].count--;
+    if (inventorySlots[fireIdx].count === 0) inventorySlots[fireIdx] = null;
+  }
 }
 
 function updateMovement(dt) {
@@ -1013,17 +1097,239 @@ function drawStamina() {
   ctx.strokeStyle = '#264018'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, BAR_W, BAR_H);
 }
 
+// ===================== ATTACK / CLICK =====================
+const SWORD_RANGE = 70;
+
+function handleAttackClick(mx, my) {
+  const w = equipSlots['weapon'];
+  if (!w) return;
+  const wx = mx + camX, wy = my + camY;
+
+  if (w.id === 'sword') {
+    for (const m of mobs) {
+      if (m.dead) continue;
+      const dx = m.x - px, dy = m.y - py;
+      if (Math.sqrt(dx*dx + dy*dy) > SWORD_RANGE) continue;
+      const cdx = wx - m.x, cdy = wy - m.y;
+      if (Math.sqrt(cdx*cdx + cdy*cdy) > 36) continue;
+      m.hp -= 5;
+      spawnParticles(m.x, m.y, '#cc2020', 4);
+      if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
+    }
+  } else if (w.id === 'hatchet') {
+    let best = null, bestD = Infinity;
+    for (const chunk of worldChunks) {
+      if (!chunk.tree || chunk.tree.chopped) continue;
+      const t = chunk.tree;
+      const dx = t.x - px, dy = (t.y + CRY*CBS + TH*0.6) - py;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < CHOP_RANGE && d < bestD) { bestD = d; best = t; }
+    }
+    if (best) chopTree(best);
+  } else if (w.id === 'pickaxe') {
+    let best = null, bestD = Infinity;
+    for (const rock of worldRocks) {
+      if (rock.mined) continue;
+      const dx = rock.x - px, dy = rock.y - py;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
+    }
+    if (best) mineRock(best);
+  }
+}
+
+function killMob(m) {
+  if (m.type === 'chicken') {
+    worldGroundItems.push({ type: 'raw_chicken', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
+    if (Math.random() < 0.5)
+      worldGroundItems.push({ type: 'feather', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
+    spawnParticles(m.x, m.y, '#e8e0c8', 8);
+  }
+}
+
+// ===================== MOBS =====================
+const MAX_MOBS = 8;
+const MOB_COLL_R = 14;
+
+function spawnMob(type) {
+  if (mobs.filter(m => !m.dead && m.type === type).length >= MAX_MOBS) return;
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  if      (edge === 0) { x = camX + Math.random() * W; y = camY - 80; }
+  else if (edge === 1) { x = camX + Math.random() * W; y = camY + H + 80; }
+  else if (edge === 2) { x = camX - 80;                y = camY + Math.random() * H; }
+  else                 { x = camX + W + 80;            y = camY + Math.random() * H; }
+  x = Math.max(50, Math.min(WORLD_W - 50, x));
+  y = Math.max(50, Math.min(WORLD_H - 50, y));
+  mobs.push({
+    type, x, y,
+    hp: type === 'zombie' ? 10 : 5,
+    maxHp: type === 'zombie' ? 10 : 5,
+    vx: 0, vy: 0, dir: 1, animTimer: 0,
+    dead: false, deathTimer: 0,
+  });
+}
+
+function updateMobs(dt, now) {
+  if (now - lastMobSpawn > 5) {
+    lastMobSpawn = now;
+    if (darkAlpha > 0.6) spawnMob('zombie');
+    if (darkAlpha < 0.4) spawnMob('chicken');
+  }
+  for (let i = mobs.length - 1; i >= 0; i--) {
+    const m = mobs[i];
+    if (m.dead) { m.deathTimer += dt; if (m.deathTimer > 1) mobs.splice(i, 1); continue; }
+    if (m.type === 'zombie' && darkAlpha < 0.3) { m.dead = true; continue; }
+    if (m.type === 'chicken' && darkAlpha > 0.7) { m.dead = true; continue; }
+    m.animTimer += dt;
+    const dx = px - m.x, dy = py - m.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (m.type === 'zombie') {
+      if (dist > 0) { m.vx = (dx/dist)*55; m.vy = (dy/dist)*55; m.dir = dx > 0 ? 1 : -1; }
+      if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > 0.8) {
+        playerHp = Math.max(0, playerHp - 5);
+        lastZombieDmg = now;
+        spawnParticles(px, py, '#cc2020', 3);
+      }
+    } else {
+      const fleeRange = 120;
+      if (dist < fleeRange && dist > 0) {
+        m.vx = -(dx/dist)*70; m.vy = -(dy/dist)*70; m.dir = dx > 0 ? -1 : 1;
+      } else if (Math.floor(m.animTimer * 1.5) % 3 === 0) {
+        const a = Math.random() * Math.PI * 2;
+        m.vx = Math.cos(a)*28; m.vy = Math.sin(a)*28;
+        m.dir = m.vx > 0 ? 1 : -1;
+      }
+    }
+    m.x += m.vx * dt; m.y += m.vy * dt;
+    m.x = Math.max(30, Math.min(WORLD_W-30, m.x));
+    m.y = Math.max(30, Math.min(WORLD_H-30, m.y));
+  }
+}
+
+function drawMobs() {
+  for (const m of mobs) {
+    const sx = Math.round(m.x - camX), sy = Math.round(m.y - camY);
+    if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
+    const alpha = m.dead ? Math.max(0, 1 - m.deathTimer) : 1;
+    ctx.globalAlpha = alpha;
+    const bob = Math.sin(m.animTimer * 5) * 1.5;
+    if (m.type === 'zombie') {
+      ctx.fillStyle = '#1e3a12'; ctx.fillRect(sx-8, sy-18+bob, 16, 20);
+      ctx.fillStyle = '#2a4a18'; ctx.fillRect(sx-7, sy-32+bob, 14, 14);
+      ctx.fillStyle = '#cc2020';
+      ctx.fillRect(sx-4, sy-27+bob, 3, 3); ctx.fillRect(sx+1, sy-27+bob, 3, 3);
+      const aw = Math.sin(m.animTimer*4)*3;
+      ctx.fillStyle = '#1a3010'; ctx.fillRect(sx-15, sy-16+aw, 7, 12); ctx.fillRect(sx+8, sy-16-aw, 7, 12);
+      if (m.hp < m.maxHp) {
+        const bx = sx-12, by = sy-38+bob;
+        ctx.fillStyle = '#300'; ctx.fillRect(bx, by, 24, 3);
+        ctx.fillStyle = '#a03020'; ctx.fillRect(bx, by, 24*m.hp/m.maxHp, 3);
+      }
+    } else {
+      ctx.fillStyle = '#e8e0c8';
+      ctx.beginPath(); ctx.ellipse(sx, sy-6+bob, 10, 8, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(sx+8*m.dir, sy-16+bob, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e89020'; ctx.fillRect(sx+(m.dir>0?13:-16), sy-18+bob, 4, 3);
+      ctx.fillStyle = '#cc2020'; ctx.fillRect(sx+(m.dir>0?8:-10), sy-22+bob, 3, 4);
+      ctx.fillStyle = '#ccc8b0';
+      ctx.beginPath(); ctx.ellipse(sx-2*m.dir, sy-5+bob, 7, 5, m.dir*0.3, 0, Math.PI*2); ctx.fill();
+      const lb = Math.sin(m.animTimer*6)*2;
+      ctx.fillStyle = '#c0a050';
+      ctx.fillRect(sx-3, sy+1+bob, 2, 5+lb); ctx.fillRect(sx+1, sy+1+bob, 2, 5-lb);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ===================== CAMPFIRE DRAW =====================
+function drawCampfires() {
+  const t = performance.now() / 1000;
+  for (const f of campfires) {
+    const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
+    if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
+    ctx.fillStyle = '#3d1a05';
+    ctx.fillRect(sx-9, sy-2, 18, 4); ctx.fillRect(sx-2, sy-9, 4, 11);
+    const flick = Math.sin(t*9 + f.x*0.01) * 2;
+    ctx.fillStyle = '#e05010';
+    ctx.beginPath(); ctx.ellipse(sx, sy-9, 5+flick, 9+flick, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffa020';
+    ctx.beginPath(); ctx.ellipse(sx, sy-10, 3+flick*0.5, 6+flick, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffe060';
+    ctx.beginPath(); ctx.ellipse(sx, sy-9, 1.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ===================== NIGHT OVERLAY =====================
+function drawNightOverlay() {
+  if (darkAlpha <= 0.01) return;
+  lctx.clearRect(0, 0, W, H);
+  lctx.fillStyle = `rgba(0, 5, 25, ${(darkAlpha * 0.9).toFixed(3)})`;
+  lctx.fillRect(0, 0, W, H);
+  lctx.globalCompositeOperation = 'destination-out';
+  // Player ambient glow
+  const psx = px - camX, psy = py - camY;
+  const pg = lctx.createRadialGradient(psx, psy, 0, psx, psy, 70);
+  pg.addColorStop(0, `rgba(255,255,255,${(0.35 * darkAlpha).toFixed(3)})`);
+  pg.addColorStop(1, 'rgba(255,255,255,0)');
+  lctx.fillStyle = pg; lctx.fillRect(0, 0, W, H);
+  // Campfires
+  for (const f of campfires) {
+    const fx = f.x - camX, fy = f.y - camY;
+    if (fx < -220 || fx > W+220 || fy < -220 || fy > H+220) continue;
+    const fg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 180);
+    fg.addColorStop(0, `rgba(255,200,100,${(0.95 * darkAlpha).toFixed(3)})`);
+    fg.addColorStop(0.5, `rgba(255,160,60,${(0.55 * darkAlpha).toFixed(3)})`);
+    fg.addColorStop(1, 'rgba(255,100,20,0)');
+    lctx.fillStyle = fg; lctx.fillRect(0, 0, W, H);
+  }
+  lctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(lightCanvas, 0, 0);
+}
+
+// ===================== ATTACK RADIUS =====================
+function drawAttackRadius() {
+  const w = equipSlots['weapon'];
+  if (!w) return;
+  let r = 0, col = '#ffffff';
+  if      (w.id === 'sword')   { r = SWORD_RANGE;  col = '#ff6060'; }
+  else if (w.id === 'hatchet') { r = CHOP_RANGE;   col = '#90d040'; }
+  else if (w.id === 'pickaxe') { r = MINE_RANGE;   col = '#b8b8b8'; }
+  if (!r) return;
+  const sx = px - camX, sy = py - camY;
+  ctx.save();
+  ctx.globalAlpha = 0.07; ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 0.18; ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// ===================== PLAYER HP =====================
+function drawPlayerHp() {
+  const BAR_W = 80, BAR_H = 6, bx = 120, by = H - 24;
+  ctx.fillStyle = '#2a0808'; ctx.fillRect(bx, by, BAR_W, BAR_H);
+  const fill = (playerHp / 100) * BAR_W;
+  const col = playerHp > 50 ? '#4aaa28' : playerHp > 25 ? '#e87820' : '#cc2020';
+  if (fill > 0) { glow(col, 5); ctx.fillStyle = col; ctx.fillRect(bx, by, fill, BAR_H); noGlow(); }
+  ctx.strokeStyle = '#3a1010'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, BAR_W, BAR_H);
+  ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx - 16, by + 5);
+}
+
 // ===================== LOOP =====================
 let last = 0;
 function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
+  const now = ts / 1000;
+  updateDayNight(dt);
   updateFacing();
   nearbyItem       = getNearbyInteractable();
   nearbyChopTarget = getNearbyChopTarget();
   nearbyMineTarget = getNearbyMineTarget();
   handleInteract();
   updateMovement(dt);
+  updateMobs(dt, now);
   updateParticles(dt);
   updateCamera();
   drawBg();
@@ -1031,13 +1337,18 @@ function loop(ts) {
   drawGroundItemBodies();
   drawTreeBases();
   drawRockBases();
+  drawCampfires();
   drawPlayer();
+  drawMobs();
   drawTreeTops();
   drawRockTops();
   drawParticles();
+  drawAttackRadius();
   drawTargetIndicators();
+  drawNightOverlay();
   drawBorder();
   drawStamina();
+  drawPlayerHp();
   if (inventoryOpen) drawInventory();
   requestAnimationFrame(loop);
 }
