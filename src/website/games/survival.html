@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">equip panel right side, hatchet chops trees, pickaxe mines rocks, particles on hit</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">campfire map icons, more chickens, feather pants, pixel rocks + player, cave ore respawn</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -326,6 +326,7 @@ function nearFurnace() {
 const mobs = [];
 let lastMobSpawn = -999;
 let lastCaveMobSpawn = -999;
+let lastChickenSpawn = -999;
 let playerHp = 100;
 let lastZombieDmg = 0;
 let lastHitTime = -999;
@@ -1762,7 +1763,10 @@ function updateMobs(dt, now) {
   if (!inCave && now - lastMobSpawn > 5) {
     lastMobSpawn = now;
     if (darkAlpha > 0.6) spawnMob('zombie');
-    if (darkAlpha < 0.4) spawnMob('chicken');
+  }
+  if (!inCave && darkAlpha < 0.4 && now - lastChickenSpawn > 2.5) {
+    lastChickenSpawn = now;
+    spawnMob('chicken', 6);
   }
   if (inCave && now - lastCaveMobSpawn > 28) {
     lastCaveMobSpawn = now;
@@ -2191,6 +2195,19 @@ function drawMap() {
     }
   }
 
+  // Campfire icons (current world only)
+  for (const f of campfires) {
+    if (f.cave !== inCave) continue;
+    const fx = WX + f.x * scaleX, fy = WY + f.y * scaleY;
+    if (fx < WX || fx > WX+WW || fy < WY || fy > WY+WH) continue;
+    // Tiny flame
+    ctx.fillStyle = '#3d1a05'; ctx.fillRect(fx-2, fy, 4, 2);
+    glow('#e05010', 4); ctx.fillStyle = '#e05010';
+    ctx.fillRect(fx-1, fy-3, 2, 3);
+    ctx.fillStyle = '#ffa020'; ctx.fillRect(fx-0, fy-2, 1, 2);
+    noGlow();
+  }
+
   // Player dot
   const pdx = WX + px * scaleX, pdy = WY + py * scaleY;
   glow('#7ab038', 8); ctx.fillStyle = '#7ab038';
@@ -2231,7 +2248,7 @@ function restartGame() {
   px = WORLD_W / 2; py = WORLD_H / 2;
   heldSlot = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
   cycleTime = 0; darkAlpha = 0; respawnTimer = 0;
-  lastMobSpawn = -999; lastCaveMobSpawn = -999;
+  lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999;
   generateSurfaceWorld();
   generateCaveWorld();
 }
