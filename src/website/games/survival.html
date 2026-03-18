@@ -266,6 +266,7 @@ for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
 
 let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | null
 let mouseX = W / 2, mouseY = H / 2;
+let craftScrollY = 0;
 
 function getSlotItem(slot) {
   if (!slot) return null;
@@ -290,6 +291,16 @@ canvas.addEventListener('click', e => {
   if (inventoryOpen) { handleInventoryClick(mx, my); return; }
   handleAttackClick(mx, my);
 });
+
+canvas.addEventListener('wheel', e => {
+  if (!inventoryOpen) return;
+  if (mouseX >= CRAFT_LEFT && mouseX < CRAFT_LEFT + CRAFT_W) {
+    const totalH = RECIPES.length * (RECIPE_H + 8) - 8;
+    const maxScroll = Math.max(0, totalH - GRID_H);
+    craftScrollY = Math.max(0, Math.min(maxScroll, craftScrollY + e.deltaY * 0.5));
+    e.preventDefault();
+  }
+}, { passive: false });
 
 // ===================== CRAFTING =====================
 const RECIPES = [
@@ -372,12 +383,14 @@ function handleInventoryClick(mx, my) {
       return;
     }
   }
-  // Craft buttons
+  // Craft buttons (account for scroll, only hit if inside clip area)
   for (let ri = 0; ri < RECIPES.length; ri++) {
-    const ry   = CRAFT_TOP + ri * (RECIPE_H + 8);
+    const ry   = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
+    if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
     const btnX = CRAFT_LEFT + CRAFT_W - 50;
     const btnY = ry + RECIPE_H - 22;
-    if (mx >= btnX && mx < btnX + 48 && my >= btnY && my < btnY + 18) {
+    if (mx >= btnX && mx < btnX + 48 && my >= btnY && my < btnY + 18 &&
+        my >= CRAFT_TOP && my < CRAFT_TOP + GRID_H) {
       if (canCraft(RECIPES[ri])) craft(RECIPES[ri]);
       heldSlot = null; return;
     }
@@ -504,10 +517,16 @@ function drawInventory() {
   ctx.fillText('CRAFTING', CRAFT_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
 
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(CRAFT_LEFT, CRAFT_TOP, CRAFT_W, GRID_H);
+  ctx.clip();
+
   for (let ri = 0; ri < RECIPES.length; ri++) {
     const recipe   = RECIPES[ri];
     const ok       = canCraft(recipe);
-    const ry       = CRAFT_TOP + ri * (RECIPE_H + 8);
+    const ry       = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
+    if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
 
     ctx.fillStyle = ok ? '#0e1c08' : '#0d0a1c';
     ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
@@ -541,6 +560,16 @@ function drawInventory() {
     ctx.fillText('CRAFT', btnX + 24, btnY + 12);
     ctx.textAlign = 'left'; ctx.letterSpacing = '0';
   }
+
+  // Scroll indicator
+  const totalCraftH = RECIPES.length * (RECIPE_H + 8) - 8;
+  if (totalCraftH > GRID_H) {
+    const trackH = GRID_H, thumbH = Math.max(20, (GRID_H / totalCraftH) * trackH);
+    const thumbY = CRAFT_TOP + (craftScrollY / (totalCraftH - GRID_H)) * (trackH - thumbH);
+    ctx.fillStyle = '#1a0a30'; ctx.fillRect(CRAFT_LEFT + CRAFT_W - 5, CRAFT_TOP, 4, trackH);
+    ctx.fillStyle = '#5a3a80'; ctx.fillRect(CRAFT_LEFT + CRAFT_W - 5, thumbY, 4, thumbH);
+  }
+  ctx.restore();
 
   // ---- INVENTORY GRID ----
   ctx.fillStyle = '#a855f7';
@@ -868,14 +897,15 @@ function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
   if (inventoryOpen) return;
-  if (nearbyItem) { nearbyItem.pickedUp = true; addToInventory(nearbyItem.type); return; }
-  // Place campfire at player feet
-  const fireIdx = inventorySlots.findIndex(s => s && s.id === 'campfire');
-  if (fireIdx !== -1) {
+  // Place campfire if equipped in weapon slot
+  const weapon = equipSlots['weapon'];
+  if (weapon && weapon.id === 'campfire') {
     campfires.push({ x: px, y: py });
-    inventorySlots[fireIdx].count--;
-    if (inventorySlots[fireIdx].count === 0) inventorySlots[fireIdx] = null;
+    weapon.count--;
+    if (weapon.count <= 0) equipSlots['weapon'] = null;
+    return;
   }
+  if (nearbyItem) { nearbyItem.pickedUp = true; addToInventory(nearbyItem.type); return; }
 }
 
 function updateMovement(dt) {
@@ -1165,7 +1195,7 @@ function spawnMob(type) {
     type, x, y,
     hp: type === 'zombie' ? 10 : 5,
     maxHp: type === 'zombie' ? 10 : 5,
-    vx: 0, vy: 0, dir: 1, animTimer: 0,
+    vx: 0, vy: 0, dir: 1, drawScale: 1, animTimer: 0,
     dead: false, deathTimer: 0,
   });
 }
@@ -1185,7 +1215,20 @@ function updateMobs(dt, now) {
     const dx = px - m.x, dy = py - m.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (m.type === 'zombie') {
-      if (dist > 0) { m.vx = (dx/dist)*55; m.vy = (dy/dist)*55; m.dir = dx > 0 ? 1 : -1; }
+      // Check fire flee
+      let fleeX = 0, fleeY = 0, nearFire = false;
+      for (const f of campfires) {
+        const fdx = m.x - f.x, fdy = m.y - f.y;
+        const fd = Math.sqrt(fdx*fdx + fdy*fdy);
+        if (fd < 180 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
+      }
+      if (nearFire) {
+        const fl = Math.sqrt(fleeX*fleeX + fleeY*fleeY);
+        m.vx = (fleeX/fl)*75; m.vy = (fleeY/fl)*75;
+      } else if (dist > 0) {
+        m.vx = (dx/dist)*55; m.vy = (dy/dist)*55;
+      }
+      if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
       if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > 0.8) {
         playerHp = Math.max(0, playerHp - 5);
         lastZombieDmg = now;
@@ -1200,6 +1243,8 @@ function updateMobs(dt, now) {
         m.vx = Math.cos(a)*28; m.vy = Math.sin(a)*28;
         m.dir = m.vx > 0 ? 1 : -1;
       }
+      // Smooth turn: lerp drawScale toward target dir
+      m.drawScale += (m.dir - m.drawScale) * Math.min(1, dt * 10);
     }
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.x = Math.max(30, Math.min(WORLD_W-30, m.x));
@@ -1227,16 +1272,33 @@ function drawMobs() {
         ctx.fillStyle = '#a03020'; ctx.fillRect(bx, by, 24*m.hp/m.maxHp, 3);
       }
     } else {
-      ctx.fillStyle = '#e8e0c8';
-      ctx.beginPath(); ctx.ellipse(sx, sy-6+bob, 10, 8, 0, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(sx+8*m.dir, sy-16+bob, 6, 6, 0, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#e89020'; ctx.fillRect(sx+(m.dir>0?13:-16), sy-18+bob, 4, 3);
-      ctx.fillStyle = '#cc2020'; ctx.fillRect(sx+(m.dir>0?8:-10), sy-22+bob, 3, 4);
-      ctx.fillStyle = '#ccc8b0';
-      ctx.beginPath(); ctx.ellipse(sx-2*m.dir, sy-5+bob, 7, 5, m.dir*0.3, 0, Math.PI*2); ctx.fill();
-      const lb = Math.sin(m.animTimer*6)*2;
-      ctx.fillStyle = '#c0a050';
-      ctx.fillRect(sx-3, sy+1+bob, 2, 5+lb); ctx.fillRect(sx+1, sy+1+bob, 2, 5-lb);
+      // Pixel art chicken — drawn facing right, flipped via drawScale
+      const ps = 3;
+      ctx.save();
+      ctx.translate(sx, sy + Math.round(bob));
+      ctx.scale(m.drawScale, 1);
+      const ox = -4 * ps, oy = -6 * ps;
+      function dot(c, x, y) { ctx.fillStyle = c; ctx.fillRect(ox+x*ps, oy+y*ps, ps, ps); }
+      const W2='#e8e0c8', G2='#c8c4aa', T2='#d4c89a', R2='#cc2020', B2='#e89020', Y2='#c0a050';
+      // tail
+      [[T2,0,2],[T2,0,3],[T2,1,2],[T2,1,3],[T2,0,4],[T2,1,4]].forEach(([c,x,y])=>dot(c,x,y));
+      // wing accent
+      [[G2,2,2],[G2,2,3],[G2,2,4]].forEach(([c,x,y])=>dot(c,x,y));
+      // body
+      [[W2,3,2],[W2,4,2],[W2,5,2],[W2,3,3],[W2,4,3],[W2,5,3],[W2,6,3],
+       [W2,3,4],[W2,4,4],[W2,5,4],[W2,3,5],[W2,4,5]].forEach(([c,x,y])=>dot(c,x,y));
+      // head
+      [[W2,4,1],[W2,5,1],[W2,4,0]].forEach(([c,x,y])=>dot(c,x,y));
+      // comb
+      dot(R2,4,0); dot(R2,5,0);
+      // beak
+      dot(B2,6,1); dot(B2,7,1);
+      // legs + feet
+      const lb = Math.round(Math.sin(m.animTimer*7)*1);
+      ctx.fillStyle = Y2;
+      ctx.fillRect(ox+3*ps, oy+6*ps, ps, ps+lb); ctx.fillRect(ox+4*ps, oy+6*ps, ps, ps-lb);
+      ctx.fillRect(ox+3*ps, oy+7*ps-lb, ps, ps); ctx.fillRect(ox+4*ps, oy+7*ps+lb, ps, ps);
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
   }
@@ -1305,6 +1367,27 @@ function drawAttackRadius() {
   ctx.setLineDash([]); ctx.restore();
 }
 
+// ===================== CAMPFIRE PLACEMENT PREVIEW =====================
+function drawCampfirePreview() {
+  const weapon = equipSlots['weapon'];
+  if (!weapon || weapon.id !== 'campfire') return;
+  const sx = Math.round(px - camX), sy = Math.round(py - camY);
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  // Logs
+  ctx.fillStyle = '#3d1a05';
+  ctx.fillRect(sx-9, sy-2, 18, 4); ctx.fillRect(sx-2, sy-9, 4, 11);
+  // Flame (static preview)
+  ctx.fillStyle = '#e05010'; ctx.fillRect(sx-3, sy-16, 6, 8);
+  ctx.fillStyle = '#ffc020'; ctx.fillRect(sx-2, sy-16, 3, 6);
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('[E] place', sx, sy - 22);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
 // ===================== PLAYER HP =====================
 function drawPlayerHp() {
   const BAR_W = 80, BAR_H = 6, bx = 120, by = H - 24;
@@ -1344,6 +1427,7 @@ function loop(ts) {
   drawRockTops();
   drawParticles();
   drawAttackRadius();
+  drawCampfirePreview();
   drawTargetIndicators();
   drawNightOverlay();
   drawBorder();
