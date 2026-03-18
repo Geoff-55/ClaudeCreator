@@ -36,7 +36,7 @@
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>E — pickup / place campfire<br>Click — attack / chop / mine</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>M — map<br>E — pickup / place item<br>Click — attack / chop / mine</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -69,7 +69,8 @@ const DIAG_GRACE = 50;
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (['w','a','s','d'].includes(k)) e.preventDefault();
-  if (k === 'i') { inventoryOpen = !inventoryOpen; return; }
+  if (k === 'i') { inventoryOpen = !inventoryOpen; mapOpen = false; return; }
+  if (k === 'm') { mapOpen = !mapOpen; inventoryOpen = false; return; }
   if (k === 'e') { justPressed.add('e'); return; }
   keys[k] = true;
   if (e.key === 'Shift') keys['shift'] = true;
@@ -272,6 +273,7 @@ const equipSlots = {};
 for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
 
 let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | null
+let mapOpen = false;
 let mouseX = W / 2, mouseY = H / 2;
 let craftScrollY = 0;
 
@@ -337,6 +339,11 @@ const RECIPES = [
     requiresStation: true,
   },
   {
+    id: 'bone_armor', name: 'Bone Armor',
+    ingredients: [{ id: 'bone', count: 5 }],
+    requiresStation: true,
+  },
+  {
     id: 'mine_entrance', name: 'Mine Entrance',
     ingredients: [{ id: 'stick', count: 10 }, { id: 'rock', count: 20 }, { id: 'feather', count: 2 }, { id: 'bone', count: 2 }],
     requiresStation: true,
@@ -377,6 +384,22 @@ function craft(recipe) {
   addToInventory(recipe.id);
 }
 
+// Which equip slot each item belongs to (items not listed can only go in inventory)
+const ITEM_SLOT = {
+  hatchet: 'weapon', pickaxe: 'weapon', sword: 'weapon',
+  campfire: 'weapon', crafting_station: 'weapon', mine_entrance: 'weapon',
+  feather_hat: 'helmet',
+  bone_armor: 'chestplate',
+};
+
+function canPlaceInSlot(item, slot) {
+  if (!item) return true;
+  if (slot.type === 'inv') return true; // anything goes in inventory
+  const required = ITEM_SLOT[item.id];
+  if (!required) return false; // non-equippable items can't go in equip slots
+  return required === slot.name;
+}
+
 function handleSlotInteract(slot) {
   if (!heldSlot) {
     if (getSlotItem(slot)) heldSlot = slot;
@@ -385,6 +408,9 @@ function handleSlotInteract(slot) {
   } else {
     const a = getSlotItem(heldSlot);
     const b = getSlotItem(slot);
+    if (!canPlaceInSlot(a, slot) || !canPlaceInSlot(b, heldSlot)) {
+      heldSlot = null; return;
+    }
     setSlotItem(slot, a);
     setSlotItem(heldSlot, b);
     heldSlot = null;
@@ -537,6 +563,21 @@ function drawItemIcon(id, cx, cy, size) {
      [F,2,5],[W,3,5],
      [F,1,6],[W,2,6],
      [F,0,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'bone_armor') {
+    const B = '#ddd8c0', P = '#c0b898', D = '#a09878', S = '#e8e4d4';
+    // shoulder caps
+    [[B,0,0],[B,1,0],[B,6,0],[B,7,0],
+     // chest top
+     [S,0,1],[B,1,1],[B,2,1],[B,3,1],[B,4,1],[B,5,1],[B,6,1],[S,7,1],
+     // chest panels
+     [B,0,2],[P,1,2],[P,2,2],[D,3,2],[D,4,2],[P,5,2],[P,6,2],[B,7,2],
+     [B,0,3],[P,1,3],[P,2,3],[D,3,3],[D,4,3],[P,5,3],[P,6,3],[B,7,3],
+     [B,0,4],[B,1,4],[B,2,4],[B,3,4],[B,4,4],[B,5,4],[B,6,4],[B,7,4],
+     // waist
+     [B,1,5],[B,2,5],[B,3,5],[B,4,5],[B,5,5],[B,6,5],
+     [B,2,6],[B,3,6],[B,4,6],[B,5,6],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
   } else if (id === 'bone') {
@@ -799,7 +840,7 @@ function drawParticles() {
 }
 
 // ===================== DAY/NIGHT CYCLE =====================
-const DAY_DUR   = 30;
+const DAY_DUR   = 45;
 const NIGHT_DUR = 30;
 const TRANS_DUR = 5;
 const CYCLE_LEN = DAY_DUR + TRANS_DUR + NIGHT_DUR + TRANS_DUR; // 70s
@@ -1345,7 +1386,10 @@ function updateMobs(dt, now) {
       if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
       if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > cd) {
         const helmet = equipSlots['helmet'];
-        const armor  = (helmet && helmet.id === 'feather_hat') ? 3 : 0;
+        const chest  = equipSlots['chestplate'];
+        let armor = 0;
+        if (helmet && helmet.id === 'feather_hat') armor += 1;
+        if (chest  && chest.id  === 'bone_armor')  armor += 3;
         playerHp = Math.max(0, playerHp - Math.max(1, dmg - armor));
         lastZombieDmg = now; lastHitTime = now;
         spawnParticles(px, py, '#cc2020', 3);
@@ -1577,6 +1621,55 @@ function drawCampfirePreview() {
   ctx.restore();
 }
 
+// ===================== MAP =====================
+function drawMap() {
+  const PAD = 20, MW = 300, MH = 210;
+  const mx = Math.round((W - MW) / 2), my = Math.round((H - MH) / 2);
+
+  // Background panel
+  ctx.fillStyle = 'rgba(4,3,12,0.88)'; ctx.fillRect(mx, my, MW, MH);
+  glow('#a855f7', 12); ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(mx, my, MW, MH); noGlow();
+
+  ctx.fillStyle = '#a855f7'; ctx.font = '600 10px monospace';
+  ctx.letterSpacing = '0.12em'; ctx.textAlign = 'center';
+  ctx.fillText('MAP', mx + MW/2, my + 16);
+  ctx.letterSpacing = '0'; ctx.textAlign = 'left';
+
+  // World area inside panel
+  const WX = mx + PAD, WY = my + 26, WW = MW - PAD*2, WH = MH - 26 - PAD;
+  const scaleX = WW / WORLD_W, scaleY = WH / WORLD_H;
+
+  // World border
+  ctx.fillStyle = '#0a1a06'; ctx.fillRect(WX, WY, WW, WH);
+  ctx.strokeStyle = '#2a4a14'; ctx.lineWidth = 1;
+  ctx.strokeRect(WX, WY, WW, WH);
+
+  // Chunk grid lines
+  ctx.strokeStyle = '#162810'; ctx.lineWidth = 0.5;
+  for (let cx = 1; cx < CHUNKS_X; cx++) {
+    const sx = WX + cx * CHUNK_W * scaleX;
+    ctx.beginPath(); ctx.moveTo(sx, WY); ctx.lineTo(sx, WY+WH); ctx.stroke();
+  }
+  for (let cy = 1; cy < CHUNKS_Y; cy++) {
+    const sy = WY + cy * CHUNK_H * scaleY;
+    ctx.beginPath(); ctx.moveTo(WX, sy); ctx.lineTo(WX+WW, sy); ctx.stroke();
+  }
+
+  // Player dot
+  const pdx = WX + px * scaleX, pdy = WY + py * scaleY;
+  glow('#7ab038', 8); ctx.fillStyle = '#7ab038';
+  ctx.beginPath(); ctx.arc(pdx, pdy, 4, 0, Math.PI*2); ctx.fill(); noGlow();
+  ctx.fillStyle = '#d4b058';
+  ctx.beginPath(); ctx.arc(pdx, pdy, 2, 0, Math.PI*2); ctx.fill();
+
+  // M to close hint
+  ctx.fillStyle = '#3a2a50'; ctx.font = '500 8px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('[M] close', mx + MW - 8, my + MH - 6);
+  ctx.textAlign = 'left';
+}
+
 // ===================== SCORE =====================
 function drawScore() {
   ctx.save();
@@ -1599,7 +1692,7 @@ function restartGame() {
   inventorySlots.fill(null);
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
   px = WORLD_W / 2; py = WORLD_H / 2;
-  heldSlot = null; inventoryOpen = false; craftScrollY = 0;
+  heldSlot = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
 }
 
 function drawGameOver() {
@@ -1720,6 +1813,7 @@ function loop(ts) {
   drawPlayerHp();
   drawScore();
   if (inventoryOpen && !gameOver) drawInventory();
+  if (mapOpen && !gameOver) drawMap();
   if (gameOver) drawGameOver();
   requestAnimationFrame(loop);
 }
