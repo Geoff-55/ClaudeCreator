@@ -229,11 +229,12 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
     const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
     const numBig = 2 + Math.floor(rng() * 4);
     for (let i = 0; i < numBig; i++) {
-      const isCoal = rng() < 0.38;
+        const rv = rng();
+      const oreType = rv < 0.22 ? 'coal' : rv < 0.38 ? 'bronze' : 'rock';
       caveRocks.push({
         x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
         y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
-        type: isCoal ? 'coal' : 'rock',
+        type: oreType,
         mined: false, mineHealth: undefined, hitsLeft: undefined,
       });
     }
@@ -278,6 +279,9 @@ function exitCave(exitIdx) {
   py = mineEntrances[exit.entranceIdx].y;
 }
 
+let gameNow = 0; // updated each frame, used by sapling grow check
+const saplings = []; // { x, y, plantedTime }
+
 // ===================== CAMPFIRES + MOBS =====================
 const campfires = [];
 const craftingStations = [];
@@ -287,7 +291,7 @@ const STATION_RANGE = 110;
 const FURNACE_RANGE = 110;
 
 function nearFurnace() {
-  return furnaces.some(f => Math.sqrt((f.x-px)**2 + (f.y-py)**2) < FURNACE_RANGE);
+  return furnaces.some(f => f.cave === inCave && Math.sqrt((f.x-px)**2 + (f.y-py)**2) < FURNACE_RANGE);
 }
 
 const mobs = [];
@@ -438,6 +442,26 @@ const RECIPES = [
     ingredients: [{ id: 'raw_chicken', count: 1 }, { id: 'coal', count: 1 }],
     requiresFurnace: true,
   },
+  {
+    id: 'bronze_ingot', name: 'Bronze Ingot',
+    ingredients: [{ id: 'rough_bronze', count: 3 }],
+    requiresFurnace: true,
+  },
+  {
+    id: 'bronze_hatchet', name: 'Bronze Hatchet',
+    ingredients: [{ id: 'bronze_ingot', count: 2 }, { id: 'stick', count: 4 }],
+    requiresStation: true,
+  },
+  {
+    id: 'bronze_pickaxe', name: 'Bronze Pickaxe',
+    ingredients: [{ id: 'bronze_ingot', count: 2 }, { id: 'stick', count: 4 }],
+    requiresStation: true,
+  },
+  {
+    id: 'bronze_sword', name: 'Bronze Sword',
+    ingredients: [{ id: 'bronze_ingot', count: 3 }, { id: 'stick', count: 3 }],
+    requiresStation: true,
+  },
 ];
 
 function nearCraftingStation() {
@@ -478,7 +502,9 @@ function craft(recipe) {
 // Which equip slot each item belongs to (items not listed can only go in inventory)
 const ITEM_SLOT = {
   hatchet: 'weapon', pickaxe: 'weapon', sword: 'weapon',
+  bronze_hatchet: 'weapon', bronze_pickaxe: 'weapon', bronze_sword: 'weapon',
   campfire: 'weapon', crafting_station: 'weapon', mine_entrance: 'weapon', furnace: 'weapon',
+  sapling: 'weapon',
   feather_hat: 'helmet',
   bone_armor: 'chestplate',
   raw_chicken: 'food', cooked_chicken: 'food',
@@ -715,6 +741,63 @@ function drawItemIcon(id, cx, cy, size) {
      [B,0,3],[B,1,3],[B,2,3],[B,3,3],[B,4,3],[B,5,3],
      [B,1,4],[G,2,4],[G,3,4],[G,4,4],[B,5,4],
      [D,2,5],[D,3,5],[D,4,5],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'sapling') {
+    const T = '#5c2a0a', L = '#2a6614', M = '#3a8020', H = '#4a9a28';
+    [[T,3,5],[T,3,6],[T,4,5],[T,4,6],
+     [L,1,3],[L,2,3],[L,3,3],[L,4,3],[L,5,3],[L,6,3],
+     [M,2,1],[M,3,1],[M,4,1],[M,5,1],
+     [H,3,0],[H,4,0],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'rough_bronze') {
+    const D = '#6a2c08', M = '#a04818', H = '#d07030', S = '#e09858';
+    [[D,1,1],[D,2,1],[D,3,1],
+     [D,0,2],[M,1,2],[H,2,2],[M,3,2],[D,4,2],[D,5,2],
+     [D,0,3],[M,1,3],[S,2,3],[H,3,3],[M,4,3],[D,5,3],
+     [D,1,4],[M,2,4],[H,3,4],[M,4,4],[D,5,4],[D,6,4],
+     [D,2,5],[D,3,5],[M,4,5],[D,5,5],[D,6,5],
+     [D,3,6],[D,4,6],[D,5,6],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'bronze_ingot') {
+    const D = '#8a3808', M = '#c05c18', H = '#e88030', S = '#f0a850';
+    [[M,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[M,6,1],
+     [D,0,2],[H,1,2],[S,2,2],[H,3,2],[H,4,2],[H,5,2],[D,6,2],
+     [D,0,3],[H,1,3],[H,2,3],[S,3,3],[H,4,3],[H,5,3],[D,6,3],
+     [D,0,4],[M,1,4],[M,2,4],[M,3,4],[M,4,4],[M,5,4],[D,6,4],
+     [M,1,5],[M,2,5],[M,3,5],[M,4,5],[M,5,5],[M,6,5],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'bronze_hatchet') {
+    const D = '#8a3808', S = '#d07030', h = '#5c2a0a', H = '#8a5020';
+    [[D,1,0],[D,2,0],[D,3,0],[D,4,0],[D,5,0],
+     [D,0,1],[D,1,1],[S,2,1],[S,3,1],[D,4,1],[D,5,1],[D,6,1],
+     [D,0,2],[D,1,2],[S,2,2],[D,3,2],[D,4,2],[D,5,2],
+     [D,2,3],[H,3,3],
+     [H,2,4],[h,3,4],[H,2,5],[h,3,5],[H,2,6],[h,3,6],[h,2,7],[h,3,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'bronze_pickaxe') {
+    const D = '#8a3808', S = '#d07030', h = '#5c2a0a', H = '#8a5020';
+    [[D,0,0],[D,7,0],
+     [D,0,1],[D,1,1],[D,6,1],[D,7,1],
+     [D,1,2],[D,2,2],[D,3,2],[S,4,2],[D,5,2],[D,6,2],
+     [D,2,3],[D,3,3],[S,4,3],[D,5,3],
+     [H,3,4],[h,4,4],[H,3,5],[h,4,5],[H,3,6],[h,4,6],[h,3,7],[h,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'bronze_sword') {
+    const S = '#e8a850', D = '#c07030', G = '#e07820', h = '#5c2a0a';
+    [[S,6,0],
+     [S,5,1],[D,6,1],
+     [S,4,2],[D,5,2],
+     [S,3,3],[D,4,3],
+     [G,1,4],[G,2,4],[D,3,4],
+     [G,0,5],[G,1,5],
+     [h,1,6],[h,2,6],
+     [h,1,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
   } else if (id === 'mine_entrance') {
@@ -1053,7 +1136,7 @@ function getNearbyInteractable() {
 
 function getNearbyChopTarget() {
   const weapon = equipSlots['weapon'];
-  if (!weapon || weapon.id !== 'hatchet') return null;
+  if (!weapon || !['hatchet','bronze_hatchet'].includes(weapon.id)) return null;
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
   for (const chunk of worldChunks) {
@@ -1071,7 +1154,7 @@ function getNearbyChopTarget() {
 
 function getNearbyMineTarget() {
   const weapon = equipSlots['weapon'];
-  if (!weapon || weapon.id !== 'pickaxe') return null;
+  if (!weapon || !['pickaxe','bronze_pickaxe'].includes(weapon.id)) return null;
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
   for (const rock of curRocks()) {
@@ -1096,12 +1179,13 @@ function addToInventory(id) {
   }
 }
 
-function chopTree(tree) {
+function chopTree(tree, power) {
+  power = power || 1;
   if (tree.chopHealth === undefined) {
     tree.chopHealth = 4 + Math.floor(Math.random() * 3);
     tree.chopsLeft  = tree.chopHealth;
   }
-  tree.chopsLeft--;
+  tree.chopsLeft -= power;
 
   const wx = tree.x, wy = tree.y + CRY * CBS + TH * 0.6;
   spawnParticles(wx, wy, '#5c2a0a', 4);
@@ -1117,36 +1201,42 @@ function chopTree(tree) {
       const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 55;
       worldGroundItems.push({ type: 'stick', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
     }
+    if (Math.random() < 0.5) {
+      const a = Math.random() * Math.PI * 2, d = 25 + Math.random() * 40;
+      worldGroundItems.push({ type: 'sapling', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
+    }
     spawnParticles(wx, dropY, '#4a8a1c', 18);
     spawnParticles(wx, dropY, '#5c2a0a', 10);
     spawnParticles(wx, dropY, '#3a7018', 10);
   }
 }
 
-function mineRock(rock) {
+function mineRock(rock, power) {
+  power = power || 1;
   if (rock.mineHealth === undefined) {
     rock.mineHealth = 5 + Math.floor(Math.random() * 3);
     rock.hitsLeft   = rock.mineHealth;
   }
-  rock.hitsLeft--;
+  rock.hitsLeft -= power;
 
-  const pc1 = rock.type === 'coal' ? '#383838' : '#909090';
-  const pc2 = rock.type === 'coal' ? '#1a1a1a' : '#555555';
+  const pc1 = rock.type === 'coal' ? '#383838' : rock.type === 'bronze' ? '#c07030' : '#909090';
+  const pc2 = rock.type === 'coal' ? '#1a1a1a' : rock.type === 'bronze' ? '#8a4818' : '#555555';
   spawnParticles(rock.x, rock.y, pc1, 4);
   spawnParticles(rock.x, rock.y, pc2, 3);
 
   if (rock.hitsLeft <= 0) {
     rock.mined = true;
     const isCoal = rock.type === 'coal';
-    score += isCoal ? 30 : 40;
-    const dropType = isCoal ? 'coal' : 'rock';
+    const isBronze = rock.type === 'bronze';
+    score += isCoal ? 30 : isBronze ? 45 : 40;
+    const dropType = isCoal ? 'coal' : isBronze ? 'rough_bronze' : 'rock';
     const numDrop = 2 + Math.floor(Math.random() * 3);
     for (let i = 0; i < numDrop; i++) {
       const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 38;
       curGround().push({ type: dropType, x: rock.x + Math.cos(a)*d, y: rock.y + Math.sin(a)*d, pickedUp: false });
     }
-    spawnParticles(rock.x, rock.y, isCoal ? '#2a2a2a' : '#7a7a7a', 20);
-    spawnParticles(rock.x, rock.y, isCoal ? '#101010' : '#484848', 12);
+    spawnParticles(rock.x, rock.y, isBronze ? '#c07030' : isCoal ? '#2a2a2a' : '#7a7a7a', 20);
+    spawnParticles(rock.x, rock.y, isBronze ? '#8a4010' : isCoal ? '#101010' : '#484848', 12);
   }
 }
 
@@ -1164,10 +1254,11 @@ function handleInteract() {
   }
   // Place items if equipped in weapon slot
   const weapon = equipSlots['weapon'];
-  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace'].includes(weapon.id)) {
+  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace', 'sapling'].includes(weapon.id)) {
     if (weapon.id === 'campfire') campfires.push({ x: px, y: py });
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py });
-    else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py });
+    else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: inCave });
+    else if (weapon.id === 'sapling') saplings.push({ x: px, y: py, plantedTime: gameNow });
     else mineEntrances.push({ x: px, y: py });
     weapon.count--;
     if (weapon.count <= 0) equipSlots['weapon'] = null;
@@ -1358,11 +1449,12 @@ function drawRockTops() {
     if (rock.mined) continue;
     const sx = rock.x - camX, sy = rock.y - camY;
     if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
+    const isBronzeRock = rock.type === 'bronze';
     const isCoalRock = rock.type === 'coal';
-    const c1 = isCoalRock ? '#141210' : inCave ? '#2a2820' : '#363636';
-    const c2 = isCoalRock ? '#201e1a' : inCave ? '#3c3830' : '#4c4c4c';
-    const c3 = isCoalRock ? '#2c2820' : inCave ? '#504c42' : '#646464';
-    const c4 = isCoalRock ? '#383428' : inCave ? '#6a6458' : '#7e7e7e';
+    const c1 = isBronzeRock ? '#3a2010' : isCoalRock ? '#141210' : inCave ? '#2a2820' : '#363636';
+    const c2 = isBronzeRock ? '#6a3818' : isCoalRock ? '#201e1a' : inCave ? '#3c3830' : '#4c4c4c';
+    const c3 = isBronzeRock ? '#a05828' : isCoalRock ? '#2c2820' : inCave ? '#504c42' : '#646464';
+    const c4 = isBronzeRock ? '#c87840' : isCoalRock ? '#383428' : inCave ? '#6a6458' : '#7e7e7e';
     glow('#181818', 10); ctx.fillStyle = c1;
     ctx.beginPath(); ctx.ellipse(sx, sy, ROCK_R, ROCK_R*0.72, 0, 0, Math.PI*2); ctx.fill(); noGlow();
     ctx.fillStyle = c2;
@@ -1449,18 +1541,20 @@ function handleAttackClick(mx, my) {
   if (!w) return;
   const wx = mx + camX, wy = my + camY;
 
-  if (w.id === 'sword') {
+  if (w.id === 'sword' || w.id === 'bronze_sword') {
+    const dmg = w.id === 'bronze_sword' ? 12 : 5;
     for (const m of mobs) {
       if (m.dead) continue;
       const dx = m.x - px, dy = m.y - py;
       if (Math.sqrt(dx*dx + dy*dy) > SWORD_RANGE) continue;
       const cdx = wx - m.x, cdy = wy - m.y;
       if (Math.sqrt(cdx*cdx + cdy*cdy) > 36) continue;
-      m.hp -= 5;
-      spawnParticles(m.x, m.y, '#cc2020', 4);
+      m.hp -= dmg;
+      spawnParticles(m.x, m.y, w.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
       if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
     }
-  } else if (w.id === 'hatchet') {
+  } else if (w.id === 'hatchet' || w.id === 'bronze_hatchet') {
+    const power = w.id === 'bronze_hatchet' ? 2 : 1;
     let best = null, bestD = Infinity;
     for (const chunk of worldChunks) {
       if (!chunk.tree || chunk.tree.chopped) continue;
@@ -1469,8 +1563,9 @@ function handleAttackClick(mx, my) {
       const d = Math.sqrt(dx*dx + dy*dy);
       if (d < CHOP_RANGE && d < bestD) { bestD = d; best = t; }
     }
-    if (best) chopTree(best);
-  } else if (w.id === 'pickaxe') {
+    if (best) chopTree(best, power);
+  } else if (w.id === 'pickaxe' || w.id === 'bronze_pickaxe') {
+    const power = w.id === 'bronze_pickaxe' ? 2 : 1;
     let best = null, bestD = Infinity;
     for (const rock of curRocks()) {
       if (rock.mined) continue;
@@ -1478,7 +1573,7 @@ function handleAttackClick(mx, my) {
       const d = Math.sqrt(dx*dx + dy*dy);
       if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
     }
-    if (best) mineRock(best);
+    if (best) mineRock(best, power);
   }
 }
 
@@ -1704,9 +1799,9 @@ function drawAttackRadius() {
   const w = equipSlots['weapon'];
   if (!w) return;
   let r = 0, col = '#ffffff';
-  if      (w.id === 'sword')   { r = SWORD_RANGE;  col = '#ff6060'; }
-  else if (w.id === 'hatchet') { r = CHOP_RANGE;   col = '#90d040'; }
-  else if (w.id === 'pickaxe') { r = MINE_RANGE;   col = '#b8b8b8'; }
+  if      (w.id === 'sword'   || w.id === 'bronze_sword')   { r = SWORD_RANGE; col = w.id === 'bronze_sword' ? '#e08020' : '#ff6060'; }
+  else if (w.id === 'hatchet' || w.id === 'bronze_hatchet') { r = CHOP_RANGE;  col = w.id === 'bronze_hatchet' ? '#d07030' : '#90d040'; }
+  else if (w.id === 'pickaxe' || w.id === 'bronze_pickaxe') { r = MINE_RANGE;  col = w.id === 'bronze_pickaxe' ? '#d07030' : '#b8b8b8'; }
   if (!r) return;
   const sx = px - camX, sy = py - camY;
   ctx.save();
@@ -1745,6 +1840,7 @@ function drawCraftingStations() {
 function drawFurnaces() {
   const t = performance.now() / 1000;
   for (const f of furnaces) {
+    if (f.cave !== inCave) continue;
     const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
     if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
     // Body
@@ -1946,7 +2042,7 @@ function checkGameOver() {
 function restartGame() {
   playerHp = 100; score = 0; gameOver = false; lastHitTime = -999;
   mobs.length = 0; campfires.length = 0; craftingStations.length = 0;
-  mineEntrances.length = 0; furnaces.length = 0;
+  mineEntrances.length = 0; furnaces.length = 0; saplings.length = 0;
   inCave = false; mineExits.length = 0;
   inventorySlots.fill(null);
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
@@ -1997,6 +2093,52 @@ function drawPlayerHp() {
   ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx - 16, by + 5);
 }
 
+// ===================== SAPLINGS =====================
+function updateSaplings() {
+  for (let i = saplings.length - 1; i >= 0; i--) {
+    const s = saplings[i];
+    if (gameNow - s.plantedTime < CYCLE_LEN) continue;
+    saplings.splice(i, 1);
+    const numSegs = Math.ceil(TH / SEG_H);
+    const segs = [];
+    let drift = 0;
+    for (let j = 0; j < numSegs; j++) {
+      drift += Math.round(Math.random() * 6 - 3);
+      drift = Math.max(-6, Math.min(6, drift));
+      segs.push(drift);
+    }
+    worldChunks.push({ grass: [], tree: {
+      x: s.x, y: s.y, segs,
+      chopped: false, chopHealth: undefined, chopsLeft: undefined,
+    }});
+    spawnParticles(s.x, s.y, '#3a8a1c', 14);
+    spawnParticles(s.x, s.y, '#5c2a0a', 6);
+  }
+}
+
+function drawSaplings() {
+  for (const s of saplings) {
+    const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
+    if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
+    // Stem
+    ctx.fillStyle = '#5c2a0a';
+    ctx.fillRect(sx-2, sy-10, 4, 10);
+    // Leaves
+    ctx.fillStyle = '#2a6614';
+    ctx.fillRect(sx-8, sy-16, 16, 7);
+    ctx.fillStyle = '#3a8020';
+    ctx.fillRect(sx-5, sy-22, 10, 7);
+    ctx.fillStyle = '#4a9a28';
+    ctx.fillRect(sx-3, sy-26, 6, 5);
+    // Progress indicator (age bar)
+    const age = Math.min(1, (gameNow - s.plantedTime) / CYCLE_LEN);
+    if (age > 0) {
+      ctx.fillStyle = '#1a2a10'; ctx.fillRect(sx-12, sy+4, 24, 3);
+      ctx.fillStyle = '#5aaa28'; ctx.fillRect(sx-12, sy+4, Math.round(24*age), 3);
+    }
+  }
+}
+
 // ===================== REGEN + RESPAWN =====================
 function updatePlayerRegen(dt, now) {
   if (playerHp < 100 && now - lastHitTime > 15)
@@ -2034,6 +2176,7 @@ function loop(ts) {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   const now = ts / 1000;
+  gameNow = now;
   initGameOverClick();
   if (!gameOver) {
     updateDayNight(dt);
@@ -2047,12 +2190,14 @@ function loop(ts) {
     updateMobs(dt, now);
     updatePlayerRegen(dt, now);
     updateRespawns(dt);
+    if (!inCave) updateSaplings();
     updateParticles(dt);
     checkGameOver();
     updateCamera();
   }
   drawBg();
   if (!inCave) drawGrass();
+  if (!inCave) drawSaplings();
   drawGroundItemBodies();
   if (!inCave) drawTreeBases();
   drawRockBases();
