@@ -365,11 +365,6 @@ const EQUIP_LEFT = GRID_LEFT + GRID_W + EQUIP_GAP;
 const EQUIP_TOP  = GRID_TOP;
 
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
-// TEST ITEMS
-inventorySlots[0] = { id: 'stick',   count: 99 };
-inventorySlots[1] = { id: 'rock',    count: 99 };
-inventorySlots[2] = { id: 'feather', count: 99 };
-inventorySlots[3] = { id: 'bone',    count: 99 };
 
 const EQUIP_SLOT_DEFS = [
   { name: 'weapon',     label: 'WEAPON' },
@@ -1711,7 +1706,8 @@ function killMob(m) {
   if (m.type === 'chicken') {
     score += 25;
     worldGroundItems.push({ type: 'raw_chicken', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
-    if (Math.random() < 0.5)
+    const feathers = Math.floor(Math.random() * 3); // 0, 1, or 2
+    for (let i = 0; i < feathers; i++)
       worldGroundItems.push({ type: 'feather', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     spawnParticles(m.x, m.y, '#e8e0c8', 8);
   } else if (m.type === 'zombie') {
@@ -1894,19 +1890,45 @@ function drawMobs() {
 // ===================== CAMPFIRE DRAW =====================
 function drawCampfires() {
   const t = performance.now() / 1000;
+  const PS = 3;
   for (const f of campfires) {
     if (f.cave !== inCave) continue;
     const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
     if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
+    // Logs
     ctx.fillStyle = '#3d1a05';
-    ctx.fillRect(sx-9, sy-2, 18, 4); ctx.fillRect(sx-2, sy-9, 4, 11);
-    const flick = Math.sin(t*9 + f.x*0.01) * 2;
+    ctx.fillRect(sx-9, sy,   18, PS); // horizontal log
+    ctx.fillRect(sx-6, sy+PS, PS*2, PS); // left end
+    ctx.fillRect(sx+3, sy+PS, PS*2, PS); // right end
+    ctx.fillStyle = '#5c2a0a';
+    ctx.fillRect(sx-3, sy, PS*2, PS); // log highlight
+    // Flame — alternates between two pixel frames
+    const frame = Math.floor(t * 8 + f.x * 0.1) % 2;
+    glow('#e05010', 8);
+    // Base flame (orange)
+    const fp = [
+      // col, row (relative to sx, sy-1)
+      [0,-3],[0,-4],[-1,-3],[-1,-4],[1,-3],
+      [0,-5],[-1,-5],[1,-4],
+      [0,-6],
+    ];
+    const fp2 = [
+      [0,-3],[0,-4],[-1,-3],[1,-3],[1,-4],
+      [-1,-4],[0,-5],[1,-5],
+      [0,-6],[-1,-5],
+    ];
+    const flame = frame === 0 ? fp : fp2;
     ctx.fillStyle = '#e05010';
-    ctx.beginPath(); ctx.ellipse(sx, sy-9, 5+flick, 9+flick, 0, 0, Math.PI*2); ctx.fill();
+    for (const [dc,dr] of flame) ctx.fillRect(sx+dc*PS, sy+dr*PS, PS, PS);
+    // Inner flame (yellow-orange)
     ctx.fillStyle = '#ffa020';
-    ctx.beginPath(); ctx.ellipse(sx, sy-10, 3+flick*0.5, 6+flick, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(sx,    sy-4*PS, PS, PS);
+    ctx.fillRect(sx,    sy-3*PS, PS, PS);
+    ctx.fillRect(sx-PS, sy-3*PS, PS, PS);
+    // Core (bright yellow)
     ctx.fillStyle = '#ffe060';
-    ctx.beginPath(); ctx.ellipse(sx, sy-9, 1.5, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(sx, sy-3*PS, PS, PS);
+    noGlow();
   }
 }
 
