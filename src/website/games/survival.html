@@ -88,7 +88,7 @@ function active(k) {
 
 // ===================== WORLD =====================
 const CHUNK_W = W, CHUNK_H = H;
-const CHUNKS_X = 5, CHUNKS_Y = 7;
+const CHUNKS_X = 8, CHUNKS_Y = 10;
 const WORLD_W  = CHUNK_W * CHUNKS_X;
 const WORLD_H  = CHUNK_H * CHUNKS_Y;
 
@@ -221,6 +221,8 @@ const mobs = [];
 let lastMobSpawn = -999;
 let playerHp = 100;
 let lastZombieDmg = 0;
+let lastHitTime = -999;
+let respawnTimer = 0;
 
 function trunkRect(t) {
   const trunkBot = t.y + CRY * CBS + TH;
@@ -318,7 +320,11 @@ const RECIPES = [
   },
   {
     id: 'sword', name: 'Sword',
-    ingredients: [{ id: 'stick', count: 20 }, { id: 'rock', count: 10 }],
+    ingredients: [{ id: 'stick', count: 5 }, { id: 'rock', count: 2 }],
+  },
+  {
+    id: 'crafting_station', name: 'Craft Station',
+    ingredients: [{ id: 'stick', count: 25 }, { id: 'rock', count: 10 }],
   },
 ];
 
@@ -474,6 +480,16 @@ function drawItemIcon(id, cx, cy, size) {
      [P,0,3],[P,1,3],[P,2,3],[P,3,3],[P,4,3],[P,5,3],
      [P,1,4],[P,2,4],[P,3,4],[P,4,4],[P,5,4],
      [P,2,5],[P,3,5],[P,4,5],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'crafting_station') {
+    const D = '#5c2a0a', L = '#8a5020', S = '#3d1a05';
+    // tabletop
+    [[D,0,1],[D,1,1],[D,2,1],[D,3,1],[D,4,1],[D,5,1],[D,6,1],[D,7,1],
+     [L,0,2],[D,1,2],[D,2,2],[D,3,2],[D,4,2],[D,5,2],[D,6,2],[D,7,2],
+     [S,0,3],[S,1,3],[S,2,3],[S,3,3],[S,4,3],[S,5,3],[S,6,3],[S,7,3],
+     // legs
+     [D,1,4],[D,6,4],[D,1,5],[D,6,5],[D,1,6],[D,6,6],[D,1,7],[D,6,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
   } else if (id === 'feather') {
@@ -1232,6 +1248,7 @@ function updateMobs(dt, now) {
       if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > 0.8) {
         playerHp = Math.max(0, playerHp - 5);
         lastZombieDmg = now;
+        lastHitTime = now;
         spawnParticles(px, py, '#cc2020', 3);
       }
     } else {
@@ -1399,6 +1416,37 @@ function drawPlayerHp() {
   ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx - 16, by + 5);
 }
 
+// ===================== REGEN + RESPAWN =====================
+function updatePlayerRegen(dt, now) {
+  if (playerHp < 100 && now - lastHitTime > 15)
+    playerHp = Math.min(100, playerHp + 1.2 * dt);
+}
+
+function updateRespawns(dt) {
+  respawnTimer += dt;
+  if (respawnTimer < CYCLE_LEN) return;
+  respawnTimer -= CYCLE_LEN;
+
+  // Respawn up to 2 random chopped trees
+  const choppedTrees = worldChunks.filter(c => c.tree && c.tree.chopped);
+  for (let i = 0; i < Math.min(2, choppedTrees.length); i++) {
+    const idx = Math.floor(Math.random() * choppedTrees.length);
+    const t = choppedTrees.splice(idx, 1)[0].tree;
+    t.chopped = false; t.chopHealth = undefined; t.chopsLeft = undefined;
+    spawnParticles(t.x, t.y + CRY * CBS, '#3a8a1c', 12);
+    spawnParticles(t.x, t.y + CRY * CBS, '#4a8a1c', 8);
+  }
+
+  // Respawn up to 2 random mined rocks
+  const minedRocks = worldRocks.filter(r => r.mined);
+  for (let i = 0; i < Math.min(2, minedRocks.length); i++) {
+    const idx = Math.floor(Math.random() * minedRocks.length);
+    const r = minedRocks.splice(idx, 1)[0];
+    r.mined = false; r.mineHealth = undefined; r.hitsLeft = undefined;
+    spawnParticles(r.x, r.y, '#909090', 10);
+  }
+}
+
 // ===================== LOOP =====================
 let last = 0;
 function loop(ts) {
@@ -1413,6 +1461,8 @@ function loop(ts) {
   handleInteract();
   updateMovement(dt);
   updateMobs(dt, now);
+  updatePlayerRegen(dt, now);
+  updateRespawns(dt);
   updateParticles(dt);
   updateCamera();
   drawBg();
