@@ -367,21 +367,6 @@ const EQUIP_LEFT  = GRID_LEFT + GRID_W + EQUIP_GAP;
 const EQUIP2_LEFT = EQUIP_LEFT + EQUIP_W + EQUIP_COL2_GAP;
 const EQUIP_TOP   = GRID_TOP;
 
-function buildEquipSlotPos() {
-  const col0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
-  const col1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
-  for (const def of EQUIP_SLOT_DEFS) {
-    const colArr = def.col === 0 ? col0 : col1;
-    const row = colArr.indexOf(def);
-    EQUIP_SLOT_POS[def.name] = {
-      row, col: def.col,
-      sx: def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT,
-      sy: EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP),
-    };
-  }
-}
-buildEquipSlotPos();
-
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
 
 const EQUIP_SLOT_DEFS = [
@@ -395,9 +380,24 @@ const EQUIP_SLOT_DEFS = [
   { name: 'pickaxe_slot', label: 'PICKAXE', col: 1 },
   { name: 'furniture',    label: 'PLACE',   col: 1 },
 ];
-const EQUIP_SLOT_POS = {}; // populated by buildEquipSlotPos() below layout constants
+const EQUIP_SLOT_POS = {};
 const equipSlots = {};
 for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
+
+// Precompute equip slot screen positions once (avoids filter+indexOf every frame)
+(function buildEquipSlotPos() {
+  const col0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
+  const col1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
+  for (const def of EQUIP_SLOT_DEFS) {
+    const colArr = def.col === 0 ? col0 : col1;
+    const row = colArr.indexOf(def);
+    EQUIP_SLOT_POS[def.name] = {
+      row, col: def.col,
+      sx: def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT,
+      sy: EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP),
+    };
+  }
+})();
 
 let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | null
 let mapOpen = false;
