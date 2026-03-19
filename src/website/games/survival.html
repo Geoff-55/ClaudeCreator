@@ -2602,7 +2602,19 @@ function drawShadowFigures() {
 
 // ===================== LOOP =====================
 let last = 0;
+let _crashMsg = null;
 function loop(ts) {
+  if (_crashMsg) {
+    ctx.fillStyle = '#07060f'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#ff4040'; ctx.font = '600 13px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('JS ERROR (open console for details):', W/2, H/2 - 20);
+    ctx.fillStyle = '#e0c0ff'; ctx.font = '11px monospace';
+    ctx.fillText(_crashMsg.slice(0, 90), W/2, H/2 + 4);
+    ctx.textAlign = 'left';
+    requestAnimationFrame(loop);
+    return;
+  }
+  try {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   const now = ts / 1000;
@@ -2659,6 +2671,7 @@ function loop(ts) {
   if (mapOpen && !gameOver) drawMap();
   if (gameOver) drawGameOver();
   requestAnimationFrame(loop);
+  } catch(e) { _crashMsg = e.message || String(e); console.error('[SURVIVAL CRASH]', e); requestAnimationFrame(loop); }
 }
 requestAnimationFrame(loop);
 </script>
