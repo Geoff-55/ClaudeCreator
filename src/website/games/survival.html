@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">shadow pops in/out, darker + smaller; phantom 1/12; sapling bar removed</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">sword dmg 3/8, player HP 75, DEF always visible in inventory header</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -328,7 +328,7 @@ const mobs = [];
 let lastMobSpawn = -999;
 let lastCaveMobSpawn = -999;
 let lastChickenSpawn = -999;
-let playerHp = 100;
+let playerHp = 75;
 let lastZombieDmg = 0;
 let lastHitTime = -999;
 let respawnTimer = 0;
@@ -1076,11 +1076,20 @@ function drawInventory() {
   }
 
   // ---- EQUIP PANEL ----
+  const totalArmor = (equipSlots['helmet']?.id === 'feather_hat' ? 1 : 0)
+                   + (equipSlots['chestplate']?.id === 'bone_armor' ? 3 : 0)
+                   + (equipSlots['pants']?.id === 'feather_pants' ? 1 : 0);
   ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
   ctx.fillStyle = '#a855f7';
   ctx.fillText('EQUIP', EQUIP_LEFT, INV_Y + INV_PAD + 10);
   ctx.fillText('TOOLS', EQUIP2_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
+  // DEF total — always shown, right of EQUIP label
+  ctx.font = '600 9px monospace';
+  glow(totalArmor > 0 ? '#60c0ff' : '#333355', totalArmor > 0 ? 7 : 0);
+  ctx.fillStyle = totalArmor > 0 ? '#80d8ff' : '#3a3a5a';
+  ctx.fillText(`DEF ${totalArmor > 0 ? '-' : ' '}${totalArmor} dmg`, EQUIP_LEFT + 44, INV_Y + INV_PAD + 10);
+  noGlow();
 
   for (const def of EQUIP_SLOT_DEFS) {
     const { sx, sy } = EQUIP_SLOT_POS[def.name];
@@ -1122,20 +1131,6 @@ function drawInventory() {
     }
   }
 
-  // Total armor summary below equip column
-  const totalArmor = (equipSlots['helmet']?.id === 'feather_hat' ? 1 : 0)
-                   + (equipSlots['chestplate']?.id === 'bone_armor' ? 3 : 0)
-                   + (equipSlots['pants']?.id === 'feather_pants' ? 1 : 0);
-  if (totalArmor > 0) {
-    const sumX = EQUIP_LEFT;
-    const lastSlot = EQUIP_SLOT_POS['food'];
-    const sumY = lastSlot.sy + SLOT_SIZE + 10;
-    ctx.font = '600 9px monospace';
-    glow('#60c0ff', 8);
-    ctx.fillStyle = '#80d8ff';
-    ctx.fillText(`DEF  -${totalArmor} dmg`, sumX, sumY);
-    noGlow();
-  }
 
   // Held item follows cursor
   const heldItem = getSlotItem(heldSlot);
@@ -1482,11 +1477,11 @@ function handleEat() {
   const food = equipSlots['food'];
   if (!food) return;
   if (food.id === 'cooked_chicken') {
-    playerHp = Math.min(100, playerHp + 40);
+    playerHp = Math.min(75, playerHp + 40);
     stamina = Math.min(STAM_MAX, stamina + STAM_MAX * 0.5);
     spawnParticles(px, py, '#e8b870', 8);
   } else if (food.id === 'raw_chicken') {
-    playerHp = Math.min(100, playerHp + 8);
+    playerHp = Math.min(75, playerHp + 8);
     spawnParticles(px, py, '#c05848', 4);
   }
   food.count--;
@@ -1771,7 +1766,7 @@ function handleAttackClick(mx, my) {
   const wx = mx + camX, wy = my + camY;
 
   if (sword && (sword.id === 'sword' || sword.id === 'bronze_sword')) {
-    const dmg = sword.id === 'bronze_sword' ? 12 : 5;
+    const dmg = sword.id === 'bronze_sword' ? 8 : 3;
     for (const m of mobs) {
       if (m.dead) continue;
       const dx = m.x - px, dy = m.y - py;
@@ -2411,7 +2406,7 @@ function checkGameOver() {
 }
 
 function restartGame() {
-  playerHp = 100; score = 0; gameOver = false; lastHitTime = -999;
+  playerHp = 75; score = 0; gameOver = false; lastHitTime = -999;
   mobs.length = 0; campfires.length = 0; craftingStations.length = 0;
   mineEntrances.length = 0; furnaces.length = 0; torches.length = 0; saplings.length = 0;
   inCave = false; mineExits.length = 0;
@@ -2466,8 +2461,8 @@ function initGameOverClick() {
 function drawPlayerHp() {
   const BAR_W = 80, BAR_H = 6, bx = 14, by = H - 36;
   ctx.fillStyle = '#2a0808'; ctx.fillRect(bx, by, BAR_W, BAR_H);
-  const fill = (playerHp / 100) * BAR_W;
-  const col = playerHp > 50 ? '#4aaa28' : playerHp > 25 ? '#e87820' : '#cc2020';
+  const fill = (playerHp / 75) * BAR_W;
+  const col = playerHp > 37 ? '#4aaa28' : playerHp > 18 ? '#e87820' : '#cc2020';
   if (fill > 0) { glow(col, 5); ctx.fillStyle = col; ctx.fillRect(bx, by, fill, BAR_H); noGlow(); }
   ctx.strokeStyle = '#3a1010'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, BAR_W, BAR_H);
   ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx + BAR_W + 4, by + 5);
@@ -2526,8 +2521,8 @@ function drawSaplings() {
 
 // ===================== REGEN + RESPAWN =====================
 function updatePlayerRegen(dt, now) {
-  if (playerHp < 100 && now - lastHitTime > 15)
-    playerHp = Math.min(100, playerHp + 1.2 * dt);
+  if (playerHp < 75 && now - lastHitTime > 15)
+    playerHp = Math.min(75, playerHp + 1.2 * dt);
 }
 
 function updateRespawns(dt) {
