@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">phantom more frequent (1/8), shadow figure more frequent + works underground, better peek positioning</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">shadow: more visible peek, triggers on still player + screen edges; armor -dmg indicators in inventory</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -1109,6 +1109,32 @@ function drawInventory() {
     ctx.fillStyle = item ? '#7a5a9a' : '#3a2a50';
     ctx.font = '500 8px monospace';
     ctx.fillText(def.label, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 3);
+
+    // Armor reduction indicator on helmet/chest/pants slots
+    const ARMOR_VAL = { feather_hat: 1, bone_armor: 3, feather_pants: 1 };
+    if (item && ARMOR_VAL[item.id]) {
+      const av = ARMOR_VAL[item.id];
+      ctx.font = '600 8px monospace';
+      glow('#60c0ff', 6);
+      ctx.fillStyle = '#80d8ff';
+      ctx.fillText(`-${av} dmg`, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 13);
+      noGlow();
+    }
+  }
+
+  // Total armor summary below equip column
+  const totalArmor = (equipSlots['helmet']?.id === 'feather_hat' ? 1 : 0)
+                   + (equipSlots['chestplate']?.id === 'bone_armor' ? 3 : 0)
+                   + (equipSlots['pants']?.id === 'feather_pants' ? 1 : 0);
+  if (totalArmor > 0) {
+    const sumX = EQUIP_LEFT;
+    const lastSlot = EQUIP_SLOT_POS['food'];
+    const sumY = lastSlot.sy + SLOT_SIZE + 10;
+    ctx.font = '600 9px monospace';
+    glow('#60c0ff', 8);
+    ctx.fillStyle = '#80d8ff';
+    ctx.fillText(`DEF  -${totalArmor} dmg`, sumX, sumY);
+    noGlow();
   }
 
   // Held item follows cursor
@@ -2396,6 +2422,7 @@ function restartGame() {
   cycleTime = 0; darkAlpha = 0; respawnTimer = 0; gameTime = 0;
   lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999;
   shadowSightings.length = 0; lastShadowAppear = -9999;
+  _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
@@ -2537,60 +2564,63 @@ function updateRespawns(dt) {
 // ===================== SHADOW FIGURE =====================
 const shadowSightings = []; // { x, y, timer, duration }
 let lastShadowAppear = -9999;
+let _shadowPx = 0, _shadowPy = 0, _shadowStillTime = 0;
 
 function updateShadow(dt, now) {
+  // Track how long player has been still
+  if (Math.abs(px - _shadowPx) > 3 || Math.abs(py - _shadowPy) > 3) {
+    _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
+  } else {
+    _shadowStillTime += dt;
+  }
+
   for (let i = shadowSightings.length - 1; i >= 0; i--) {
     shadowSightings[i].timer += dt;
     if (shadowSightings[i].timer >= shadowSightings[i].duration) shadowSightings.splice(i, 1);
   }
   const day = getCurrentDay();
   if (day < 3 || shadowSightings.length > 0) return;
-  // Delay: 28s on day 3, shrinks 4s/day, min 5s
-  const delay = Math.max(5, 28 - (day - 3) * 4);
+
+  const playerStill = _shadowStillTime > 3.5;
+  // Delay: shorter when standing still, shrinks with days
+  const delay = playerStill ? 2.5 : Math.max(5, 22 - (day - 3) * 3);
   if (now - lastShadowAppear < delay) return;
   lastShadowAppear = now;
-  if (Math.random() > 0.72) return; // extra randomness so it doesn't feel clockwork
+  if (Math.random() > (playerStill ? 0.92 : 0.7)) return;
 
-  // Collect visible objects to peek behind
-  const candidates = [];
+  // Collect candidates — prefer objects near screen edges (just scrolled in)
+  const all = [], edge = [];
   const side = () => Math.random() < 0.5 ? -1 : 1;
 
+  function addCandidate(ox, oy, isTree) {
+    const sx = ox - camX, sy = oy - camY;
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) return; // fully off-screen
+    const onEdge = sx < 200 || sx > W - 200 || sy < 160 || sy > H - 160;
+    const offset = side() * (isTree ? CRX * CBS : ROCK_R); // center at object edge → ~half body visible
+    const c = { x: ox + offset, y: isTree ? oy - TH * 0.4 : oy };
+    (onEdge ? edge : all).push(c);
+  }
+
   if (!inCave) {
-    // Surface: trees and rocks
     for (const chunk of worldChunks) {
       if (!chunk.tree || chunk.tree.chopped) continue;
-      const t = chunk.tree;
-      const sx = t.x - camX, sy = t.y - camY;
-      if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80) {
-        // Offset puts center just at the canopy edge so only a sliver is visible
-        const offset = side() * (CRX * CBS * 0.82 + BODY_R * 0.4);
-        candidates.push({ x: t.x + offset, y: t.y - TH * 0.35 });
-      }
+      addCandidate(chunk.tree.x, chunk.tree.y, true);
     }
     for (const rock of worldRocks) {
-      if (rock.mined) continue;
-      const sx = rock.x - camX, sy = rock.y - camY;
-      if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80) {
-        // Offset: center near the rock edge, leaving most of body hidden
-        const offset = side() * (ROCK_R * 0.78 + BODY_R * 0.3);
-        candidates.push({ x: rock.x + offset, y: rock.y });
-      }
+      if (!rock.mined) addCandidate(rock.x, rock.y, false);
     }
   } else {
-    // Underground: cave rocks only
     for (const rock of caveRocks) {
-      if (rock.mined) continue;
-      const sx = rock.x - camX, sy = rock.y - camY;
-      if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80) {
-        const offset = side() * (ROCK_R * 0.78 + BODY_R * 0.3);
-        candidates.push({ x: rock.x + offset, y: rock.y });
-      }
+      if (!rock.mined) addCandidate(rock.x, rock.y, false);
     }
   }
 
-  if (candidates.length === 0) return;
-  const pos = candidates[Math.floor(Math.random() * candidates.length)];
-  shadowSightings.push({ x: pos.x, y: pos.y, timer: 0, duration: 0.35 + Math.random() * 0.45 });
+  const pool = edge.length > 0 ? edge : all;
+  if (pool.length === 0) return;
+  const pos = pool[Math.floor(Math.random() * pool.length)];
+  // Duration longer when player is still (more unsettling)
+  const dur = playerStill ? 0.55 + Math.random() * 0.5 : 0.35 + Math.random() * 0.4;
+  shadowSightings.push({ x: pos.x, y: pos.y, timer: 0, duration: dur });
 }
 
 function drawShadowFigures() {
