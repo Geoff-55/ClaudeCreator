@@ -36,7 +36,7 @@
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.45; margin-bottom:0.3rem;">Controls</p>
-    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>M — map<br>E — pickup / place / enter mine<br>F — eat food slot<br>Click — attack / chop / mine</p>
+    <p style="color:#4b2a6b; font-family:monospace; font-size:0.62rem; line-height:1.7; opacity:0.7;">WASD — move / face direction<br>Shift — sprint<br>I — inventory<br>M — map<br>E — hold to pickup / place / enter mine<br>F — eat food slot<br>Q — drop hovered item<br>Click — attack / chop / mine</p>
   </div>
 
   <canvas id="c"></canvas>
@@ -71,8 +71,9 @@ document.addEventListener('keydown', e => {
   if (['w','a','s','d'].includes(k)) e.preventDefault();
   if (k === 'i') { inventoryOpen = !inventoryOpen; mapOpen = false; return; }
   if (k === 'm') { mapOpen = !mapOpen; inventoryOpen = false; return; }
-  if (k === 'e') { justPressed.add('e'); return; }
+  if (k === 'e') { justPressed.add('e'); keys['e'] = true; return; }
   if (k === 'f') { justPressed.add('f'); return; }
+  if (k === 'q') { justPressed.add('q'); return; }
   keys[k] = true;
   if (e.key === 'Shift') keys['shift'] = true;
   delete released[k];
@@ -1248,17 +1249,14 @@ function resolveRockCollisions() {
 const PICKUP_RANGE = 65;
 const CHOP_RANGE   = 90;
 const MINE_RANGE   = 75;
-const FACING_DOT   = 0.45;
 
 function getNearbyInteractable() {
   let best = null, bestDist = Infinity;
-  const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
   for (const item of curGround()) {
     if (item.pickedUp) continue;
     const dx = item.x - px, dy = item.y - py;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (dist > PICKUP_RANGE || dist === 0) continue;
-    if (fx*(dx/dist) + fy*(dy/dist) < FACING_DOT) continue;
     if (dist < bestDist) { bestDist = dist; best = item; }
   }
   return best;
@@ -1404,14 +1402,37 @@ function handleInteract() {
       if (Math.sqrt(dx*dx + dy*dy) < 70) { enterCave(i); return; }
     }
   }
-  if (nearbyItem) {
-    nearbyItem.pickedUp = true;
-    addToInventory(nearbyItem.type);
-    if (nearbyItem.type === 'stick') score += 5;
-    else if (nearbyItem.type === 'rock') score += 10;
-    else if (nearbyItem.type === 'coal') score += 15;
-    return;
-  }
+}
+
+let lastPickupTime = -999;
+function handlePickup(now) {
+  if (!keys['e'] || inventoryOpen || gameOver) return;
+  if (now - lastPickupTime < 0.08) return; // 80ms between pickups = rapid but smooth
+  const item = getNearbyInteractable();
+  if (!item) return;
+  lastPickupTime = now;
+  item.pickedUp = true;
+  addToInventory(item.type);
+  if (item.type === 'stick') score += 5;
+  else if (item.type === 'rock') score += 10;
+  else if (item.type === 'coal') score += 15;
+}
+
+function handleDropItem() {
+  if (!justPressed.has('q')) return;
+  justPressed.delete('q');
+  if (!inventoryOpen || gameOver) return;
+  // Find which slot the mouse is hovering over
+  const slot = getSlotAtPos(mouseX, mouseY);
+  if (!slot) return;
+  const item = getSlotItem(slot);
+  if (!item) return;
+  // Drop one (or the whole stack for stackables)
+  const dropItem = { type: item.id, x: px + (Math.random()-0.5)*30, y: py + (Math.random()-0.5)*30, pickedUp: false };
+  curGround().push(dropItem);
+  item.count--;
+  if (item.count <= 0) setSlotItem(slot, null);
+  if (heldSlot && slotsEqual(heldSlot, slot) && !getSlotItem(slot)) heldSlot = null;
 }
 
 function handleEat() {
@@ -2335,7 +2356,9 @@ function drawGameOver() {
   ctx.font = '700 52px monospace'; ctx.fillText('GAME OVER', W/2, H/2 - 70);
   noGlow();
   ctx.fillStyle = '#c084fc'; ctx.font = '600 20px monospace';
-  ctx.fillText(`SCORE: ${score}`, W/2, H/2 - 20);
+  ctx.fillText(`SCORE: ${score}`, W/2, H/2 - 28);
+  ctx.fillStyle = '#9060d0'; ctx.font = '500 14px monospace';
+  ctx.fillText(`DAY ${getCurrentDay()} SURVIVED`, W/2, H/2 - 4);
   // Restart button
   const bx = W/2 - 90, by = H/2 + 14, bw = 180, bh = 44;
   ctx.fillStyle = '#0a0718'; ctx.fillRect(bx, by, bw, bh);
@@ -2540,6 +2563,8 @@ function loop(ts) {
     nearbyChopTarget = getNearbyChopTarget();
     nearbyMineTarget = getNearbyMineTarget();
     handleInteract();
+    handlePickup(now);
+    handleDropItem();
     handleEat();
     updateMovement(dt);
     updateMobs(dt, now);
