@@ -395,11 +395,35 @@ function slotsEqual(a, b) {
   return a.type === 'inv' ? a.idx === b.idx : a.name === b.name;
 }
 
+let _dragStartX = 0, _dragStartY = 0, _dragActive = false, _dragMoved = false;
+
 canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
   mouseX = e.clientX - r.left; mouseY = e.clientY - r.top;
+  if (_dragActive && (Math.abs(mouseX - _dragStartX) > 5 || Math.abs(mouseY - _dragStartY) > 5))
+    _dragMoved = true;
+});
+canvas.addEventListener('mousedown', e => {
+  if (!inventoryOpen) return;
+  const r = canvas.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  _dragStartX = mx; _dragStartY = my; _dragMoved = false; _dragActive = false;
+  if (heldSlot) return; // already holding via click-mode — don't intercept
+  const slot = getSlotAtPos(mx, my);
+  if (slot && getSlotItem(slot)) { heldSlot = slot; _dragActive = true; }
+});
+canvas.addEventListener('mouseup', e => {
+  if (!_dragActive) return;
+  _dragActive = false;
+  if (!_dragMoved) { heldSlot = null; return; } // tiny movement = not a drag; let click handle it
+  _dragMoved = false;
+  const r = canvas.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const slot = getSlotAtPos(mx, my);
+  if (slot) handleSlotInteract(slot); else heldSlot = null;
 });
 canvas.addEventListener('click', e => {
+  if (_dragMoved) { _dragMoved = false; return; } // was a drag, already handled
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   if (inventoryOpen) { handleInventoryClick(mx, my); return; }
@@ -581,27 +605,27 @@ function handleSlotInteract(slot) {
   }
 }
 
-function handleInventoryClick(mx, my) {
-  // Inventory slots
+function getSlotAtPos(mx, my) {
   for (let row = 0; row < INV_ROWS; row++) {
     for (let col = 0; col < INV_COLS; col++) {
       const sx = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
       const sy = GRID_TOP  + row * (SLOT_SIZE + SLOT_GAP);
-      if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE) {
-        handleSlotInteract({ type: 'inv', idx: row * INV_COLS + col });
-        return;
-      }
+      if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE)
+        return { type: 'inv', idx: row * INV_COLS + col };
     }
   }
-  // Equip slots
   for (let i = 0; i < EQUIP_SLOT_DEFS.length; i++) {
     const sx = EQUIP_LEFT;
     const sy = EQUIP_TOP + i * (SLOT_SIZE + SLOT_GAP);
-    if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE) {
-      handleSlotInteract({ type: 'equip', name: EQUIP_SLOT_DEFS[i].name });
-      return;
-    }
+    if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE)
+      return { type: 'equip', name: EQUIP_SLOT_DEFS[i].name };
   }
+  return null;
+}
+
+function handleInventoryClick(mx, my) {
+  const slot = getSlotAtPos(mx, my);
+  if (slot) { handleSlotInteract(slot); return; }
   // Craft buttons (account for scroll, only hit if inside clip area)
   for (let ri = 0; ri < RECIPES.length; ri++) {
     const ry   = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
@@ -1384,6 +1408,7 @@ function handleEat() {
   if (!food) return;
   if (food.id === 'cooked_chicken') {
     playerHp = Math.min(100, playerHp + 40);
+    stamina = Math.min(STAM_MAX, stamina + STAM_MAX * 0.5);
     spawnParticles(px, py, '#e8b870', 8);
   } else if (food.id === 'raw_chicken') {
     playerHp = Math.min(100, playerHp + 8);
@@ -2255,8 +2280,8 @@ function drawScore() {
   ctx.font = '600 11px monospace';
   ctx.fillStyle = '#a855f7';
   ctx.fillText(`SCORE  ${score}`, W - 14, 20);
-  ctx.font = '500 9px monospace';
-  ctx.fillStyle = '#6a3aad';
+  ctx.font = '600 11px monospace';
+  ctx.fillStyle = '#a855f7';
   ctx.fillText(`DAY  ${getCurrentDay()}`, W - 14, 34);
   ctx.textAlign = 'left';
   ctx.restore();
