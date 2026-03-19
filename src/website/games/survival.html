@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">sword dmg 3/8, player HP 75, DEF always visible in inventory header</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">craft station 5 rocks, mine entrance 10 rocks; chickens flip upside-down day 3+</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -482,7 +482,7 @@ const RECIPES = [
   },
   {
     id: 'crafting_station', name: 'Craft Station',
-    ingredients: [{ id: 'stick', count: 25 }, { id: 'rock', count: 10 }],
+    ingredients: [{ id: 'stick', count: 25 }, { id: 'rock', count: 5 }],
   },
   {
     id: 'feather_hat', name: 'Feather Hat',
@@ -501,7 +501,7 @@ const RECIPES = [
   },
   {
     id: 'mine_entrance', name: 'Mine Entrance',
-    ingredients: [{ id: 'stick', count: 10 }, { id: 'rock', count: 20 }, { id: 'feather', count: 2 }, { id: 'bone', count: 2 }],
+    ingredients: [{ id: 'stick', count: 10 }, { id: 'rock', count: 10 }, { id: 'feather', count: 2 }, { id: 'bone', count: 2 }],
     requiresStation: true,
   },
   {
@@ -1940,6 +1940,15 @@ function updateMobs(dt, now) {
       }
       // Smooth turn: lerp drawScale toward target dir
       m.drawScale += (m.dir - m.drawScale) * Math.min(1, dt * 10);
+      // Upside-down flip (day 3+, tiny random chance)
+      if (!m.flipped) {
+        if (getCurrentDay() >= 3 && Math.random() < 0.0003) {
+          m.flipped = true; m.flipTimer = 0.6 + Math.random() * 0.8;
+        }
+      } else {
+        m.flipTimer -= dt;
+        if (m.flipTimer <= 0) m.flipped = false;
+      }
     }
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.x = Math.max(30, Math.min(curWorldW()-30, m.x));
@@ -1999,7 +2008,7 @@ function drawMobs() {
       const ps = 3;
       ctx.save();
       ctx.translate(sx, sy + Math.round(bob));
-      ctx.scale(m.drawScale, 1);
+      ctx.scale(m.drawScale, m.flipped ? -1 : 1);
       const ox = -4 * ps, oy = -6 * ps;
       function dot(c, x, y) { ctx.fillStyle = c; ctx.fillRect(ox+x*ps, oy+y*ps, ps, ps); }
       const W2='#e8e0c8', G2='#c8c4aa', T2='#d4c89a', R2='#cc2020', B2='#e89020', Y2='#c0a050';
