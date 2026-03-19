@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">shadow: more visible peek, triggers on still player + screen edges; armor -dmg indicators in inventory</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">shadow pops in/out, darker + smaller; phantom 1/12; sapling bar removed</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -1851,7 +1851,7 @@ function spawnMob(type, cap) {
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
     const r = Math.random();
-    if      (getCurrentDay() >= 3 && r < 1/8)  { subtype = 'phantom'; hp = 999; }
+    if      (getCurrentDay() >= 3 && r < 1/12) { subtype = 'phantom'; hp = 999; }
     else if (r < 1/15)                          { subtype = 'brute';   hp = 25; }
     else if (r < 1/15 + 1/10)                  { subtype = 'quick';   hp = 4; }
   }
@@ -2521,12 +2521,6 @@ function drawSaplings() {
     ctx.fillRect(sx-5, sy-22, 10, 7);
     ctx.fillStyle = '#4a9a28';
     ctx.fillRect(sx-3, sy-26, 6, 5);
-    // Progress indicator (age bar)
-    const age = Math.min(1, (gameNow - s.plantedTime) / CYCLE_LEN);
-    if (age > 0) {
-      ctx.fillStyle = '#1a2a10'; ctx.fillRect(sx-12, sy+4, 24, 3);
-      ctx.fillStyle = '#5aaa28'; ctx.fillRect(sx-12, sy+4, Math.round(24*age), 3);
-    }
   }
 }
 
@@ -2619,33 +2613,33 @@ function updateShadow(dt, now) {
   if (pool.length === 0) return;
   const pos = pool[Math.floor(Math.random() * pool.length)];
   // Duration longer when player is still (more unsettling)
-  const dur = playerStill ? 0.55 + Math.random() * 0.5 : 0.35 + Math.random() * 0.4;
+  const dur = playerStill ? 0.28 + Math.random() * 0.22 : 0.18 + Math.random() * 0.18;
   shadowSightings.push({ x: pos.x, y: pos.y, timer: 0, duration: dur });
 }
 
 function drawShadowFigures() {
   for (const s of shadowSightings) {
     const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
-    const prog = s.timer / s.duration;
-    const alpha = prog < 0.25 ? prog / 0.25 : prog > 0.75 ? (1 - prog) / 0.25 : 1;
-    ctx.globalAlpha = Math.min(alpha * 0.88, 0.88);
-    const PS = 3;
-    // Red pixelated body
-    glow('#cc0000', 14);
-    for (let gy = Math.floor(-BODY_R/PS); gy < Math.ceil(BODY_R/PS); gy++) {
-      for (let gx = Math.floor(-BODY_R/PS); gx < Math.ceil(BODY_R/PS); gx++) {
+    // No fade — pop in and out instantly
+    ctx.globalAlpha = 0.82;
+    const PS = 2; // slightly smaller pixel size
+    const SR = BODY_R * 0.78; // slightly smaller radius
+    // Dark red pixelated body
+    glow('#5a0000', 10);
+    for (let gy = Math.floor(-SR/PS); gy < Math.ceil(SR/PS); gy++) {
+      for (let gx = Math.floor(-SR/PS); gx < Math.ceil(SR/PS); gx++) {
         const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
         const d = Math.sqrt(cx*cx + cy*cy);
-        if (d > BODY_R) continue;
-        ctx.fillStyle = d > BODY_R - PS*1.8 ? '#cc0000' : '#1a0000';
+        if (d > SR) continue;
+        ctx.fillStyle = d > SR - PS*2.2 ? '#5a0808' : '#0d0000';
         ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
       }
     }
     noGlow();
-    // Glowing black eye — slightly above centre, no fixed facing direction
+    // Dark eye
     const ehx = sx + PS;
-    const ehy = sy - Math.round(HEAD_DIST * 0.7);
-    glow('#550000', 10);
+    const ehy = sy - Math.round(HEAD_DIST * 0.65);
+    glow('#2a0000', 8);
     ctx.fillStyle = '#000000';
     ctx.fillRect(ehx - PS, ehy - PS, PS*2, PS*2);
     noGlow();
