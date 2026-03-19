@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">fix crash: FACING_DOT deleted during debug cleanup, breaking chop/mine target detection</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">phantom more frequent (1/8), shadow figure more frequent + works underground, better peek positioning</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -1825,7 +1825,7 @@ function spawnMob(type, cap) {
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
     const r = Math.random();
-    if      (getCurrentDay() >= 3 && r < 1/20) { subtype = 'phantom'; hp = 999; }
+    if      (getCurrentDay() >= 3 && r < 1/8)  { subtype = 'phantom'; hp = 999; }
     else if (r < 1/15)                          { subtype = 'brute';   hp = 25; }
     else if (r < 1/15 + 1/10)                  { subtype = 'quick';   hp = 4; }
   }
@@ -2544,31 +2544,53 @@ function updateShadow(dt, now) {
     if (shadowSightings[i].timer >= shadowSightings[i].duration) shadowSightings.splice(i, 1);
   }
   const day = getCurrentDay();
-  if (inCave || day < 3 || shadowSightings.length > 0) return;
-  // Delay: 45s on day 3, shrinks 3s/day, min 8s
-  const delay = Math.max(8, 45 - (day - 3) * 3);
+  if (day < 3 || shadowSightings.length > 0) return;
+  // Delay: 28s on day 3, shrinks 4s/day, min 5s
+  const delay = Math.max(5, 28 - (day - 3) * 4);
   if (now - lastShadowAppear < delay) return;
   lastShadowAppear = now;
-  if (Math.random() > 0.65) return; // extra randomness so it doesn't feel clockwork
+  if (Math.random() > 0.72) return; // extra randomness so it doesn't feel clockwork
 
-  // Collect visible trees and rocks as peek positions
+  // Collect visible objects to peek behind
   const candidates = [];
-  for (const chunk of worldChunks) {
-    if (!chunk.tree || chunk.tree.chopped) continue;
-    const t = chunk.tree;
-    const sx = t.x - camX, sy = t.y - camY;
-    if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80)
-      candidates.push({ x: t.x + (Math.random() < 0.5 ? -28 : 28), y: t.y + 8 });
+  const side = () => Math.random() < 0.5 ? -1 : 1;
+
+  if (!inCave) {
+    // Surface: trees and rocks
+    for (const chunk of worldChunks) {
+      if (!chunk.tree || chunk.tree.chopped) continue;
+      const t = chunk.tree;
+      const sx = t.x - camX, sy = t.y - camY;
+      if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80) {
+        // Offset puts center just at the canopy edge so only a sliver is visible
+        const offset = side() * (CRX * CBS * 0.82 + BODY_R * 0.4);
+        candidates.push({ x: t.x + offset, y: t.y - TH * 0.35 });
+      }
+    }
+    for (const rock of worldRocks) {
+      if (rock.mined) continue;
+      const sx = rock.x - camX, sy = rock.y - camY;
+      if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80) {
+        // Offset: center near the rock edge, leaving most of body hidden
+        const offset = side() * (ROCK_R * 0.78 + BODY_R * 0.3);
+        candidates.push({ x: rock.x + offset, y: rock.y });
+      }
+    }
+  } else {
+    // Underground: cave rocks only
+    for (const rock of caveRocks) {
+      if (rock.mined) continue;
+      const sx = rock.x - camX, sy = rock.y - camY;
+      if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80) {
+        const offset = side() * (ROCK_R * 0.78 + BODY_R * 0.3);
+        candidates.push({ x: rock.x + offset, y: rock.y });
+      }
+    }
   }
-  for (const rock of worldRocks) {
-    if (rock.mined) continue;
-    const sx = rock.x - camX, sy = rock.y - camY;
-    if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80)
-      candidates.push({ x: rock.x + (Math.random() < 0.5 ? -22 : 22), y: rock.y });
-  }
+
   if (candidates.length === 0) return;
   const pos = candidates[Math.floor(Math.random() * candidates.length)];
-  shadowSightings.push({ x: pos.x, y: pos.y, timer: 0, duration: 0.15 + Math.random() * 0.3 });
+  shadowSightings.push({ x: pos.x, y: pos.y, timer: 0, duration: 0.35 + Math.random() * 0.45 });
 }
 
 function drawShadowFigures() {
