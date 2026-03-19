@@ -1438,7 +1438,7 @@ function handleInteract() {
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'sapling') saplings.push({ x: px, y: py, plantedTime: gameNow });
-    else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave });
+    else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave, redTimer: 0 });
     else mineEntrances.push({ x: px, y: py });
     weapon.count--;
     if (weapon.count <= 0) equipSlots['furniture'] = null;
@@ -2116,11 +2116,12 @@ function drawTorches() {
     ctx.fillRect(sx-2, sy-2, 4, 14);
     // Flame
     const flick = Math.sin(t * 11 + f.x * 0.02) * 1.5;
-    ctx.fillStyle = '#e05010';
+    const red = f.redTimer > 0;
+    ctx.fillStyle = red ? '#cc0000' : '#e05010';
     ctx.beginPath(); ctx.ellipse(sx, sy-9, 3+flick, 6+flick, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#ffa020';
+    ctx.fillStyle = red ? '#ff2020' : '#ffa020';
     ctx.beginPath(); ctx.ellipse(sx, sy-10, 2+flick*0.4, 4+flick*0.8, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#ffe060';
+    ctx.fillStyle = red ? '#ff6060' : '#ffe060';
     ctx.beginPath(); ctx.ellipse(sx, sy-9, 1, 2, 0, 0, Math.PI*2); ctx.fill();
   }
 }
@@ -2501,6 +2502,14 @@ function drawPlayerHp() {
 }
 
 // ===================== SAPLINGS =====================
+function updateTorches(dt) {
+  if (getCurrentDay() < 3) return;
+  for (const f of torches) {
+    if (f.redTimer > 0) { f.redTimer -= dt; continue; }
+    if (Math.random() < 0.0008) f.redTimer = 0.08 + Math.random() * 0.1;
+  }
+}
+
 function updateSaplings() {
   for (let i = saplings.length - 1; i >= 0; i--) {
     const s = saplings[i];
@@ -2699,6 +2708,7 @@ function loop(ts) {
     if (!inCave) updateSaplings();
     if (inCave) updateCaveRockRespawn();
     updateShadow(dt, now);
+    updateTorches(dt);
     updateParticles(dt);
     checkGameOver();
     updateCamera();
