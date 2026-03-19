@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">debug + optimize: fix crash (particles/pickup not reset on restart, ground items not spliced), precompute equip slot layout</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">phantom zombie: black body red eyes, invincible, rushes player on sight (day 3+), explodes into dark smoke on contact</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -1751,6 +1751,7 @@ function handleAttackClick(mx, my) {
       if (Math.sqrt(dx*dx + dy*dy) > SWORD_RANGE) continue;
       const cdx = wx - m.x, cdy = wy - m.y;
       if (Math.sqrt(cdx*cdx + cdy*cdy) > 36) continue;
+      if (m.subtype === 'phantom') { spawnParticles(m.x, m.y, '#220000', 3); continue; }
       m.hp -= dmg;
       spawnParticles(m.x, m.y, sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
       if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
@@ -1823,8 +1824,9 @@ function spawnMob(type, cap) {
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
     const r = Math.random();
-    if      (r < 1/15)        { subtype = 'brute'; hp = 25; }
-    else if (r < 1/15 + 1/10) { subtype = 'quick'; hp = 4; }
+    if      (getCurrentDay() >= 3 && r < 1/20) { subtype = 'phantom'; hp = 999; }
+    else if (r < 1/15)                          { subtype = 'brute';   hp = 25; }
+    else if (r < 1/15 + 1/10)                  { subtype = 'quick';   hp = 4; }
   }
   mobs.push({
     type, subtype, x, y,
@@ -1856,41 +1858,54 @@ function updateMobs(dt, now) {
     const dx = px - m.x, dy = py - m.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (m.type === 'zombie') {
-      // Check fire flee (campfires + torches)
-      let fleeX = 0, fleeY = 0, nearFire = false;
-      for (const f of campfires) {
-        if (f.cave !== inCave) continue;
-        const fdx = m.x - f.x, fdy = m.y - f.y;
-        const fd = Math.sqrt(fdx*fdx + fdy*fdy);
-        if (fd < 180 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
-      }
-      for (const f of torches) {
-        if (f.cave !== inCave) continue;
-        const fdx = m.x - f.x, fdy = m.y - f.y;
-        const fd = Math.sqrt(fdx*fdx + fdy*fdy);
-        if (fd < 120 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
-      }
-      const spd = m.subtype === 'brute' ? 32 : m.subtype === 'quick' ? 105 : 55;
-      const dmg = m.subtype === 'brute' ? 12 : m.subtype === 'quick' ? 2  : 5;
-      const cd  = m.subtype === 'brute' ? 1.2 : m.subtype === 'quick' ? 0.35 : 0.8;
-      if (nearFire) {
-        const fl = Math.sqrt(fleeX*fleeX + fleeY*fleeY);
-        m.vx = (fleeX/fl)*spd; m.vy = (fleeY/fl)*spd;
-      } else if (dist > 0) {
-        m.vx = (dx/dist)*spd; m.vy = (dy/dist)*spd;
-      }
-      if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
-      if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > cd) {
-        const helmet = equipSlots['helmet'];
-        const chest  = equipSlots['chestplate'];
-        let armor = 0;
-        const pants2 = equipSlots['pants'];
-        if (helmet && helmet.id === 'feather_hat')   armor += 1;
-        if (chest  && chest.id  === 'bone_armor')    armor += 3;
-        if (pants2 && pants2.id === 'feather_pants') armor += 1;
-        playerHp = Math.max(0, playerHp - Math.max(1, dmg - armor));
-        lastZombieDmg = now; lastHitTime = now;
-        spawnParticles(px, py, '#cc2020', 3);
+      if (m.subtype === 'phantom') {
+        // Phantom: beelines straight at player, ignores fire, can't be damaged
+        const spd = 145;
+        if (dist > 0) { m.vx = (dx/dist)*spd; m.vy = (dy/dist)*spd; m.dir = dx > 0 ? 1 : -1; }
+        if (dist < BODY_R + MOB_COLL_R) {
+          // Explode into black smoke and vanish
+          for (let pi = 0; pi < 28; pi++) spawnParticles(m.x + (Math.random()-0.5)*14, m.y + (Math.random()-0.5)*14, Math.random() < 0.6 ? '#0a0a0a' : '#2a0000', 1);
+          playerHp = Math.max(0, playerHp - 18);
+          lastHitTime = now;
+          m.dead = true; m.deathTimer = 1; // skip fade, vanish instantly
+        }
+      } else {
+        // Check fire flee (campfires + torches)
+        let fleeX = 0, fleeY = 0, nearFire = false;
+        for (const f of campfires) {
+          if (f.cave !== inCave) continue;
+          const fdx = m.x - f.x, fdy = m.y - f.y;
+          const fd = Math.sqrt(fdx*fdx + fdy*fdy);
+          if (fd < 180 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
+        }
+        for (const f of torches) {
+          if (f.cave !== inCave) continue;
+          const fdx = m.x - f.x, fdy = m.y - f.y;
+          const fd = Math.sqrt(fdx*fdx + fdy*fdy);
+          if (fd < 120 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
+        }
+        const spd = m.subtype === 'brute' ? 32 : m.subtype === 'quick' ? 105 : 55;
+        const dmg = m.subtype === 'brute' ? 12 : m.subtype === 'quick' ? 2  : 5;
+        const cd  = m.subtype === 'brute' ? 1.2 : m.subtype === 'quick' ? 0.35 : 0.8;
+        if (nearFire) {
+          const fl = Math.sqrt(fleeX*fleeX + fleeY*fleeY);
+          m.vx = (fleeX/fl)*spd; m.vy = (fleeY/fl)*spd;
+        } else if (dist > 0) {
+          m.vx = (dx/dist)*spd; m.vy = (dy/dist)*spd;
+        }
+        if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
+        if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > cd) {
+          const helmet = equipSlots['helmet'];
+          const chest  = equipSlots['chestplate'];
+          let armor = 0;
+          const pants2 = equipSlots['pants'];
+          if (helmet && helmet.id === 'feather_hat')   armor += 1;
+          if (chest  && chest.id  === 'bone_armor')    armor += 3;
+          if (pants2 && pants2.id === 'feather_pants') armor += 1;
+          playerHp = Math.max(0, playerHp - Math.max(1, dmg - armor));
+          lastZombieDmg = now; lastHitTime = now;
+          spawnParticles(px, py, '#cc2020', 3);
+        }
       }
     } else {
       const fleeRange = 120;
@@ -1918,20 +1933,44 @@ function drawMobs() {
     ctx.globalAlpha = alpha;
     const bob = Math.sin(m.animTimer * 5) * 1.5;
     if (m.type === 'zombie') {
-      const zs  = m.subtype === 'brute' ? 1.5 : m.subtype === 'quick' ? 0.72 : 1.0;
-      const bcol = m.subtype === 'brute' ? '#14280a' : m.subtype === 'quick' ? '#2a5a18' : '#1e3a12';
-      const hcol = m.subtype === 'brute' ? '#1c3410' : m.subtype === 'quick' ? '#3a7020' : '#2a4a18';
-      const zb = bob * zs;
-      ctx.fillStyle = bcol; ctx.fillRect(sx-8*zs, sy-18*zs+zb, 16*zs, 20*zs);
-      ctx.fillStyle = hcol; ctx.fillRect(sx-7*zs, sy-32*zs+zb, 14*zs, 14*zs);
-      ctx.fillStyle = m.subtype === 'quick' ? '#ff8020' : '#cc2020';
-      ctx.fillRect(sx-4*zs, sy-27*zs+zb, 3*zs, 3*zs); ctx.fillRect(sx+1*zs, sy-27*zs+zb, 3*zs, 3*zs);
-      const aw = Math.sin(m.animTimer*4)*3*zs;
-      ctx.fillStyle = bcol; ctx.fillRect(sx-15*zs, sy-16*zs+aw, 7*zs, 12*zs); ctx.fillRect(sx+8*zs, sy-16*zs-aw, 7*zs, 12*zs);
-      if (m.hp < m.maxHp) {
-        const bw = 24*zs, bx2 = sx - bw/2, by2 = sy - 40*zs + zb;
-        ctx.fillStyle = '#300'; ctx.fillRect(bx2, by2, bw, 3);
-        ctx.fillStyle = '#a03020'; ctx.fillRect(bx2, by2, bw * m.hp/m.maxHp, 3);
+      if (m.subtype === 'phantom') {
+        // Phantom: PS=3 black pixel body, glowing red eyes
+        const ps = 3;
+        const zb = bob;
+        ctx.save();
+        ctx.translate(sx, sy + zb);
+        // body (black)
+        ctx.fillStyle = '#080808';
+        ctx.fillRect(-8, -18, 16, 20);
+        // head (slightly lighter black)
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(-7, -32, 14, 14);
+        // arms
+        const aw = Math.sin(m.animTimer*5)*4;
+        ctx.fillStyle = '#080808';
+        ctx.fillRect(-15, -16+aw, 7, 12); ctx.fillRect(8, -16-aw, 7, 12);
+        // glowing red eyes
+        glow('#ff0000', 8);
+        ctx.fillStyle = '#ff1010';
+        ctx.fillRect(-4, -27, ps, ps); ctx.fillRect(1, -27, ps, ps);
+        noGlow();
+        ctx.restore();
+      } else {
+        const zs  = m.subtype === 'brute' ? 1.5 : m.subtype === 'quick' ? 0.72 : 1.0;
+        const bcol = m.subtype === 'brute' ? '#14280a' : m.subtype === 'quick' ? '#2a5a18' : '#1e3a12';
+        const hcol = m.subtype === 'brute' ? '#1c3410' : m.subtype === 'quick' ? '#3a7020' : '#2a4a18';
+        const zb = bob * zs;
+        ctx.fillStyle = bcol; ctx.fillRect(sx-8*zs, sy-18*zs+zb, 16*zs, 20*zs);
+        ctx.fillStyle = hcol; ctx.fillRect(sx-7*zs, sy-32*zs+zb, 14*zs, 14*zs);
+        ctx.fillStyle = m.subtype === 'quick' ? '#ff8020' : '#cc2020';
+        ctx.fillRect(sx-4*zs, sy-27*zs+zb, 3*zs, 3*zs); ctx.fillRect(sx+1*zs, sy-27*zs+zb, 3*zs, 3*zs);
+        const aw = Math.sin(m.animTimer*4)*3*zs;
+        ctx.fillStyle = bcol; ctx.fillRect(sx-15*zs, sy-16*zs+aw, 7*zs, 12*zs); ctx.fillRect(sx+8*zs, sy-16*zs-aw, 7*zs, 12*zs);
+        if (m.hp < m.maxHp) {
+          const bw = 24*zs, bx2 = sx - bw/2, by2 = sy - 40*zs + zb;
+          ctx.fillStyle = '#300'; ctx.fillRect(bx2, by2, bw, 3);
+          ctx.fillStyle = '#a03020'; ctx.fillRect(bx2, by2, bw * m.hp/m.maxHp, 3);
+        }
       }
     } else {
       // Pixel art chicken — drawn facing right, flipped via drawScale
