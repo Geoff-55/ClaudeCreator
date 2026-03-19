@@ -2031,6 +2031,7 @@ function drawMobs() {
       ctx.save();
       ctx.translate(sx, sy + Math.round(bob));
       ctx.scale(m.drawScale, m.flipped ? -1 : 1);
+      if (m.flipped) { ctx.globalAlpha = 0.45; }
       const ox = -4 * ps, oy = -6 * ps;
       function dot(c, x, y) { ctx.fillStyle = c; ctx.fillRect(ox+x*ps, oy+y*ps, ps, ps); }
       const W2='#e8e0c8', G2='#c8c4aa', T2='#d4c89a', R2='#cc2020', B2='#e89020', Y2='#c0a050';
