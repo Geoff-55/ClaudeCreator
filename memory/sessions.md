@@ -1,5 +1,27 @@
 # Session History
 
+## Session 9 -- 2026-03-18
+
+Survival game (survival.html) — polish + horror atmosphere session:
+  - Phantom zombie: black body, red eyes, invincible (hp=999), rushes player, explodes into smoke on contact
+    - Spawn rate: 1/12 zombies, day 3+, surface and underground
+    - Ignores campfire flee logic
+    - Contact damage: 4 (tiny, was 18)
+  - Shadow figure (corrupt player): pops in/out instantly (no fade), shorter duration, smaller, darker colors
+    - Triggers when player stands still 3.5s OR objects enter screen edge
+    - Works underground (cave rocks as candidates)
+    - More visible — object-edge positioning so figure is half-peeking
+  - Armor system overhauled to % damage reduction (direct correlation):
+    - Feather hat: 5%, bone shield: 10%, bone armor: 10%, feather pants: 5% (30% max)
+    - Damage formula: dmg * (1 - defPct/100), min 1
+    - Bone shield recipe added: 10 bones at crafting station, equips in shield slot
+  - Defense display: "Defense: X%" centered at bottom of inventory panel
+  - Sword damage reduced (iron: 5→3, bronze: 12→8), player HP reduced to 75
+  - Crafting station cost: 5 rocks (was 10); mine entrance: 10 rocks (was 20)
+  - Upside-down chicken easter egg: day 3+, rare chance, flips for 0.6–1.4s, sprite darkened (45% opacity)
+  - Torches flash red briefly (0.08–0.18s) at rare random intervals after day 3
+  - Sapling progress bar removed
+
 ## Session 8 -- 2026-03-16
 
 Survival game (survival.html) — heavy development session:

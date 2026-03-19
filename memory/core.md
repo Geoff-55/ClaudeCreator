@@ -23,4 +23,4 @@ Understands how programming works but not an expert in any language.
 - Games live in src/website/games/, linked from drafts.html with ?from=drafts param
 - geodash.html = original GeoDash, marked DNF (kept for reference)
 - geodash2.html = new GeoDash in active development, level editor first
-- survival.html = top-down survival game, active development; has open world, stamina/sprint, trees with collision + depth layering, inventory skeleton
+- survival.html = survival game, considered DONE by Soll; has open world, stamina/sprint, trees+rocks with collision+depth, full inventory+crafting+equip system, day/night cycle, zombies (normal/speedy/phantom), campfires/torches/furnace/mine, armor (% defense), shadow figure + upside-down chicken + red torch flash horror touches
