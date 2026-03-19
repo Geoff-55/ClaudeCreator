@@ -1084,12 +1084,6 @@ function drawInventory() {
   ctx.fillText('EQUIP', EQUIP_LEFT, INV_Y + INV_PAD + 10);
   ctx.fillText('TOOLS', EQUIP2_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
-  // DEF total — always shown, right of EQUIP label
-  ctx.font = '600 9px monospace';
-  glow(totalArmor > 0 ? '#60c0ff' : '#333355', totalArmor > 0 ? 7 : 0);
-  ctx.fillStyle = totalArmor > 0 ? '#80d8ff' : '#3a3a5a';
-  ctx.fillText(`DEF ${totalArmor > 0 ? '-' : ' '}${totalArmor} dmg`, EQUIP_LEFT + 44, INV_Y + INV_PAD + 10);
-  noGlow();
 
   for (const def of EQUIP_SLOT_DEFS) {
     const { sx, sy } = EQUIP_SLOT_POS[def.name];
@@ -1131,6 +1125,16 @@ function drawInventory() {
     }
   }
 
+
+  // Defense display — bottom of inventory panel
+  const defPct = Math.round(totalArmor / 5 * 100);
+  ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.05em';
+  glow(totalArmor > 0 ? '#60c0ff' : '#333355', totalArmor > 0 ? 8 : 0);
+  ctx.fillStyle = totalArmor > 0 ? '#80d8ff' : '#3a3a5a';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Defense: ${defPct}%`, INV_X + INV_W / 2, INV_Y + INV_H - 10);
+  ctx.textAlign = 'left'; ctx.letterSpacing = '0';
+  noGlow();
 
   // Held item follows cursor
   const heldItem = getSlotItem(heldSlot);
@@ -1887,7 +1891,7 @@ function updateMobs(dt, now) {
         if (dist < BODY_R + MOB_COLL_R) {
           // Explode into black smoke and vanish
           for (let pi = 0; pi < 28; pi++) spawnParticles(m.x + (Math.random()-0.5)*14, m.y + (Math.random()-0.5)*14, Math.random() < 0.6 ? '#0a0a0a' : '#2a0000', 1);
-          playerHp = Math.max(0, playerHp - 18);
+          playerHp = Math.max(0, playerHp - 4);
           lastHitTime = now;
           m.dead = true; m.deathTimer = 1; // skip fade, vanish instantly
         }
