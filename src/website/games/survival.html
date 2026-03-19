@@ -1145,13 +1145,17 @@ const TRANS_DUR = 5;
 const CYCLE_LEN = DAY_DUR + TRANS_DUR + NIGHT_DUR + TRANS_DUR; // 70s
 let cycleTime = 0;
 let darkAlpha  = 0;
+let gameTime   = 0; // total elapsed, not modulo — used for day count
+
+function getCurrentDay() { return Math.floor(gameTime / CYCLE_LEN) + 1; }
 
 const lightCanvas = document.createElement('canvas');
 lightCanvas.width = W; lightCanvas.height = H;
 const lctx = lightCanvas.getContext('2d');
 
 function updateDayNight(dt) {
-  cycleTime = (cycleTime + dt) % CYCLE_LEN;
+  gameTime += dt;
+  cycleTime = gameTime % CYCLE_LEN;
   if      (cycleTime < DAY_DUR)                                darkAlpha = 0;
   else if (cycleTime < DAY_DUR + TRANS_DUR)                    darkAlpha = (cycleTime - DAY_DUR) / TRANS_DUR;
   else if (cycleTime < DAY_DUR + TRANS_DUR + NIGHT_DUR)        darkAlpha = 1;
@@ -2251,6 +2255,9 @@ function drawScore() {
   ctx.font = '600 11px monospace';
   ctx.fillStyle = '#a855f7';
   ctx.fillText(`SCORE  ${score}`, W - 14, 20);
+  ctx.font = '500 9px monospace';
+  ctx.fillStyle = '#6a3aad';
+  ctx.fillText(`DAY  ${getCurrentDay()}`, W - 14, 34);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -2269,8 +2276,9 @@ function restartGame() {
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
   px = WORLD_W / 2; py = WORLD_H / 2;
   heldSlot = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
-  cycleTime = 0; darkAlpha = 0; respawnTimer = 0;
+  cycleTime = 0; darkAlpha = 0; respawnTimer = 0; gameTime = 0;
   lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999;
+  shadowSightings.length = 0; lastShadowAppear = -9999;
   generateSurfaceWorld();
   generateCaveWorld();
 }
@@ -2406,6 +2414,73 @@ function updateRespawns(dt) {
   }
 }
 
+// ===================== SHADOW FIGURE =====================
+const shadowSightings = []; // { x, y, timer, duration }
+let lastShadowAppear = -9999;
+
+function updateShadow(dt, now) {
+  for (let i = shadowSightings.length - 1; i >= 0; i--) {
+    shadowSightings[i].timer += dt;
+    if (shadowSightings[i].timer >= shadowSightings[i].duration) shadowSightings.splice(i, 1);
+  }
+  const day = getCurrentDay();
+  if (inCave || day < 3 || shadowSightings.length > 0) return;
+  // Delay: 45s on day 3, shrinks 3s/day, min 8s
+  const delay = Math.max(8, 45 - (day - 3) * 3);
+  if (now - lastShadowAppear < delay) return;
+  lastShadowAppear = now;
+  if (Math.random() > 0.65) return; // extra randomness so it doesn't feel clockwork
+
+  // Collect visible trees and rocks as peek positions
+  const candidates = [];
+  for (const chunk of worldChunks) {
+    if (!chunk.tree || chunk.tree.chopped) continue;
+    const t = chunk.tree;
+    const sx = t.x - camX, sy = t.y - camY;
+    if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80)
+      candidates.push({ x: t.x + (Math.random() < 0.5 ? -28 : 28), y: t.y + 8 });
+  }
+  for (const rock of worldRocks) {
+    if (rock.mined) continue;
+    const sx = rock.x - camX, sy = rock.y - camY;
+    if (sx > 80 && sx < W - 80 && sy > 80 && sy < H - 80)
+      candidates.push({ x: rock.x + (Math.random() < 0.5 ? -22 : 22), y: rock.y });
+  }
+  if (candidates.length === 0) return;
+  const pos = candidates[Math.floor(Math.random() * candidates.length)];
+  shadowSightings.push({ x: pos.x, y: pos.y, timer: 0, duration: 0.15 + Math.random() * 0.3 });
+}
+
+function drawShadowFigures() {
+  for (const s of shadowSightings) {
+    const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
+    const prog = s.timer / s.duration;
+    const alpha = prog < 0.25 ? prog / 0.25 : prog > 0.75 ? (1 - prog) / 0.25 : 1;
+    ctx.globalAlpha = Math.min(alpha * 0.88, 0.88);
+    const PS = 3;
+    // Red pixelated body
+    glow('#cc0000', 14);
+    for (let gy = Math.floor(-BODY_R/PS); gy < Math.ceil(BODY_R/PS); gy++) {
+      for (let gx = Math.floor(-BODY_R/PS); gx < Math.ceil(BODY_R/PS); gx++) {
+        const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+        const d = Math.sqrt(cx*cx + cy*cy);
+        if (d > BODY_R) continue;
+        ctx.fillStyle = d > BODY_R - PS*1.8 ? '#cc0000' : '#1a0000';
+        ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+      }
+    }
+    noGlow();
+    // Glowing black eye — slightly above centre, no fixed facing direction
+    const ehx = sx + PS;
+    const ehy = sy - Math.round(HEAD_DIST * 0.7);
+    glow('#550000', 10);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(ehx - PS, ehy - PS, PS*2, PS*2);
+    noGlow();
+    ctx.globalAlpha = 1;
+  }
+}
+
 // ===================== LOOP =====================
 let last = 0;
 function loop(ts) {
@@ -2428,6 +2503,7 @@ function loop(ts) {
     updateRespawns(dt);
     if (!inCave) updateSaplings();
     if (inCave) updateCaveRockRespawn();
+    updateShadow(dt, now);
     updateParticles(dt);
     checkGameOver();
     updateCamera();
@@ -2444,6 +2520,7 @@ function loop(ts) {
   drawFurnaces();
   if (!inCave) drawMineEntrances();
   if (inCave) drawMineExits();
+  drawShadowFigures();
   drawPlayer();
   drawMobs();
   if (!inCave) drawTreeTops();
