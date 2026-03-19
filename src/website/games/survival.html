@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">campfire map icons, more chickens, feather pants, pixel rocks + player, cave ore respawn</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">debug + optimize: fix crash (particles/pickup not reset on restart, ground items not spliced), precompute equip slot layout</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -367,6 +367,21 @@ const EQUIP_LEFT  = GRID_LEFT + GRID_W + EQUIP_GAP;
 const EQUIP2_LEFT = EQUIP_LEFT + EQUIP_W + EQUIP_COL2_GAP;
 const EQUIP_TOP   = GRID_TOP;
 
+function buildEquipSlotPos() {
+  const col0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
+  const col1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
+  for (const def of EQUIP_SLOT_DEFS) {
+    const colArr = def.col === 0 ? col0 : col1;
+    const row = colArr.indexOf(def);
+    EQUIP_SLOT_POS[def.name] = {
+      row, col: def.col,
+      sx: def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT,
+      sy: EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP),
+    };
+  }
+}
+buildEquipSlotPos();
+
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
 
 const EQUIP_SLOT_DEFS = [
@@ -380,6 +395,7 @@ const EQUIP_SLOT_DEFS = [
   { name: 'pickaxe_slot', label: 'PICKAXE', col: 1 },
   { name: 'furniture',    label: 'PLACE',   col: 1 },
 ];
+const EQUIP_SLOT_POS = {}; // populated by buildEquipSlotPos() below layout constants
 const equipSlots = {};
 for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
 
@@ -621,13 +637,8 @@ function getSlotAtPos(mx, my) {
         return { type: 'inv', idx: row * INV_COLS + col };
     }
   }
-  const _col0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
-  const _col1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
   for (const def of EQUIP_SLOT_DEFS) {
-    const colArr = def.col === 0 ? _col0 : _col1;
-    const row = colArr.indexOf(def);
-    const sx = def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT;
-    const sy = EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP);
+    const { sx, sy } = EQUIP_SLOT_POS[def.name];
     if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE)
       return { type: 'equip', name: def.name };
   }
@@ -1071,13 +1082,8 @@ function drawInventory() {
   ctx.fillText('TOOLS', EQUIP2_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
 
-  const _eCol0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
-  const _eCol1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
   for (const def of EQUIP_SLOT_DEFS) {
-    const colArr = def.col === 0 ? _eCol0 : _eCol1;
-    const row  = colArr.indexOf(def);
-    const sx   = def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT;
-    const sy   = EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP);
+    const { sx, sy } = EQUIP_SLOT_POS[def.name];
     const slot = { type: 'equip', name: def.name };
     const item = equipSlots[def.name];
     const isH  = slotsEqual(heldSlot, slot);
@@ -1253,7 +1259,6 @@ const MINE_RANGE   = 75;
 function getNearbyInteractable() {
   let best = null, bestDist = Infinity;
   for (const item of curGround()) {
-    if (item.pickedUp) continue;
     const dx = item.x - px, dy = item.y - py;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (dist > PICKUP_RANGE || dist === 0) continue;
@@ -1408,14 +1413,22 @@ let lastPickupTime = -999;
 function handlePickup(now) {
   if (!keys['e'] || inventoryOpen || gameOver) return;
   if (now - lastPickupTime < 0.08) return; // 80ms between pickups = rapid but smooth
-  const item = getNearbyInteractable();
-  if (!item) return;
+  const ground = curGround();
+  let best = null, bestDist = Infinity, bestIdx = -1;
+  for (let i = 0; i < ground.length; i++) {
+    const item = ground[i];
+    const dx = item.x - px, dy = item.y - py;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > PICKUP_RANGE || dist === 0) continue;
+    if (dist < bestDist) { bestDist = dist; best = item; bestIdx = i; }
+  }
+  if (!best) return;
   lastPickupTime = now;
-  item.pickedUp = true;
-  addToInventory(item.type);
-  if (item.type === 'stick') score += 5;
-  else if (item.type === 'rock') score += 10;
-  else if (item.type === 'coal') score += 15;
+  ground.splice(bestIdx, 1); // remove immediately — no unbounded growth
+  addToInventory(best.type);
+  if (best.type === 'stick') score += 5;
+  else if (best.type === 'rock') score += 10;
+  else if (best.type === 'coal') score += 15;
 }
 
 function handleDropItem() {
@@ -1639,7 +1652,6 @@ function drawRockTops() {
 
 function drawGroundItemBodies() {
   for (const item of curGround()) {
-    if (item.pickedUp) continue;
     const sx = item.x - camX, sy = item.y - camY;
     if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
     drawItemIcon(item.type, sx, sy, 16);
@@ -1691,7 +1703,7 @@ function drawHealthBar(sx, sy, current, max, color) {
 
 function drawTargetIndicators() {
   // Ground item pickup
-  if (nearbyItem && !nearbyItem.pickedUp)
+  if (nearbyItem)
     drawArrow(nearbyItem.x - camX, nearbyItem.y - camY, '#e8e8a0');
 
   // Tree chop
@@ -2344,6 +2356,7 @@ function restartGame() {
   cycleTime = 0; darkAlpha = 0; respawnTimer = 0; gameTime = 0;
   lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999;
   shadowSightings.length = 0; lastShadowAppear = -9999;
+  particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
 }
