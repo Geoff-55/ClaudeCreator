@@ -490,6 +490,11 @@ const RECIPES = [
     requiresStation: true,
   },
   {
+    id: 'bone_shield', name: 'Bone Shield',
+    ingredients: [{ id: 'bone', count: 10 }],
+    requiresStation: true,
+  },
+  {
     id: 'bone_armor', name: 'Bone Armor',
     ingredients: [{ id: 'bone', count: 5 }],
     requiresStation: true,
@@ -599,7 +604,7 @@ const ITEM_SLOT = {
   campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture',
   furnace: 'furniture', sapling: 'furniture', torch: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
-  bone_armor: 'chestplate',
+  bone_armor: 'chestplate', bone_shield: 'shield',
   raw_chicken: 'food', cooked_chicken: 'food',
 };
 
@@ -804,6 +809,19 @@ function drawItemIcon(id, cx, cy, size) {
      // waist
      [B,1,5],[B,2,5],[B,3,5],[B,4,5],[B,5,5],[B,6,5],
      [B,2,6],[B,3,6],[B,4,6],[B,5,6],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'bone_shield') {
+    const B = '#ddd8c0', P = '#c0b898', D = '#a09878', S = '#e8e4d4', H = '#f0ece0';
+    // rounded shield shape with bone cross
+    [[B,2,0],[B,3,0],[B,4,0],[B,5,0],
+     [B,1,1],[H,2,1],[S,3,1],[S,4,1],[H,5,1],[B,6,1],
+     [B,0,2],[S,1,2],[P,2,2],[B,3,2],[B,4,2],[P,5,2],[S,6,2],[B,7,2],
+     [B,0,3],[P,1,3],[B,2,3],[D,3,3],[D,4,3],[B,5,3],[P,6,3],[B,7,3],
+     [B,0,4],[P,1,4],[B,2,4],[D,3,4],[D,4,4],[B,5,4],[P,6,4],[B,7,4],
+     [B,0,5],[S,1,5],[P,2,5],[B,3,5],[B,4,5],[P,5,5],[S,6,5],[B,7,5],
+     [B,1,6],[H,2,6],[S,3,6],[S,4,6],[H,5,6],[B,6,6],
+     [B,2,7],[B,3,7],[B,4,7],[B,5,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
 
   } else if (id === 'bone') {
@@ -1076,9 +1094,10 @@ function drawInventory() {
   }
 
   // ---- EQUIP PANEL ----
-  const totalArmor = (equipSlots['helmet']?.id === 'feather_hat' ? 1 : 0)
-                   + (equipSlots['chestplate']?.id === 'bone_armor' ? 3 : 0)
-                   + (equipSlots['pants']?.id === 'feather_pants' ? 1 : 0);
+  const totalArmor = (equipSlots['helmet']?.id === 'feather_hat' ? 5 : 0)
+                   + (equipSlots['shield']?.id === 'bone_shield' ? 10 : 0)
+                   + (equipSlots['chestplate']?.id === 'bone_armor' ? 10 : 0)
+                   + (equipSlots['pants']?.id === 'feather_pants' ? 5 : 0);
   ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
   ctx.fillStyle = '#a855f7';
   ctx.fillText('EQUIP', EQUIP_LEFT, INV_Y + INV_PAD + 10);
@@ -1114,20 +1133,20 @@ function drawInventory() {
     ctx.fillText(def.label, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 3);
 
     // Armor reduction indicator on helmet/chest/pants slots
-    const ARMOR_VAL = { feather_hat: 1, bone_armor: 3, feather_pants: 1 };
+    const ARMOR_VAL = { feather_hat: 5, bone_shield: 10, bone_armor: 10, feather_pants: 5 };
     if (item && ARMOR_VAL[item.id]) {
       const av = ARMOR_VAL[item.id];
       ctx.font = '600 8px monospace';
       glow('#60c0ff', 6);
       ctx.fillStyle = '#80d8ff';
-      ctx.fillText(`-${av} dmg`, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 13);
+      ctx.fillText(`-${av}%`, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 13);
       noGlow();
     }
   }
 
 
   // Defense display — bottom of inventory panel
-  const defPct = Math.round(totalArmor / 5 * 100);
+  const defPct = totalArmor;
   ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.05em';
   glow(totalArmor > 0 ? '#60c0ff' : '#333355', totalArmor > 0 ? 8 : 0);
   ctx.fillStyle = totalArmor > 0 ? '#80d8ff' : '#3a3a5a';
@@ -1921,14 +1940,13 @@ function updateMobs(dt, now) {
         }
         if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
         if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > cd) {
-          const helmet = equipSlots['helmet'];
-          const chest  = equipSlots['chestplate'];
-          let armor = 0;
-          const pants2 = equipSlots['pants'];
-          if (helmet && helmet.id === 'feather_hat')   armor += 1;
-          if (chest  && chest.id  === 'bone_armor')    armor += 3;
-          if (pants2 && pants2.id === 'feather_pants') armor += 1;
-          playerHp = Math.max(0, playerHp - Math.max(1, dmg - armor));
+          let defPct = 0;
+          if (equipSlots['helmet']?.id === 'feather_hat')     defPct += 5;
+          if (equipSlots['shield']?.id === 'bone_shield')     defPct += 10;
+          if (equipSlots['chestplate']?.id === 'bone_armor')  defPct += 10;
+          if (equipSlots['pants']?.id === 'feather_pants')    defPct += 5;
+          const reduced = Math.max(1, Math.round(dmg * (1 - defPct / 100)));
+          playerHp = Math.max(0, playerHp - reduced);
           lastZombieDmg = now; lastHitTime = now;
           spawnParticles(px, py, '#cc2020', 3);
         }
