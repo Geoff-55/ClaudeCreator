@@ -346,33 +346,38 @@ const SLOT_SIZE = 52, SLOT_GAP = 6;
 const INV_PAD   = 22;
 const CRAFT_W   = 140;
 const CRAFT_GAP = 16;
-const EQUIP_W   = 100;  // slot(52) + gap(6) + label(42)
-const EQUIP_GAP = 16;
+const EQUIP_W        = 100;  // slot(52) + gap(5) + label(43)
+const EQUIP_GAP      = 16;
+const EQUIP_COL2_GAP = 10;
 const RECIPE_H  = 76;
 
 const GRID_W = INV_COLS * SLOT_SIZE + (INV_COLS - 1) * SLOT_GAP;
 const GRID_H = INV_ROWS * SLOT_SIZE + (INV_ROWS - 1) * SLOT_GAP;
-const INV_W  = INV_PAD + CRAFT_W + CRAFT_GAP + GRID_W + EQUIP_GAP + EQUIP_W + INV_PAD;
+const INV_W  = INV_PAD + CRAFT_W + CRAFT_GAP + GRID_W + EQUIP_GAP + EQUIP_W + EQUIP_COL2_GAP + EQUIP_W + INV_PAD;
 const INV_H  = GRID_H + INV_PAD * 2 + 28;
 const INV_X  = Math.round((W - INV_W) / 2);
 const INV_Y  = Math.round((H - INV_H) / 2);
 
-const CRAFT_LEFT = INV_X + INV_PAD;
-const CRAFT_TOP  = INV_Y + INV_PAD + 28;
-const GRID_LEFT  = CRAFT_LEFT + CRAFT_W + CRAFT_GAP;
-const GRID_TOP   = CRAFT_TOP;
-const EQUIP_LEFT = GRID_LEFT + GRID_W + EQUIP_GAP;
-const EQUIP_TOP  = GRID_TOP;
+const CRAFT_LEFT  = INV_X + INV_PAD;
+const CRAFT_TOP   = INV_Y + INV_PAD + 28;
+const GRID_LEFT   = CRAFT_LEFT + CRAFT_W + CRAFT_GAP;
+const GRID_TOP    = CRAFT_TOP;
+const EQUIP_LEFT  = GRID_LEFT + GRID_W + EQUIP_GAP;
+const EQUIP2_LEFT = EQUIP_LEFT + EQUIP_W + EQUIP_COL2_GAP;
+const EQUIP_TOP   = GRID_TOP;
 
 const inventorySlots = new Array(INV_COLS * INV_ROWS).fill(null);
 
 const EQUIP_SLOT_DEFS = [
-  { name: 'weapon',     label: 'WEAPON' },
-  { name: 'shield',     label: 'SHIELD' },
-  { name: 'helmet',     label: 'HELMET' },
-  { name: 'chestplate', label: 'CHEST'  },
-  { name: 'pants',      label: 'PANTS'  },
-  { name: 'food',       label: 'FOOD'   },
+  { name: 'weapon',       label: 'WEAPON',  col: 0 },
+  { name: 'shield',       label: 'SHIELD',  col: 0 },
+  { name: 'helmet',       label: 'HELMET',  col: 0 },
+  { name: 'chestplate',   label: 'CHEST',   col: 0 },
+  { name: 'pants',        label: 'PANTS',   col: 0 },
+  { name: 'food',         label: 'FOOD',    col: 0 },
+  { name: 'hatchet_slot', label: 'HATCHET', col: 1 },
+  { name: 'pickaxe_slot', label: 'PICKAXE', col: 1 },
+  { name: 'furniture',    label: 'PLACE',   col: 1 },
 ];
 const equipSlots = {};
 for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
@@ -416,11 +421,11 @@ canvas.addEventListener('mouseup', e => {
   if (!_dragActive) return;
   _dragActive = false;
   if (!_dragMoved) { heldSlot = null; return; } // tiny movement = not a drag; let click handle it
-  _dragMoved = false;
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   const slot = getSlotAtPos(mx, my);
   if (slot) handleSlotInteract(slot); else heldSlot = null;
+  // leave _dragMoved = true so the click event (which fires after mouseup) suppresses itself
 });
 canvas.addEventListener('click', e => {
   if (_dragMoved) { _dragMoved = false; return; } // was a drag, already handled
@@ -571,10 +576,11 @@ function craft(recipe) {
 
 // Which equip slot each item belongs to (items not listed can only go in inventory)
 const ITEM_SLOT = {
-  hatchet: 'weapon', pickaxe: 'weapon', sword: 'weapon',
-  bronze_hatchet: 'weapon', bronze_pickaxe: 'weapon', bronze_sword: 'weapon',
-  campfire: 'weapon', crafting_station: 'weapon', mine_entrance: 'weapon', furnace: 'weapon',
-  sapling: 'weapon', torch: 'weapon',
+  sword: 'weapon', bronze_sword: 'weapon',
+  hatchet: 'hatchet_slot', bronze_hatchet: 'hatchet_slot',
+  pickaxe: 'pickaxe_slot', bronze_pickaxe: 'pickaxe_slot',
+  campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture',
+  furnace: 'furniture', sapling: 'furniture', torch: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
   bone_armor: 'chestplate',
   raw_chicken: 'food', cooked_chicken: 'food',
@@ -614,11 +620,15 @@ function getSlotAtPos(mx, my) {
         return { type: 'inv', idx: row * INV_COLS + col };
     }
   }
-  for (let i = 0; i < EQUIP_SLOT_DEFS.length; i++) {
-    const sx = EQUIP_LEFT;
-    const sy = EQUIP_TOP + i * (SLOT_SIZE + SLOT_GAP);
+  const _col0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
+  const _col1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
+  for (const def of EQUIP_SLOT_DEFS) {
+    const colArr = def.col === 0 ? _col0 : _col1;
+    const row = colArr.indexOf(def);
+    const sx = def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT;
+    const sy = EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP);
     if (mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE)
-      return { type: 'equip', name: EQUIP_SLOT_DEFS[i].name };
+      return { type: 'equip', name: def.name };
   }
   return null;
 }
@@ -1054,27 +1064,31 @@ function drawInventory() {
   }
 
   // ---- EQUIP PANEL ----
-  ctx.fillStyle = '#a855f7';
   ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
+  ctx.fillStyle = '#a855f7';
   ctx.fillText('EQUIP', EQUIP_LEFT, INV_Y + INV_PAD + 10);
+  ctx.fillText('TOOLS', EQUIP2_LEFT, INV_Y + INV_PAD + 10);
   ctx.letterSpacing = '0';
 
-  for (let i = 0; i < EQUIP_SLOT_DEFS.length; i++) {
-    const def  = EQUIP_SLOT_DEFS[i];
-    const sx   = EQUIP_LEFT;
-    const sy   = EQUIP_TOP + i * (SLOT_SIZE + SLOT_GAP);
+  const _eCol0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
+  const _eCol1 = EQUIP_SLOT_DEFS.filter(d => d.col === 1);
+  for (const def of EQUIP_SLOT_DEFS) {
+    const colArr = def.col === 0 ? _eCol0 : _eCol1;
+    const row  = colArr.indexOf(def);
+    const sx   = def.col === 0 ? EQUIP_LEFT : EQUIP2_LEFT;
+    const sy   = EQUIP_TOP + row * (SLOT_SIZE + SLOT_GAP);
     const slot = { type: 'equip', name: def.name };
     const item = equipSlots[def.name];
     const isH  = slotsEqual(heldSlot, slot);
-    const isActiveWeapon = def.name === 'weapon' && item;
+    const isActive = item && ['weapon','hatchet_slot','pickaxe_slot','furniture'].includes(def.name);
 
     ctx.fillStyle = isH ? '#1e0e32' : '#0d0a1e';
     ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
 
-    if (isH) { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
-    else if (isActiveWeapon) { glow('#c09030', 6); ctx.strokeStyle = '#8a6020'; }
-    else if (item)  ctx.strokeStyle = '#3a2060';
-    else            ctx.strokeStyle = '#1a0e30';
+    if (isH)       { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
+    else if (isActive) { glow('#c09030', 6); ctx.strokeStyle = '#8a6020'; }
+    else if (item) { ctx.strokeStyle = '#3a2060'; }
+    else           { ctx.strokeStyle = '#1a0e30'; }
     ctx.lineWidth = isH ? 1.5 : 1;
     ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
     noGlow();
@@ -1251,7 +1265,7 @@ function getNearbyInteractable() {
 }
 
 function getNearbyChopTarget() {
-  const weapon = equipSlots['weapon'];
+  const weapon = equipSlots['hatchet_slot'];
   if (!weapon || !['hatchet','bronze_hatchet'].includes(weapon.id)) return null;
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
@@ -1269,7 +1283,7 @@ function getNearbyChopTarget() {
 }
 
 function getNearbyMineTarget() {
-  const weapon = equipSlots['weapon'];
+  const weapon = equipSlots['pickaxe_slot'];
   if (!weapon || !['pickaxe','bronze_pickaxe'].includes(weapon.id)) return null;
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
@@ -1369,8 +1383,8 @@ function handleInteract() {
       if (Math.sqrt(dx*dx + dy*dy) < 70) { exitCave(i); return; }
     }
   }
-  // Place items if equipped in weapon slot
-  const weapon = equipSlots['weapon'];
+  // Place items from furniture slot
+  const weapon = equipSlots['furniture'];
   if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
     if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: inCave });
@@ -1379,7 +1393,7 @@ function handleInteract() {
     else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave });
     else mineEntrances.push({ x: px, y: py });
     weapon.count--;
-    if (weapon.count <= 0) equipSlots['weapon'] = null;
+    if (weapon.count <= 0) equipSlots['furniture'] = null;
     return;
   }
   // Enter mine entrance
@@ -1691,12 +1705,13 @@ function drawStamina() {
 const SWORD_RANGE = 70;
 
 function handleAttackClick(mx, my) {
-  const w = equipSlots['weapon'];
-  if (!w) return;
+  const sword   = equipSlots['weapon'];
+  const hatchet = equipSlots['hatchet_slot'];
+  const pickaxe = equipSlots['pickaxe_slot'];
   const wx = mx + camX, wy = my + camY;
 
-  if (w.id === 'sword' || w.id === 'bronze_sword') {
-    const dmg = w.id === 'bronze_sword' ? 12 : 5;
+  if (sword && (sword.id === 'sword' || sword.id === 'bronze_sword')) {
+    const dmg = sword.id === 'bronze_sword' ? 12 : 5;
     for (const m of mobs) {
       if (m.dead) continue;
       const dx = m.x - px, dy = m.y - py;
@@ -1704,11 +1719,12 @@ function handleAttackClick(mx, my) {
       const cdx = wx - m.x, cdy = wy - m.y;
       if (Math.sqrt(cdx*cdx + cdy*cdy) > 36) continue;
       m.hp -= dmg;
-      spawnParticles(m.x, m.y, w.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
+      spawnParticles(m.x, m.y, sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
       if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
     }
-  } else if (w.id === 'hatchet' || w.id === 'bronze_hatchet') {
-    const power = w.id === 'bronze_hatchet' ? 2 : 1;
+  }
+  if (hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet')) {
+    const power = hatchet.id === 'bronze_hatchet' ? 2 : 1;
     let best = null, bestD = Infinity;
     for (const chunk of worldChunks) {
       if (!chunk.tree || chunk.tree.chopped) continue;
@@ -1718,8 +1734,9 @@ function handleAttackClick(mx, my) {
       if (d < CHOP_RANGE && d < bestD) { bestD = d; best = t; }
     }
     if (best) chopTree(best, power);
-  } else if (w.id === 'pickaxe' || w.id === 'bronze_pickaxe') {
-    const power = w.id === 'bronze_pickaxe' ? 2 : 1;
+  }
+  if (pickaxe && (pickaxe.id === 'pickaxe' || pickaxe.id === 'bronze_pickaxe')) {
+    const power = pickaxe.id === 'bronze_pickaxe' ? 2 : 1;
     let best = null, bestD = Infinity;
     for (const rock of curRocks()) {
       if (rock.mined) continue;
@@ -2027,20 +2044,22 @@ function drawNightOverlay() {
 
 // ===================== ATTACK RADIUS =====================
 function drawAttackRadius() {
-  const w = equipSlots['weapon'];
-  if (!w) return;
-  let r = 0, col = '#ffffff';
-  if      (w.id === 'sword'   || w.id === 'bronze_sword')   { r = SWORD_RANGE; col = w.id === 'bronze_sword' ? '#e08020' : '#ff6060'; }
-  else if (w.id === 'hatchet' || w.id === 'bronze_hatchet') { r = CHOP_RANGE;  col = w.id === 'bronze_hatchet' ? '#d07030' : '#90d040'; }
-  else if (w.id === 'pickaxe' || w.id === 'bronze_pickaxe') { r = MINE_RANGE;  col = w.id === 'bronze_pickaxe' ? '#d07030' : '#b8b8b8'; }
-  if (!r) return;
   const sx = px - camX, sy = py - camY;
   ctx.save();
-  ctx.globalAlpha = 0.07; ctx.fillStyle = col;
-  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
-  ctx.globalAlpha = 0.18; ctx.strokeStyle = col; ctx.lineWidth = 1;
-  ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.stroke();
-  ctx.setLineDash([]); ctx.restore();
+  function rangeCircle(r, col) {
+    ctx.globalAlpha = 0.07; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 0.18; ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  const sword   = equipSlots['weapon'];
+  const hatchet = equipSlots['hatchet_slot'];
+  const pickaxe = equipSlots['pickaxe_slot'];
+  if (sword   && (sword.id   === 'sword'   || sword.id   === 'bronze_sword'))   rangeCircle(SWORD_RANGE, sword.id   === 'bronze_sword'   ? '#e08020' : '#ff6060');
+  if (hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet')) rangeCircle(CHOP_RANGE,  hatchet.id === 'bronze_hatchet' ? '#d07030' : '#90d040');
+  if (pickaxe && (pickaxe.id === 'pickaxe' || pickaxe.id === 'bronze_pickaxe')) rangeCircle(MINE_RANGE,  pickaxe.id === 'bronze_pickaxe' ? '#d07030' : '#b8b8b8');
+  ctx.restore();
 }
 
 // ===================== CRAFTING STATIONS (WORLD) =====================
@@ -2166,7 +2185,7 @@ function drawMineExits() {
 
 // ===================== PLACEMENT PREVIEW =====================
 function drawCampfirePreview() {
-  const weapon = equipSlots['weapon'];
+  const weapon = equipSlots['furniture'];
   if (!weapon) return;
   const sx = Math.round(px - camX), sy = Math.round(py - camY);
   ctx.save();
