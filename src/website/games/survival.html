@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">phantom zombie: black body red eyes, invincible, rushes player on sight (day 3+), explodes into dark smoke on contact</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">fix crash: FACING_DOT deleted during debug cleanup, breaking chop/mine target detection</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -1255,6 +1255,7 @@ function resolveRockCollisions() {
 const PICKUP_RANGE = 65;
 const CHOP_RANGE   = 90;
 const MINE_RANGE   = 75;
+const FACING_DOT   = 0.3;
 
 function getNearbyInteractable() {
   let best = null, bestDist = Infinity;
@@ -2602,19 +2603,7 @@ function drawShadowFigures() {
 
 // ===================== LOOP =====================
 let last = 0;
-let _crashMsg = null;
 function loop(ts) {
-  if (_crashMsg) {
-    ctx.fillStyle = '#07060f'; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#ff4040'; ctx.font = '600 13px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('JS ERROR (open console for details):', W/2, H/2 - 20);
-    ctx.fillStyle = '#e0c0ff'; ctx.font = '11px monospace';
-    ctx.fillText(_crashMsg.slice(0, 90), W/2, H/2 + 4);
-    ctx.textAlign = 'left';
-    requestAnimationFrame(loop);
-    return;
-  }
-  try {
   const dt = Math.min((ts - last) / 1000, 0.05);
   last = ts;
   const now = ts / 1000;
@@ -2671,7 +2660,6 @@ function loop(ts) {
   if (mapOpen && !gameOver) drawMap();
   if (gameOver) drawGameOver();
   requestAnimationFrame(loop);
-  } catch(e) { _crashMsg = e.message || String(e); console.error('[SURVIVAL CRASH]', e); requestAnimationFrame(loop); }
 }
 requestAnimationFrame(loop);
 </script>
