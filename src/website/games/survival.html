@@ -1797,7 +1797,7 @@ function mineRock(rock, power) {
     rock.mined = true; rock.minedTime = gameNow;
     score += isCoal ? 30 : isBronze ? 45 : isIron ? 50 : 40;
     const dropType = isCoal ? 'coal' : isBronze ? 'rough_bronze' : isIron ? 'iron_ore' : 'rock';
-    const numDrop = 2 + Math.floor(Math.random() * 3);
+    const numDrop = isCoal || isBronze || isIron ? 2 + Math.floor(Math.random() * 3) : 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < numDrop; i++) {
       const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 38;
       curGround().push({ type: dropType, x: rock.x + Math.cos(a)*d, y: rock.y + Math.sin(a)*d, pickedUp: false });
