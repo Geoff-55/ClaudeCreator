@@ -1,5 +1,37 @@
 # Session History
 
+## Session 10 -- 2026-03-19
+
+Survival game (survival.html) — world detail + progression + horror session:
+
+**Monoliths:**
+  - Spawn on surface after day 7 (cap 6 total across all levels, ~65% per cycle)
+  - Also spawn in cave 1 and cave 2 (surface ~55%, cave1 ~23%, cave2 ~22%)
+  - Pixel art obelisk: dark red/black body with red glow, rune marks, tapering spire
+  - Requires iron pickaxe to mine (8 hits); drops 1 ??? item, -200 score, triggers red grid flash
+  - Don't respawn at same spot; new ones spawn periodically at random positions
+
+**??? item + recipe:**
+  - ??? item = plain black square, drops from monoliths
+  - ??? recipe (void_entrance): costs 15 iron ingots + 5 ??? items, requires crafting station
+  - void_entrance item = red neon glowing mine entrance sprite
+  - Recipe only visible after first monolith broken; red backdrop = can't craft, yellow = can craft
+  - Recipe tier system: bronze recipes hidden until Floor 1 entered, iron until Floor 2 entered
+
+**Horror effects updated:**
+  - After breaking first monolith: ~5%/sec chance at night for corrupt player to flash directly next to player (0.07–0.17s)
+  - Upside-down chicken 2.25× more frequent (0.00008 → 0.00018)
+  - Butterflies stop spawning on day 7+
+
+**World details:**
+  - Surface: soil/moss patches (3–8 per chunk, dark green + dirt brown), 4-petal cross flowers (sparse, 8 colors), mushrooms kept
+  - Cave 1 floor: pebble clusters (3–7/chunk), 0–2 stalagmites, floor cracks (60%), dark puddle smears (25%)
+  - Cave 2 floor: scorch patches (2–6/chunk), 1–2 cracks (50% chance for two), ash piles (50%)
+
+**Other changes:**
+  - Miner zombies: always spawn in cave 2, 1/10 chance in cave 1
+  - Plain rock nodes drop 3–5 rocks (was 2–4)
+
 ## Session 9 -- 2026-03-18
 
 Survival game (survival.html) — polish + horror atmosphere session:
