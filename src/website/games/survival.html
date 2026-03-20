@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">craft station 5 rocks, mine entrance 10 rocks; chickens flip upside-down day 3+</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">craft station 5 rocks, mine entrance 10 rocks; chickens flip upside-down day 5+</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -200,6 +200,16 @@ function generateSurfaceWorld() {
         worldRocks.push({
           x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
           y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+          mined: false,
+          mineHealth: undefined, hitsLeft: undefined,
+        });
+      }
+      // Super rare surface coal (~2% per chunk)
+      if (rng() < 0.02) {
+        worldRocks.push({
+          x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
+          y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+          type: 'coal',
           mined: false,
           mineHealth: undefined, hitsLeft: undefined,
         });
@@ -1869,7 +1879,7 @@ function spawnMob(type, cap) {
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
     const r = Math.random();
-    if      (getCurrentDay() >= 3 && r < 1/12) { subtype = 'phantom'; hp = 999; }
+    if      (getCurrentDay() >= 5 && r < 1/20) { subtype = 'phantom'; hp = 999; }
     else if (r < 1/15)                          { subtype = 'brute';   hp = 25; }
     else if (r < 1/15 + 1/10)                  { subtype = 'quick';   hp = 4; }
   }
@@ -1964,7 +1974,7 @@ function updateMobs(dt, now) {
       m.drawScale += (m.dir - m.drawScale) * Math.min(1, dt * 10);
       // Upside-down flip (day 3+, tiny random chance)
       if (!m.flipped) {
-        if (getCurrentDay() >= 3 && Math.random() < 0.0003) {
+        if (getCurrentDay() >= 5 && Math.random() < 0.00008) {
           m.flipped = true; m.flipTimer = 0.6 + Math.random() * 0.8;
         }
       } else {
@@ -2451,6 +2461,7 @@ function restartGame() {
   lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999;
   shadowSightings.length = 0; lastShadowAppear = -9999;
   _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
+  butterflies.length = 0; butterflyDay = 0;
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
@@ -2503,10 +2514,10 @@ function drawPlayerHp() {
 
 // ===================== SAPLINGS =====================
 function updateTorches(dt) {
-  if (getCurrentDay() < 3) return;
+  if (getCurrentDay() < 5) return;
   for (const f of torches) {
     if (f.redTimer > 0) { f.redTimer -= dt; continue; }
-    if (Math.random() < 0.0008) f.redTimer = 0.08 + Math.random() * 0.1;
+    if (Math.random() < 0.0002) f.redTimer = 0.08 + Math.random() * 0.1;
   }
 }
 
@@ -2537,6 +2548,8 @@ function updateCaveRockRespawn() {
   for (const rock of caveRocks) {
     if (!rock.mined || rock.minedTime === undefined) continue;
     if (gameNow - rock.minedTime < ROCK_RESPAWN_TIME) continue;
+    rock.x = 80 + Math.random() * (CAVE_W - 160);
+    rock.y = 60 + Math.random() * (CAVE_H - 160);
     rock.mined = false; rock.minedTime = undefined;
     rock.mineHealth = rock.type === 'bronze' ? 5 : rock.type === 'coal' ? 3 : 4;
     rock.hitsLeft = rock.mineHealth;
@@ -2571,21 +2584,34 @@ function updateRespawns(dt) {
   if (respawnTimer < CYCLE_LEN) return;
   respawnTimer -= CYCLE_LEN;
 
-  // Respawn up to 2 random chopped trees
+  // Respawn up to 2 random chopped trees at new random positions
   const choppedTrees = worldChunks.filter(c => c.tree && c.tree.chopped);
   for (let i = 0; i < Math.min(2, choppedTrees.length); i++) {
     const idx = Math.floor(Math.random() * choppedTrees.length);
     const t = choppedTrees.splice(idx, 1)[0].tree;
+    t.x = 90 + Math.random() * (WORLD_W - 180);
+    t.y = 70 + Math.random() * (WORLD_H - 180);
+    const numSegs = Math.ceil(TH / SEG_H);
+    const newSegs = [];
+    let drift = 0;
+    for (let j = 0; j < numSegs; j++) {
+      drift += Math.round(Math.random() * 6 - 3);
+      drift = Math.max(-6, Math.min(6, drift));
+      newSegs.push(drift);
+    }
+    t.segs = newSegs;
     t.chopped = false; t.chopHealth = undefined; t.chopsLeft = undefined;
     spawnParticles(t.x, t.y + CRY * CBS, '#3a8a1c', 12);
     spawnParticles(t.x, t.y + CRY * CBS, '#4a8a1c', 8);
   }
 
-  // Respawn up to 2 random mined rocks
+  // Respawn up to 2 random mined rocks at new random positions
   const minedRocks = worldRocks.filter(r => r.mined);
   for (let i = 0; i < Math.min(2, minedRocks.length); i++) {
     const idx = Math.floor(Math.random() * minedRocks.length);
     const r = minedRocks.splice(idx, 1)[0];
+    r.x = 80 + Math.random() * (WORLD_W - 160);
+    r.y = 60 + Math.random() * (WORLD_H - 160);
     r.mined = false; r.mineHealth = undefined; r.hitsLeft = undefined;
     spawnParticles(r.x, r.y, '#909090', 10);
   }
@@ -2609,14 +2635,14 @@ function updateShadow(dt, now) {
     if (shadowSightings[i].timer >= shadowSightings[i].duration) shadowSightings.splice(i, 1);
   }
   const day = getCurrentDay();
-  if (day < 3 || shadowSightings.length > 0) return;
+  if (day < 5 || shadowSightings.length > 0) return;
 
   const playerStill = _shadowStillTime > 3.5;
   // Delay: shorter when standing still, shrinks with days
-  const delay = playerStill ? 2.5 : Math.max(5, 22 - (day - 3) * 3);
+  const delay = playerStill ? 4 : Math.max(8, 28 - (day - 5) * 3);
   if (now - lastShadowAppear < delay) return;
   lastShadowAppear = now;
-  if (Math.random() > (playerStill ? 0.92 : 0.7)) return;
+  if (Math.random() > (playerStill ? 0.94 : 0.82)) return;
 
   // Collect candidates — prefer objects near screen edges (just scrolled in)
   const all = [], edge = [];
@@ -2683,6 +2709,82 @@ function drawShadowFigures() {
   }
 }
 
+// ===================== BUTTERFLIES =====================
+const butterflies = [];
+let butterflyDay = 0;
+
+function spawnDayButterflies() {
+  if (inCave || darkAlpha > 0.15) return;
+  const day = getCurrentDay();
+  if (day === butterflyDay) return;
+  butterflyDay = day;
+  butterflies.length = 0;
+  // Rare: ~25% chance of 1 butterfly, ~8% chance of 2
+  const count = Math.random() < 0.25 ? (Math.random() < 0.33 ? 2 : 1) : 0;
+  if (count === 0) return;
+  const grassPatches = [];
+  for (const chunk of worldChunks) {
+    for (const g of chunk.grass) grassPatches.push(g);
+  }
+  if (grassPatches.length === 0) return;
+  const COLORS = ['#88ccff','#ffcc88','#ccffaa','#ffaacc'];
+  for (let i = 0; i < count; i++) {
+    const g = grassPatches[Math.floor(Math.random() * grassPatches.length)];
+    const col = COLORS[Math.floor(Math.random() * COLORS.length)];
+    butterflies.push({
+      x: g.x + (Math.random()-0.5)*40,
+      y: g.y + (Math.random()-0.5)*40,
+      grassX: g.x, grassY: g.y,
+      vx: 0, vy: 0,
+      bobTimer: Math.random() * Math.PI * 2,
+      nextWaypoint: 0, wpX: g.x, wpY: g.y,
+      color: col,
+    });
+  }
+}
+
+function updateButterflies(dt, now) {
+  if (inCave) { butterflies.length = 0; return; }
+  if (darkAlpha > 0.15) { butterflies.length = 0; return; }
+  spawnDayButterflies();
+  for (const b of butterflies) {
+    b.bobTimer += dt * 9;
+    if (now > b.nextWaypoint) {
+      b.wpX = b.grassX + (Math.random()-0.5)*70;
+      b.wpY = b.grassY + (Math.random()-0.5)*70;
+      b.nextWaypoint = now + 1.2 + Math.random() * 2.5;
+    }
+    const dx = b.wpX - b.x, dy = b.wpY - b.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    const spd = 38;
+    if (d > 5) { b.vx = (dx/d)*spd; b.vy = (dy/d)*spd; }
+    else { b.vx *= 0.4; b.vy *= 0.4; }
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+  }
+}
+
+function drawButterflies() {
+  if (inCave || darkAlpha > 0.15 || butterflies.length === 0) return;
+  for (const b of butterflies) {
+    const sx = Math.round(b.x - camX), sy = Math.round(b.y - camY);
+    if (sx < -10 || sx > W+10 || sy < -10 || sy > H+10) continue;
+    const bob = Math.round(Math.sin(b.bobTimer) * 2);
+    const wingsOpen = Math.abs(Math.sin(b.bobTimer * 0.5)) > 0.4;
+    ctx.globalAlpha = 0.82;
+    ctx.fillStyle = b.color;
+    if (wingsOpen) {
+      ctx.fillRect(sx-4, sy+bob-1, 3, 2); // left wing
+      ctx.fillRect(sx+2, sy+bob-1, 3, 2); // right wing
+    } else {
+      ctx.fillRect(sx-1, sy+bob-2, 2, 3); // wings closed
+    }
+    ctx.fillStyle = '#181818';
+    ctx.fillRect(sx, sy+bob-1, 1, 3); // body
+    ctx.globalAlpha = 1;
+  }
+}
+
 // ===================== LOOP =====================
 let last = 0;
 function loop(ts) {
@@ -2709,6 +2811,7 @@ function loop(ts) {
     if (inCave) updateCaveRockRespawn();
     updateShadow(dt, now);
     updateTorches(dt);
+    updateButterflies(dt, now);
     updateParticles(dt);
     checkGameOver();
     updateCamera();
@@ -2716,6 +2819,7 @@ function loop(ts) {
   drawBg();
   if (!inCave) drawGrass();
   if (!inCave) drawSaplings();
+  if (!inCave) drawButterflies();
   drawGroundItemBodies();
   if (!inCave) drawTreeBases();
   drawRockBases();
