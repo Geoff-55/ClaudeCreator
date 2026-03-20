@@ -288,19 +288,57 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
 }
 generateCaveWorld();
 
+// ===================== CAVE 2 WORLD =====================
+const CAVE2_CHUNKS = 8;
+const CAVE2_W = CHUNK_W * CAVE2_CHUNKS;
+const CAVE2_H = CHUNK_H * CAVE2_CHUNKS;
+const cave2Rocks       = [];
+const cave2GroundItems = [];
+
+function generateCave2World() {
+  cave2Rocks.length = 0; cave2GroundItems.length = 0;
+  for (let cy = 0; cy < CAVE2_CHUNKS; cy++) {
+    for (let cx = 0; cx < CAVE2_CHUNKS; cx++) {
+      const rng = chunkRNG(cx + 2000, cy + 2000);
+      const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
+      const numBig = 2 + Math.floor(rng() * 4);
+      for (let i = 0; i < numBig; i++) {
+        cave2Rocks.push({
+          x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
+          y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
+          type: 'rock',
+          mined: false, mineHealth: undefined, hitsLeft: undefined,
+        });
+      }
+      const numSmall = 1 + Math.floor(rng() * 3);
+      for (let i = 0; i < numSmall; i++) {
+        cave2GroundItems.push({
+          type: 'rock',
+          x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
+          y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
+          pickedUp: false,
+        });
+      }
+    }
+  }
+}
+generateCave2World();
+
 // ===================== CAVE STATE =====================
-let inCave = false;
+let caveLevel = 0; // 0=surface, 1=cave1, 2=cave2
+let inCave = false; // true when caveLevel > 0
 const mineExits = [];
+const cave2Exits = [];
 let surfacePx = 0, surfacePy = 0;
 
-function curRocks()  { return inCave ? caveRocks  : worldRocks; }
-function curGround() { return inCave ? caveGroundItems : worldGroundItems; }
-function curWorldW() { return inCave ? CAVE_W : WORLD_W; }
-function curWorldH() { return inCave ? CAVE_H : WORLD_H; }
+function curRocks()  { return caveLevel === 2 ? cave2Rocks : inCave ? caveRocks : worldRocks; }
+function curGround() { return caveLevel === 2 ? cave2GroundItems : inCave ? caveGroundItems : worldGroundItems; }
+function curWorldW() { return caveLevel === 2 ? CAVE2_W : inCave ? CAVE_W : WORLD_W; }
+function curWorldH() { return caveLevel === 2 ? CAVE2_H : inCave ? CAVE_H : WORLD_H; }
 
 function enterCave(entranceIdx) {
   const ent = mineEntrances[entranceIdx];
-  inCave = true;
+  inCave = true; caveLevel = 1;
   if (ent.caveExitIdx === undefined) {
     ent.caveExitIdx = mineExits.length;
     mineExits.push({ x: ent.x, y: ent.y, entranceIdx });
@@ -312,10 +350,30 @@ function enterCave(entranceIdx) {
 
 function exitCave(exitIdx) {
   const exit = mineExits[exitIdx];
-  inCave = false;
+  inCave = false; caveLevel = 0;
   mobs.length = 0;
   px = mineEntrances[exit.entranceIdx].x;
   py = mineEntrances[exit.entranceIdx].y;
+}
+
+function enterCave2(entranceIdx) {
+  const ent = mineEntrancesT2[entranceIdx];
+  inCave = true; caveLevel = 2;
+  if (ent.cave2ExitIdx === undefined) {
+    ent.cave2ExitIdx = cave2Exits.length;
+    cave2Exits.push({ x: ent.x, y: ent.y, entranceIdx });
+  }
+  px = cave2Exits[ent.cave2ExitIdx].x;
+  py = cave2Exits[ent.cave2ExitIdx].y;
+  mobs.length = 0;
+}
+
+function exitCave2(exitIdx) {
+  const exit = cave2Exits[exitIdx];
+  inCave = false; caveLevel = 0;
+  mobs.length = 0;
+  px = mineEntrancesT2[exit.entranceIdx].x;
+  py = mineEntrancesT2[exit.entranceIdx].y;
 }
 
 let gameNow = 0; // updated each frame, used by sapling grow check
@@ -325,6 +383,7 @@ const saplings = []; // { x, y, plantedTime }
 const campfires = [];
 const craftingStations = [];
 const mineEntrances = [];
+const mineEntrancesT2 = [];
 const furnaces = [];
 const torches  = [];
 const STATION_RANGE = 110;
@@ -520,6 +579,11 @@ const RECIPES = [
     requiresStation: true,
   },
   {
+    id: 'mine_entrance_t2', name: 'Mine Entrance T2',
+    ingredients: [{ id: 'rock', count: 25 }, { id: 'stick', count: 25 }, { id: 'bronze_ingot', count: 10 }, { id: 'bone', count: 10 }],
+    requiresStation: true,
+  },
+  {
     id: 'furnace', name: 'Furnace',
     ingredients: [{ id: 'rock', count: 30 }],
     requiresStation: true,
@@ -611,7 +675,7 @@ const ITEM_SLOT = {
   sword: 'weapon', bronze_sword: 'weapon',
   hatchet: 'hatchet_slot', bronze_hatchet: 'hatchet_slot',
   pickaxe: 'pickaxe_slot', bronze_pickaxe: 'pickaxe_slot',
-  campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture',
+  campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture', mine_entrance_t2: 'furniture',
   furnace: 'furniture', sapling: 'furniture', torch: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
   bone_armor: 'chestplate', bone_shield: 'shield',
@@ -950,6 +1014,19 @@ function drawItemIcon(id, cx, cy, size) {
     // arch opening
     [[D,0,0],[D,1,0],[D,2,0],[D,3,0],[D,4,0],[D,5,0],[D,6,0],[D,7,0],
      [D,0,1],[M,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[M,6,1],[D,7,1],
+     [D,0,2],[F,1,2],[O,2,2],[O,3,2],[O,4,2],[O,5,2],[F,6,2],[D,7,2],
+     [D,0,3],[F,1,3],[O,2,3],[O,3,3],[O,4,3],[O,5,3],[F,6,3],[D,7,3],
+     [D,0,4],[L,1,4],[O,2,4],[O,3,4],[O,4,4],[O,5,4],[L,6,4],[D,7,4],
+     [D,0,5],[D,1,5],[D,2,5],[D,3,5],[D,4,5],[D,5,5],[D,6,5],[D,7,5],
+     [D,0,6],[D,1,6],[D,6,6],[D,7,6],
+     [D,0,7],[D,1,7],[D,6,7],[D,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'mine_entrance_t2') {
+    const D = '#3a2808', M = '#5a4018', F = '#8a6030', L = '#c07828', O = '#100804';
+    // Bronze-framed arch
+    [[D,0,0],[L,1,0],[L,2,0],[L,3,0],[L,4,0],[L,5,0],[L,6,0],[D,7,0],
+     [D,0,1],[F,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[F,6,1],[D,7,1],
      [D,0,2],[F,1,2],[O,2,2],[O,3,2],[O,4,2],[O,5,2],[F,6,2],[D,7,2],
      [D,0,3],[F,1,3],[O,2,3],[O,3,3],[O,4,3],[O,5,3],[F,6,3],[D,7,3],
      [D,0,4],[L,1,4],[O,2,4],[O,3,4],[O,4,4],[O,5,4],[L,6,4],[D,7,4],
@@ -1433,33 +1510,47 @@ function handleInteract() {
   if (!justPressed.has('e')) return;
   justPressed.delete('e');
   if (inventoryOpen) return;
-  // Cave exit
-  if (inCave) {
+  // Cave exits
+  if (caveLevel === 1) {
     for (let i = 0; i < mineExits.length; i++) {
       const exit = mineExits[i];
       const dx = exit.x - px, dy = exit.y - py;
       if (Math.sqrt(dx*dx + dy*dy) < 70) { exitCave(i); return; }
     }
   }
+  if (caveLevel === 2) {
+    for (let i = 0; i < cave2Exits.length; i++) {
+      const exit = cave2Exits[i];
+      const dx = exit.x - px, dy = exit.y - py;
+      if (Math.sqrt(dx*dx + dy*dy) < 70) { exitCave2(i); return; }
+    }
+  }
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
-  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
+  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
     if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: inCave });
     else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: inCave });
-    else if (weapon.id === 'sapling') saplings.push({ x: px, y: py, plantedTime: gameNow });
+    else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: px, y: py, plantedTime: gameNow }); }
     else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave, redTimer: 0 });
-    else mineEntrances.push({ x: px, y: py });
+    else if (weapon.id === 'mine_entrance' && !inCave) mineEntrances.push({ x: px, y: py });
+    else if (weapon.id === 'mine_entrance_t2' && !inCave) mineEntrancesT2.push({ x: px, y: py });
+    else { return; } // can't place underground
     weapon.count--;
     if (weapon.count <= 0) equipSlots['furniture'] = null;
     return;
   }
-  // Enter mine entrance
-  if (!inCave) {
+  // Enter mine entrances (surface only)
+  if (caveLevel === 0) {
     for (let i = 0; i < mineEntrances.length; i++) {
       const me = mineEntrances[i];
       const dx = me.x - px, dy = me.y - py;
       if (Math.sqrt(dx*dx + dy*dy) < 70) { enterCave(i); return; }
+    }
+    for (let i = 0; i < mineEntrancesT2.length; i++) {
+      const me = mineEntrancesT2[i];
+      const dx = me.x - px, dy = me.y - py;
+      if (Math.sqrt(dx*dx + dy*dy) < 70) { enterCave2(i); return; }
     }
   }
 }
@@ -1554,7 +1645,13 @@ const GRID = 40;
 
 function drawBg() {
   const ox = camX % GRID, oy = camY % GRID;
-  if (inCave) {
+  if (caveLevel === 2) {
+    ctx.fillStyle = '#251a10';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#1e1208'; ctx.lineWidth = 0.5;
+    for (let x = -ox; x < W; x += GRID) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = -oy; y < H; y += GRID) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  } else if (inCave) {
     ctx.fillStyle = '#18150f';
     ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = '#111008'; ctx.lineWidth = 0.5;
@@ -1580,7 +1677,8 @@ function drawBg() {
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  const gc = inCave ? '#6a4820' : '#3a5a20', sc = inCave ? '#8a6030' : '#4a6a28';
+  const gc = caveLevel === 2 ? '#8a3010' : inCave ? '#6a4820' : '#3a5a20';
+  const sc = caveLevel === 2 ? '#c04820' : inCave ? '#8a6030' : '#4a6a28';
   glow(gc, 18); ctx.strokeStyle = sc; ctx.lineWidth = 4;
   ctx.strokeRect(bx, by, curWorldW(), curWorldH()); noGlow();
 }
@@ -2284,6 +2382,76 @@ function drawMineEntrances() {
       ctx.textAlign = 'left';
     }
   }
+  // T2 mine entrances — bronze-framed
+  for (const m of mineEntrancesT2) {
+    const sx = Math.round(m.x - camX), sy = Math.round(m.y - camY);
+    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
+    // Bronze frame
+    ctx.fillStyle = '#5a3808'; ctx.fillRect(sx-22, sy-22, 44, 36);
+    // Dark opening with orange glow hint
+    ctx.fillStyle = '#0c0804'; ctx.fillRect(sx-15, sy-18, 30, 28);
+    ctx.fillStyle = '#3a1800'; ctx.fillRect(sx-14, sy-17, 28, 8);
+    // Lintel
+    ctx.fillStyle = '#c07020'; ctx.fillRect(sx-22, sy+12, 44, 7);
+    // Side pillars
+    ctx.fillStyle = '#8a6030';
+    ctx.fillRect(sx-22, sy-22, 7, 34); ctx.fillRect(sx+15, sy-22, 7, 34);
+    // Bronze cap stones
+    ctx.fillStyle = '#c07828'; ctx.fillRect(sx-22, sy-22, 44, 5);
+    // Label
+    ctx.fillStyle = '#c07828'; ctx.font = '700 7px monospace';
+    ctx.textAlign = 'center'; ctx.fillText('T2', sx, sy + 17); ctx.textAlign = 'left';
+    // E prompt
+    const mdist = Math.sqrt((m.x-px)**2 + (m.y-py)**2);
+    if (mdist < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('[E] enter T2', sx, sy - 28);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+// ===================== LAVA DRIPS =====================
+const lavaDrips = []; // { x, y, vy, len, life, maxLife }
+
+function updateLavaDrips(dt) {
+  if (caveLevel !== 2) { lavaDrips.length = 0; return; }
+  // Spawn occasional drip from a random ceiling position
+  if (Math.random() < dt * 1.2) {
+    lavaDrips.push({
+      x: camX + 20 + Math.random() * (W - 40),
+      y: camY + Math.random() * 30,
+      vy: 25 + Math.random() * 20,
+      len: 5 + Math.random() * 10,
+      life: 0,
+      maxLife: 2.5 + Math.random() * 3,
+    });
+  }
+  for (let i = lavaDrips.length - 1; i >= 0; i--) {
+    const d = lavaDrips[i];
+    d.y += d.vy * dt;
+    d.life += dt;
+    if (d.life > d.maxLife) lavaDrips.splice(i, 1);
+  }
+}
+
+function drawLavaDrips() {
+  if (caveLevel !== 2 || lavaDrips.length === 0) return;
+  for (const d of lavaDrips) {
+    const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
+    if (sx < 0 || sx > W || sy < -20 || sy > H + 20) continue;
+    const t = d.life / d.maxLife;
+    const alpha = t < 0.1 ? t / 0.1 : t > 0.75 ? (1 - t) / 0.25 : 1;
+    ctx.globalAlpha = alpha * 0.88;
+    // Drip body: orange fading to dark red
+    ctx.fillStyle = t < 0.4 ? '#ff6010' : '#8a2000';
+    ctx.fillRect(sx, sy - Math.round(d.len), 2, Math.round(d.len));
+    // Glowing tip
+    ctx.fillStyle = '#ffdd40';
+    ctx.fillRect(sx, sy, 2, 3);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ===================== MINE EXITS (CAVE) =====================
@@ -2310,6 +2478,40 @@ function drawMineExits() {
     // Cap stones
     ctx.fillStyle = '#2a2018'; ctx.fillRect(sx-22, sy-22, 44, 5);
     // E prompt when nearby
+    const mdist = Math.sqrt((m.x-px)**2 + (m.y-py)**2);
+    if (mdist < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('[E] exit', sx, sy - 28);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+// ===================== CAVE2 EXITS =====================
+function drawCave2Exits() {
+  for (const m of cave2Exits) {
+    const sx = Math.round(m.x - camX), sy = Math.round(m.y - camY);
+    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
+    // Bronze frame
+    ctx.fillStyle = '#5a3808'; ctx.fillRect(sx-22, sy-22, 44, 36);
+    // Warm glow opening
+    ctx.fillStyle = '#c06030'; ctx.fillRect(sx-15, sy-18, 30, 28);
+    ctx.fillStyle = '#e08840'; ctx.fillRect(sx-12, sy-15, 24, 22);
+    // Ladder rungs
+    ctx.fillStyle = '#8a5820';
+    ctx.fillRect(sx-5, sy-12, 10, 2); ctx.fillRect(sx-5, sy-5, 10, 2);
+    ctx.fillRect(sx-5, sy+2,  10, 2); ctx.fillRect(sx-5, sy+9, 10, 2);
+    ctx.fillStyle = '#6a3810';
+    ctx.fillRect(sx-7, sy-14, 3, 26); ctx.fillRect(sx+4, sy-14, 3, 26);
+    // Lintel
+    ctx.fillStyle = '#c07020'; ctx.fillRect(sx-22, sy+12, 44, 7);
+    // Side pillars
+    ctx.fillStyle = '#8a6030';
+    ctx.fillRect(sx-22, sy-22, 7, 34); ctx.fillRect(sx+15, sy-22, 7, 34);
+    // Cap stones (bronze)
+    ctx.fillStyle = '#c07828'; ctx.fillRect(sx-22, sy-22, 44, 5);
+    // E prompt
     const mdist = Math.sqrt((m.x-px)**2 + (m.y-py)**2);
     if (mdist < 70) {
       ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
@@ -2451,8 +2653,8 @@ function checkGameOver() {
 function restartGame() {
   playerHp = 75; score = 0; gameOver = false; lastHitTime = -999;
   mobs.length = 0; campfires.length = 0; craftingStations.length = 0;
-  mineEntrances.length = 0; furnaces.length = 0; torches.length = 0; saplings.length = 0;
-  inCave = false; mineExits.length = 0;
+  mineEntrances.length = 0; mineEntrancesT2.length = 0; furnaces.length = 0; torches.length = 0; saplings.length = 0;
+  inCave = false; caveLevel = 0; mineExits.length = 0; cave2Exits.length = 0; lavaDrips.length = 0;
   inventorySlots.fill(null);
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
   px = WORLD_W / 2; py = WORLD_H / 2;
@@ -2465,6 +2667,7 @@ function restartGame() {
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
+  generateCave2World();
 }
 
 function drawGameOver() {
@@ -2552,6 +2755,18 @@ function updateCaveRockRespawn() {
     rock.y = 60 + Math.random() * (CAVE_H - 160);
     rock.mined = false; rock.minedTime = undefined;
     rock.mineHealth = rock.type === 'bronze' ? 5 : rock.type === 'coal' ? 3 : 4;
+    rock.hitsLeft = rock.mineHealth;
+  }
+}
+
+function updateCave2RockRespawn() {
+  for (const rock of cave2Rocks) {
+    if (!rock.mined || rock.minedTime === undefined) continue;
+    if (gameNow - rock.minedTime < ROCK_RESPAWN_TIME) continue;
+    rock.x = 80 + Math.random() * (CAVE2_W - 160);
+    rock.y = 60 + Math.random() * (CAVE2_H - 160);
+    rock.mined = false; rock.minedTime = undefined;
+    rock.mineHealth = 4;
     rock.hitsLeft = rock.mineHealth;
   }
 }
@@ -2666,7 +2881,7 @@ function updateShadow(dt, now) {
       if (!rock.mined) addCandidate(rock.x, rock.y, false);
     }
   } else {
-    for (const rock of caveRocks) {
+    for (const rock of curRocks()) {
       if (!rock.mined) addCandidate(rock.x, rock.y, false);
     }
   }
@@ -2719,18 +2934,25 @@ function spawnDayButterflies() {
   if (day === butterflyDay) return;
   butterflyDay = day;
   butterflies.length = 0;
-  // Rare: ~25% chance of 1 butterfly, ~8% chance of 2
-  const count = Math.random() < 0.25 ? (Math.random() < 0.33 ? 2 : 1) : 0;
+  // ~45% chance of 1 butterfly, ~18% chance of 2
+  const count = Math.random() < 0.45 ? (Math.random() < 0.4 ? 2 : 1) : 0;
   if (count === 0) return;
   const grassPatches = [];
   for (const chunk of worldChunks) {
     for (const g of chunk.grass) grassPatches.push(g);
   }
   if (grassPatches.length === 0) return;
-  const COLORS = ['#88ccff','#ffcc88','#ccffaa','#ffaacc'];
+  const COLOR_PAIRS = [
+    { wing: '#00aaff', lower: '#0066cc', tip: '#88ddff' },
+    { wing: '#ff6600', lower: '#cc3300', tip: '#ffcc44' },
+    { wing: '#ee22bb', lower: '#aa0077', tip: '#ffaadd' },
+    { wing: '#44ee44', lower: '#009922', tip: '#aaffaa' },
+    { wing: '#cc44ff', lower: '#8800cc', tip: '#eebcff' },
+    { wing: '#ffdd00', lower: '#cc8800', tip: '#ffffaa' },
+  ];
   for (let i = 0; i < count; i++) {
     const g = grassPatches[Math.floor(Math.random() * grassPatches.length)];
-    const col = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const cp = COLOR_PAIRS[Math.floor(Math.random() * COLOR_PAIRS.length)];
     butterflies.push({
       x: g.x + (Math.random()-0.5)*40,
       y: g.y + (Math.random()-0.5)*40,
@@ -2738,7 +2960,7 @@ function spawnDayButterflies() {
       vx: 0, vy: 0,
       bobTimer: Math.random() * Math.PI * 2,
       nextWaypoint: 0, wpX: g.x, wpY: g.y,
-      color: col,
+      wing: cp.wing, lower: cp.lower, tip: cp.tip,
     });
   }
 }
@@ -2770,17 +2992,37 @@ function drawButterflies() {
     const sx = Math.round(b.x - camX), sy = Math.round(b.y - camY);
     if (sx < -10 || sx > W+10 || sy < -10 || sy > H+10) continue;
     const bob = Math.round(Math.sin(b.bobTimer) * 2);
-    const wingsOpen = Math.abs(Math.sin(b.bobTimer * 0.5)) > 0.4;
-    ctx.globalAlpha = 0.82;
-    ctx.fillStyle = b.color;
+    const wingPhase = Math.abs(Math.sin(b.bobTimer * 0.6));
+    const wingsOpen = wingPhase > 0.35;
+    ctx.globalAlpha = 0.90;
     if (wingsOpen) {
-      ctx.fillRect(sx-4, sy+bob-1, 3, 2); // left wing
-      ctx.fillRect(sx+2, sy+bob-1, 3, 2); // right wing
+      // Upper wings
+      ctx.fillStyle = b.wing;
+      ctx.fillRect(sx-6, sy+bob-3, 5, 3); // left upper
+      ctx.fillRect(sx+2, sy+bob-3, 5, 3); // right upper
+      // Lower wings (slightly smaller)
+      ctx.fillStyle = b.lower;
+      ctx.fillRect(sx-5, sy+bob,   4, 2); // left lower
+      ctx.fillRect(sx+2, sy+bob,   4, 2); // right lower
+      // Wing tip highlights
+      ctx.fillStyle = b.tip;
+      ctx.fillRect(sx-7, sy+bob-3, 2, 1); // left tip
+      ctx.fillRect(sx+6, sy+bob-3, 2, 1); // right tip
     } else {
-      ctx.fillRect(sx-1, sy+bob-2, 2, 3); // wings closed
+      // Wings closed: tall narrow shape
+      ctx.fillStyle = b.wing;
+      ctx.fillRect(sx-1, sy+bob-4, 2, 7);
+      ctx.fillStyle = b.lower;
+      ctx.fillRect(sx-2, sy+bob-1, 1, 3);
+      ctx.fillRect(sx+2, sy+bob-1, 1, 3);
     }
-    ctx.fillStyle = '#181818';
-    ctx.fillRect(sx, sy+bob-1, 1, 3); // body
+    // Body
+    ctx.fillStyle = '#101010';
+    ctx.fillRect(sx, sy+bob-4, 1, 7);
+    // Antennae
+    ctx.fillStyle = '#282828';
+    ctx.fillRect(sx-1, sy+bob-5, 1, 1);
+    ctx.fillRect(sx+1, sy+bob-5, 1, 1);
     ctx.globalAlpha = 1;
   }
 }
@@ -2808,10 +3050,12 @@ function loop(ts) {
     updatePlayerRegen(dt, now);
     updateRespawns(dt);
     if (!inCave) updateSaplings();
-    if (inCave) updateCaveRockRespawn();
+    if (caveLevel === 1) updateCaveRockRespawn();
+    if (caveLevel === 2) updateCave2RockRespawn();
     updateShadow(dt, now);
     updateTorches(dt);
     updateButterflies(dt, now);
+    updateLavaDrips(dt);
     updateParticles(dt);
     checkGameOver();
     updateCamera();
@@ -2828,7 +3072,8 @@ function loop(ts) {
   drawCraftingStations();
   drawFurnaces();
   if (!inCave) drawMineEntrances();
-  if (inCave) drawMineExits();
+  if (caveLevel === 1) drawMineExits();
+  if (caveLevel === 2) { drawCave2Exits(); drawLavaDrips(); }
   drawShadowFigures();
   drawPlayer();
   drawMobs();
