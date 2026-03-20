@@ -1645,8 +1645,8 @@ function mineMonolith(m, power) {
     const idx = monoliths.indexOf(m);
     if (idx >= 0) monoliths.splice(idx, 1);
     redFlashTimer = 0.8;
-    worldGroundItems.push({ type: 'unknown', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
-    score += 200;
+    curGround().push({ type: 'unknown', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
+    score = Math.max(0, score - 200);
     spawnParticles(m.x, m.y, '#aa0000', 20);
     spawnParticles(m.x, m.y, '#ff2020', 12);
   }
@@ -2083,10 +2083,11 @@ function handleAttackClick(mx, my) {
       if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
     }
     if (best) mineRock(best, power);
-    // Monoliths: bronze+ pickaxe only, surface only
-    if (isBronzePlus && !inCave) {
+    // Monoliths: bronze+ pickaxe only, current level only
+    if (isBronzePlus) {
       let bestM = null, bestMD = Infinity;
       for (const m of monoliths) {
+        if (m.caveLevel !== caveLevel) continue;
         const dx = m.x - px, dy = m.y - py;
         const d = Math.sqrt(dx*dx + dy*dy);
         if (d < MINE_RANGE && d < bestMD) { bestMD = d; bestM = m; }
@@ -3036,28 +3037,36 @@ function updateRespawns(dt) {
 }
 
 // ===================== MONOLITHS =====================
-const MONOLITH_CAP = 4;
+const MONOLITH_CAP = 6; // total across all levels
 
 function updateMonoliths() {
-  if (inCave) return;
   if (getCurrentDay() < 7) return;
   if (monoliths.length >= MONOLITH_CAP) return;
   if (gameTime - lastMonolithSpawn < CYCLE_LEN) return;
   lastMonolithSpawn = gameTime;
   if (Math.random() < 0.65) {
-    monoliths.push({
-      x: 150 + Math.random() * (WORLD_W - 300),
-      y: 100 + Math.random() * (WORLD_H - 200),
-      mineHealth: 8,
-      hitsLeft: 8,
-    });
+    // Pick a random level — surface more likely, caves less so
+    const r = Math.random();
+    const spawnLevel = r < 0.55 ? 0 : r < 0.78 ? 1 : 2;
+    let x, y;
+    if (spawnLevel === 0) {
+      x = 150 + Math.random() * (WORLD_W - 300);
+      y = 100 + Math.random() * (WORLD_H - 200);
+    } else if (spawnLevel === 1) {
+      x = 80  + Math.random() * (CAVE_W - 160);
+      y = 60  + Math.random() * (CAVE_H - 120);
+    } else {
+      x = 80  + Math.random() * (CAVE2_W - 160);
+      y = 60  + Math.random() * (CAVE2_H - 120);
+    }
+    monoliths.push({ x, y, caveLevel: spawnLevel, mineHealth: 8, hitsLeft: 8 });
   }
 }
 
 function drawMonoliths() {
-  if (inCave) return;
   const PS = 3;
   for (const m of monoliths) {
+    if (m.caveLevel !== caveLevel) continue;
     const sx = Math.round(m.x - camX);
     const sy = Math.round(m.y - camY);
     if (sx < -60 || sx > W+60 || sy < -100 || sy > H+20) continue;
@@ -3338,7 +3347,7 @@ function loop(ts) {
     if (caveLevel === 2) updateCave2RockRespawn();
     updateShadow(dt, now);
     updateTorches(dt);
-    if (!inCave) updateMonoliths();
+    updateMonoliths();
     if (redFlashTimer > 0) redFlashTimer -= dt;
     updateButterflies(dt, now);
     updateLavaDrips(dt);
@@ -3353,7 +3362,7 @@ function loop(ts) {
   drawGroundItemBodies();
   if (!inCave) drawTreeBases();
   drawRockBases();
-  if (!inCave) drawMonoliths();
+  drawMonoliths();
   drawCampfires();
   drawTorches();
   drawCraftingStations();
