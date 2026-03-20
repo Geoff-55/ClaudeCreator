@@ -31,7 +31,7 @@
 
   <div id="prompt-display" style="display:none; position:fixed; top:1rem; left:4rem; max-width:240px; z-index:10; pointer-events:none;">
     <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; margin-bottom:0.3rem;">Most Recent Prompt</p>
-    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">craft station 5 rocks, mine entrance 10 rocks; chickens flip upside-down day 5+</p>
+    <p style="color:#7c3aed; font-family:monospace; font-size:0.68rem; line-height:1.55; opacity:0.8;">monoliths day 7+, mine w/ bronze+, red grid flash + ??? drop; iron requires bronze pickaxe</p>
   </div>
 
   <div style="position:fixed; bottom:1rem; left:1.2rem; pointer-events:none; z-index:10;">
@@ -149,6 +149,9 @@ const GRASS_VARIANTS = [
 const worldChunks      = [];
 const worldGroundItems = [];
 const worldRocks       = [];
+const monoliths        = [];
+let redFlashTimer      = 0;
+let lastMonolithSpawn  = -9999;
 
 function generateSurfaceWorld() {
   worldChunks.length = 0; worldGroundItems.length = 0; worldRocks.length = 0;
@@ -1161,6 +1164,11 @@ function drawItemIcon(id, cx, cy, size) {
      [D,2,4],[M,3,4],[H,4,4],[M,5,4],[D,6,4],
      [D,3,5],[D,4,5],[D,5,5],
     ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'unknown') {
+    // Plain black square — the ??? item
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(ox, oy, ps * 8, ps * 8);
   }
 }
 
@@ -1539,10 +1547,12 @@ function getNearbyChopTarget() {
 function getNearbyMineTarget() {
   const weapon = equipSlots['pickaxe_slot'];
   if (!weapon || !['pickaxe','bronze_pickaxe','iron_pickaxe'].includes(weapon.id)) return null;
+  const isBronzePlus = weapon.id === 'bronze_pickaxe' || weapon.id === 'iron_pickaxe';
   let best = null, bestDist = Infinity;
   const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
   for (const rock of curRocks()) {
     if (rock.mined) continue;
+    if (rock.type === 'iron' && !isBronzePlus) continue;
     const dx = rock.x - px, dy = rock.y - py;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (dist > MINE_RANGE || dist === 0) continue;
@@ -1624,6 +1634,21 @@ function mineRock(rock, power) {
     }
     spawnParticles(rock.x, rock.y, isBronze ? '#c07030' : isCoal ? '#2a2a2a' : isIron ? '#a06040' : '#7a7a7a', 20);
     spawnParticles(rock.x, rock.y, isBronze ? '#8a4010' : isCoal ? '#101010' : isIron ? '#704020' : '#484848', 12);
+  }
+}
+
+function mineMonolith(m, power) {
+  m.hitsLeft -= power;
+  spawnParticles(m.x, m.y, '#5a0808', 5);
+  spawnParticles(m.x, m.y, '#0d0000', 4);
+  if (m.hitsLeft <= 0) {
+    const idx = monoliths.indexOf(m);
+    if (idx >= 0) monoliths.splice(idx, 1);
+    redFlashTimer = 0.8;
+    worldGroundItems.push({ type: 'unknown', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
+    score += 200;
+    spawnParticles(m.x, m.y, '#aa0000', 20);
+    spawnParticles(m.x, m.y, '#ff2020', 12);
   }
 }
 
@@ -2048,14 +2073,26 @@ function handleAttackClick(mx, my) {
   }
   if (pickaxe && (pickaxe.id === 'pickaxe' || pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe')) {
     const power = pickaxe.id === 'iron_pickaxe' ? 3 : pickaxe.id === 'bronze_pickaxe' ? 2 : 1;
+    const isBronzePlus = pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe';
     let best = null, bestD = Infinity;
     for (const rock of curRocks()) {
       if (rock.mined) continue;
+      if (rock.type === 'iron' && !isBronzePlus) continue;
       const dx = rock.x - px, dy = rock.y - py;
       const d = Math.sqrt(dx*dx + dy*dy);
       if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
     }
     if (best) mineRock(best, power);
+    // Monoliths: bronze+ pickaxe only, surface only
+    if (isBronzePlus && !inCave) {
+      let bestM = null, bestMD = Infinity;
+      for (const m of monoliths) {
+        const dx = m.x - px, dy = m.y - py;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < MINE_RANGE && d < bestMD) { bestMD = d; bestM = m; }
+      }
+      if (bestM) mineMonolith(bestM, power);
+    }
   }
 }
 
@@ -2829,6 +2866,7 @@ function restartGame() {
   shadowSightings.length = 0; lastShadowAppear = -9999;
   _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
   butterflies.length = 0; butterflyDay = 0;
+  monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999;
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
@@ -2995,6 +3033,87 @@ function updateRespawns(dt) {
     r.mined = false; r.mineHealth = undefined; r.hitsLeft = undefined;
     spawnParticles(r.x, r.y, '#909090', 10);
   }
+}
+
+// ===================== MONOLITHS =====================
+const MONOLITH_CAP = 4;
+
+function updateMonoliths() {
+  if (inCave) return;
+  if (getCurrentDay() < 7) return;
+  if (monoliths.length >= MONOLITH_CAP) return;
+  if (gameTime - lastMonolithSpawn < CYCLE_LEN) return;
+  lastMonolithSpawn = gameTime;
+  if (Math.random() < 0.65) {
+    monoliths.push({
+      x: 150 + Math.random() * (WORLD_W - 300),
+      y: 100 + Math.random() * (WORLD_H - 200),
+      mineHealth: 8,
+      hitsLeft: 8,
+    });
+  }
+}
+
+function drawMonoliths() {
+  if (inCave) return;
+  const PS = 3;
+  for (const m of monoliths) {
+    const sx = Math.round(m.x - camX);
+    const sy = Math.round(m.y - camY);
+    if (sx < -60 || sx > W+60 || sy < -100 || sy > H+20) continue;
+
+    glow('#5a0000', 16);
+    // Main column: 6px wide, 16 rows tall
+    for (let gy = 0; gy < 16; gy++) {
+      for (let gx = 0; gx < 6; gx++) {
+        const edge = (gx === 0 || gx === 5 || gy === 0);
+        ctx.fillStyle = edge ? '#5a0808' : '#0d0000';
+        ctx.fillRect(sx - 9 + gx * PS, sy - 48 + gy * PS, PS, PS);
+      }
+    }
+    // Tapering spire tip (4 rows)
+    for (let gy = 0; gy < 4; gy++) {
+      const w = 4 - gy;
+      const ox2 = Math.floor((6 - w) / 2);
+      for (let gx = 0; gx < w; gx++) {
+        ctx.fillStyle = gy === 0 ? '#5a0808' : '#0d0000';
+        ctx.fillRect(sx - 9 + (ox2 + gx) * PS, sy - 60 + gy * PS, PS, PS);
+      }
+    }
+    // Rune marks
+    ctx.fillStyle = '#5a0808';
+    ctx.fillRect(sx - 6, sy - 36, 12, PS);
+    ctx.fillRect(sx - 6, sy - 21, 12, PS);
+    ctx.fillRect(sx - 1, sy - 42, PS, 18);
+    noGlow();
+
+    // HP bar if damaged
+    if (m.hitsLeft < m.mineHealth) {
+      const bw = 24, bh = 3;
+      ctx.fillStyle = '#1a0000'; ctx.fillRect(sx - bw/2, sy - 68, bw, bh);
+      ctx.fillStyle = '#cc2020'; ctx.fillRect(sx - bw/2, sy - 68, bw * (m.hitsLeft/m.mineHealth), bh);
+    }
+  }
+}
+
+function drawRedFlash() {
+  if (redFlashTimer <= 0) return;
+  const t = redFlashTimer / 0.8; // 1→0
+  ctx.save();
+  ctx.globalAlpha = t * 0.78;
+  ctx.fillStyle = '#0e0000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = t * 0.9;
+  glow('#ff0000', 10);
+  ctx.strokeStyle = '#ff1818';
+  ctx.lineWidth = 1;
+  const GRID = 44;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += GRID) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for (let y = 0; y <= H; y += GRID) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+  noGlow();
+  ctx.restore();
 }
 
 // ===================== SHADOW FIGURE =====================
@@ -3219,6 +3338,8 @@ function loop(ts) {
     if (caveLevel === 2) updateCave2RockRespawn();
     updateShadow(dt, now);
     updateTorches(dt);
+    if (!inCave) updateMonoliths();
+    if (redFlashTimer > 0) redFlashTimer -= dt;
     updateButterflies(dt, now);
     updateLavaDrips(dt);
     updateParticles(dt);
@@ -3232,6 +3353,7 @@ function loop(ts) {
   drawGroundItemBodies();
   if (!inCave) drawTreeBases();
   drawRockBases();
+  if (!inCave) drawMonoliths();
   drawCampfires();
   drawTorches();
   drawCraftingStations();
@@ -3248,6 +3370,7 @@ function loop(ts) {
   drawAttackRadius();
   drawCampfirePreview();
   drawTargetIndicators();
+  drawRedFlash();
   drawNightOverlay();
   drawBorder();
   drawStamina();
