@@ -320,28 +320,54 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
         pickedUp: false,
       });
     }
-    // Floor details: pebble clusters and stalagmites
-    const numPebbleClusters = 2 + Math.floor(rng() * 3);
+    // Floor details: pebble clusters, stalagmites, cracks, puddles
+    const numPebbleClusters = 3 + Math.floor(rng() * 4);
     for (let i = 0; i < numPebbleClusters; i++) {
       const bx = wx + 20 + Math.floor(rng() * (CHUNK_W - 40));
       const by = wy + 20 + Math.floor(rng() * (CHUNK_H - 40));
       const stones = [];
-      for (let j = 0; j < 3 + Math.floor(rng() * 5); j++) {
+      for (let j = 0; j < 4 + Math.floor(rng() * 6); j++) {
         stones.push({
-          dx: Math.floor(rng() * 24) - 12,
-          dy: Math.floor(rng() * 14) - 7,
+          dx: Math.floor(rng() * 28) - 14,
+          dy: Math.floor(rng() * 16) - 8,
           s: rng() < 0.4 ? 3 : 2,
           c: rng() < 0.5 ? '#1e1a14' : '#2a2520',
         });
       }
       cave1Details.push({ type: 'pebbles', x: bx, y: by, stones });
     }
-    if (rng() < 0.45) {
+    const numStagMites = rng() < 0.7 ? (rng() < 0.4 ? 2 : 1) : 0;
+    for (let i = 0; i < numStagMites; i++) {
       cave1Details.push({
         type: 'stag',
         x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
         y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
-        h: 8 + Math.floor(rng() * 7),
+        h: 8 + Math.floor(rng() * 8),
+      });
+    }
+    // Floor cracks
+    if (rng() < 0.6) {
+      const segs = []; let cx2 = 0, cy2 = 0;
+      for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) {
+        cx2 += Math.floor(rng() * 24) - 12;
+        cy2 += Math.floor(rng() * 14) - 7;
+        segs.push({ dx: cx2, dy: cy2 });
+      }
+      cave1Details.push({
+        type: 'crack',
+        x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
+        y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
+        segs,
+      });
+    }
+    // Dark puddle smear (~25% per chunk)
+    if (rng() < 0.25) {
+      cave1Details.push({
+        type: 'puddle',
+        x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
+        y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
+        rx: 14 + Math.floor(rng() * 16),
+        ry: 6 + Math.floor(rng() * 8),
       });
     }
   }
@@ -383,21 +409,23 @@ function generateCave2World() {
           pickedUp: false,
         });
       }
-      // Floor details: scorch patches and glowing cracks
-      const numScorch = 1 + Math.floor(rng() * 3);
+      // Floor details: scorch patches, glowing cracks, ash piles
+      const numScorch = 2 + Math.floor(rng() * 4);
       for (let i = 0; i < numScorch; i++) {
         cave2Details.push({
           type: 'scorch',
           x: wx + 25 + Math.floor(rng() * (CHUNK_W - 50)),
           y: wy + 25 + Math.floor(rng() * (CHUNK_H - 50)),
-          rx: 12 + Math.floor(rng() * 20),
-          ry: 7 + Math.floor(rng() * 11),
+          rx: 10 + Math.floor(rng() * 24),
+          ry: 6 + Math.floor(rng() * 12),
         });
       }
-      if (rng() < 0.7) {
+      // Always at least one crack per chunk, often two
+      const numCracks = rng() < 0.55 ? 2 : 1;
+      for (let ci = 0; ci < numCracks; ci++) {
         const segs = [];
         let cx2 = 0, cy2 = 0;
-        const numSegs = 2 + Math.floor(rng() * 4);
+        const numSegs = 2 + Math.floor(rng() * 5);
         for (let i = 0; i < numSegs; i++) {
           cx2 += Math.floor(rng() * 28) - 14;
           cy2 += Math.floor(rng() * 18) - 9;
@@ -408,7 +436,25 @@ function generateCave2World() {
           x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
           y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
           segs,
-          hot: rng() < 0.5,
+          hot: rng() < 0.55,
+        });
+      }
+      // Ash/dust piles (~50% per chunk)
+      if (rng() < 0.5) {
+        const ashStones = [];
+        for (let j = 0; j < 4 + Math.floor(rng() * 5); j++) {
+          ashStones.push({
+            dx: Math.floor(rng() * 22) - 11,
+            dy: Math.floor(rng() * 12) - 6,
+            s: rng() < 0.5 ? 3 : 2,
+            c: rng() < 0.6 ? '#2a2018' : '#1a1410',
+          });
+        }
+        cave2Details.push({
+          type: 'ash',
+          x: wx + 30 + Math.floor(rng() * (CHUNK_W - 60)),
+          y: wy + 30 + Math.floor(rng() * (CHUNK_H - 60)),
+          stones: ashStones,
         });
       }
     }
@@ -1980,18 +2026,32 @@ function drawSurfaceDetails() {
 function drawCave1Details() {
   for (const d of cave1Details) {
     const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
-    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
+    if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
     if (d.type === 'stag') {
-      // Small stalagmite — pointed pixel column
       ctx.fillStyle = '#2a2218';
       for (let i = 0; i < d.h; i++) {
         const w = Math.max(1, Math.round(3 * (1 - i / d.h)));
         ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
       }
       ctx.fillStyle = '#3a3028';
-      ctx.fillRect(sx, sy - d.h + 1, 1, 2); // bright tip
+      ctx.fillRect(sx, sy - d.h + 1, 1, 2);
+    } else if (d.type === 'crack') {
+      ctx.strokeStyle = '#2a2216'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sx, sy);
+      for (const s of d.segs) ctx.lineTo(sx + s.dx, sy + s.dy);
+      ctx.stroke();
+    } else if (d.type === 'puddle') {
+      ctx.save(); ctx.globalAlpha = 0.3;
+      const PS = 4; ctx.fillStyle = '#0a1018';
+      for (let gy = Math.floor(-d.ry/PS); gy < Math.ceil(d.ry/PS); gy++) {
+        for (let gx = Math.floor(-d.rx/PS); gx < Math.ceil(d.rx/PS); gx++) {
+          const cx = (gx+0.5)*PS, cy = (gy+0.5)*PS;
+          if ((cx/d.rx)**2 + (cy/d.ry)**2 > 1) continue;
+          ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+        }
+      }
+      ctx.restore();
     } else {
-      // Pebble cluster
       for (const s of d.stones) {
         ctx.fillStyle = s.c;
         ctx.fillRect(sx + s.dx, sy + s.dy, s.s, s.s);
@@ -2027,6 +2087,11 @@ function drawCave2Details() {
       ctx.stroke();
       if (d.hot) noGlow();
       ctx.restore();
+    } else if (d.type === 'ash') {
+      for (const s of d.stones) {
+        ctx.fillStyle = s.c;
+        ctx.fillRect(sx + s.dx, sy + s.dy, s.s, s.s);
+      }
     }
   }
 }
@@ -2272,8 +2337,8 @@ function handleAttackClick(mx, my) {
       if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
     }
     if (best) mineRock(best, power);
-    // Monoliths: bronze+ pickaxe only, current level only
-    if (isBronzePlus) {
+    // Monoliths: iron pickaxe only, current level only
+    if (pickaxe.id === 'iron_pickaxe') {
       let bestM = null, bestMD = Infinity;
       for (const m of monoliths) {
         if (m.caveLevel !== caveLevel) continue;
@@ -2344,6 +2409,8 @@ function spawnMob(type, cap) {
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
     if (caveLevel === 2) {
+      subtype = 'miner'; hp = 30;
+    } else if (caveLevel === 1 && Math.random() < 1/10) {
       subtype = 'miner'; hp = 30;
     } else {
       const r = Math.random();
@@ -3413,6 +3480,7 @@ let butterflyDay = 0;
 function spawnDayButterflies() {
   if (inCave || darkAlpha > 0.15) return;
   const day = getCurrentDay();
+  if (day >= 7) { butterflies.length = 0; return; }
   if (day === butterflyDay) return;
   butterflyDay = day;
   butterflies.length = 0;
