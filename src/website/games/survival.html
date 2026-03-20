@@ -152,6 +152,7 @@ const worldRocks       = [];
 const monoliths        = [];
 let redFlashTimer      = 0;
 let lastMonolithSpawn  = -9999;
+let monolithBroken     = false;
 
 const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88','#ff9040','#d060ff'];
 
@@ -1778,6 +1779,7 @@ function mineMonolith(m, power) {
     const idx = monoliths.indexOf(m);
     if (idx >= 0) monoliths.splice(idx, 1);
     redFlashTimer = 0.8;
+    monolithBroken = true;
     curGround().push({ type: 'unknown', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     score = Math.max(0, score - 200);
     spawnParticles(m.x, m.y, '#aa0000', 20);
@@ -2513,7 +2515,7 @@ function updateMobs(dt, now) {
       m.drawScale += (m.dir - m.drawScale) * Math.min(1, dt * 10);
       // Upside-down flip (day 3+, tiny random chance)
       if (!m.flipped) {
-        if (getCurrentDay() >= 5 && Math.random() < 0.00008) {
+        if (getCurrentDay() >= 5 && Math.random() < 0.00018) {
           m.flipped = true; m.flipTimer = 0.6 + Math.random() * 0.8;
         }
       } else {
@@ -3123,7 +3125,7 @@ function restartGame() {
   shadowSightings.length = 0; lastShadowAppear = -9999;
   _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
   butterflies.length = 0; butterflyDay = 0;
-  monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999;
+  monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
@@ -3398,6 +3400,21 @@ function updateShadow(dt, now) {
     shadowSightings[i].timer += dt;
     if (shadowSightings[i].timer >= shadowSightings[i].duration) shadowSightings.splice(i, 1);
   }
+
+  // After first monolith broken: rare chance of corrupt player appearing right next to player at night
+  if (monolithBroken && darkAlpha > 0.7 && shadowSightings.length === 0 && Math.random() < 0.05 * dt) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = 22 + Math.random() * 20;
+    shadowSightings.push({
+      x: px + Math.cos(angle) * dist,
+      y: py + Math.sin(angle) * dist,
+      timer: 0,
+      duration: 0.07 + Math.random() * 0.10,
+    });
+    lastShadowAppear = now;
+    return;
+  }
+
   const day = getCurrentDay();
   if (day < 5 || shadowSightings.length > 0) return;
 
