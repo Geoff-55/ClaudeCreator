@@ -153,6 +153,8 @@ const monoliths        = [];
 let redFlashTimer      = 0;
 let lastMonolithSpawn  = -9999;
 let monolithBroken     = false;
+let hasEnteredCave1    = false;
+let hasEnteredCave2    = false;
 
 const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88','#ff9040','#d060ff'];
 
@@ -477,7 +479,7 @@ function curWorldH() { return caveLevel === 2 ? CAVE2_H : inCave ? CAVE_H : WORL
 
 function enterCave(entranceIdx) {
   const ent = mineEntrances[entranceIdx];
-  inCave = true; caveLevel = 1;
+  inCave = true; caveLevel = 1; hasEnteredCave1 = true;
   if (ent.caveExitIdx === undefined) {
     ent.caveExitIdx = mineExits.length;
     mineExits.push({ x: ent.x, y: ent.y, entranceIdx });
@@ -497,7 +499,7 @@ function exitCave(exitIdx) {
 
 function enterCave2(entranceIdx) {
   const ent = mineEntrancesT2[entranceIdx];
-  inCave = true; caveLevel = 2;
+  inCave = true; caveLevel = 2; hasEnteredCave1 = true; hasEnteredCave2 = true;
   if (ent.cave2ExitIdx === undefined) {
     ent.cave2ExitIdx = cave2Exits.length;
     cave2Exits.push({ x: ent.x, y: ent.y, entranceIdx });
@@ -663,7 +665,7 @@ canvas.addEventListener('click', e => {
 canvas.addEventListener('wheel', e => {
   if (!inventoryOpen) return;
   if (mouseX >= CRAFT_LEFT && mouseX < CRAFT_LEFT + CRAFT_W) {
-    const totalH = RECIPES.length * (RECIPE_H + 8) - 8;
+    const totalH = getVisibleRecipes().length * (RECIPE_H + 8) - 8;
     const maxScroll = Math.max(0, totalH - GRID_H);
     craftScrollY = Math.max(0, Math.min(maxScroll, craftScrollY + e.deltaY * 0.5));
     e.preventDefault();
@@ -720,7 +722,7 @@ const RECIPES = [
   {
     id: 'mine_entrance_t2', name: 'Mine Entrance T2',
     ingredients: [{ id: 'rock', count: 25 }, { id: 'stick', count: 25 }, { id: 'bronze_ingot', count: 10 }, { id: 'bone', count: 10 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'bronze',
   },
   {
     id: 'furnace', name: 'Furnace',
@@ -743,60 +745,74 @@ const RECIPES = [
     id: 'bronze_ingot', name: 'Bronze Ingot',
     ingredients: [{ id: 'rough_bronze', count: 2 }],
     fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
-    requiresFurnace: true,
+    requiresFurnace: true, tier: 'bronze',
   },
   {
     id: 'bronze_hatchet', name: 'Bronze Hatchet',
     ingredients: [{ id: 'bronze_ingot', count: 2 }, { id: 'stick', count: 4 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'bronze',
   },
   {
     id: 'bronze_pickaxe', name: 'Bronze Pickaxe',
     ingredients: [{ id: 'bronze_ingot', count: 2 }, { id: 'stick', count: 4 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'bronze',
   },
   {
     id: 'bronze_sword', name: 'Bronze Sword',
     ingredients: [{ id: 'bronze_ingot', count: 3 }, { id: 'stick', count: 3 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'bronze',
   },
   {
     id: 'iron_ingot', name: 'Iron Ingot',
     ingredients: [{ id: 'iron_ore', count: 2 }],
     fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
-    requiresFurnace: true,
+    requiresFurnace: true, tier: 'iron',
   },
   {
     id: 'iron_hatchet', name: 'Iron Hatchet',
     ingredients: [{ id: 'iron_ingot', count: 2 }, { id: 'bone', count: 4 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'iron',
   },
   {
     id: 'iron_pickaxe', name: 'Iron Pickaxe',
     ingredients: [{ id: 'iron_ingot', count: 2 }, { id: 'bone', count: 4 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'iron',
   },
   {
     id: 'iron_sword', name: 'Iron Sword',
     ingredients: [{ id: 'iron_ingot', count: 3 }, { id: 'bone', count: 3 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'iron',
   },
   {
     id: 'iron_helmet', name: 'Iron Helmet',
     ingredients: [{ id: 'iron_ingot', count: 5 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'iron',
   },
   {
     id: 'iron_pants', name: 'Iron Pants',
     ingredients: [{ id: 'iron_ingot', count: 7 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'iron',
   },
   {
     id: 'iron_chestplate', name: 'Iron Chestplate',
     ingredients: [{ id: 'iron_ingot', count: 10 }],
-    requiresStation: true,
+    requiresStation: true, tier: 'iron',
+  },
+  {
+    id: 'void_entrance', name: '???',
+    ingredients: [{ id: 'unknown', count: 1 }],
+    requiresStation: true, tier: 'monolith',
   },
 ];
+
+function getVisibleRecipes() {
+  return RECIPES.filter(r => {
+    if (r.tier === 'bronze')   return hasEnteredCave1;
+    if (r.tier === 'iron')     return hasEnteredCave2;
+    if (r.tier === 'monolith') return monolithBroken;
+    return true;
+  });
+}
 
 function nearCraftingStation() {
   return craftingStations.some(s => {
@@ -850,7 +866,7 @@ const ITEM_SLOT = {
   sword: 'weapon', bronze_sword: 'weapon', iron_sword: 'weapon',
   hatchet: 'hatchet_slot', bronze_hatchet: 'hatchet_slot', iron_hatchet: 'hatchet_slot',
   pickaxe: 'pickaxe_slot', bronze_pickaxe: 'pickaxe_slot', iron_pickaxe: 'pickaxe_slot',
-  campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture', mine_entrance_t2: 'furniture',
+  campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture', mine_entrance_t2: 'furniture', void_entrance: 'furniture',
   furnace: 'furniture', sapling: 'furniture', torch: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
   iron_helmet: 'helmet', iron_pants: 'pants', iron_chestplate: 'chestplate',
@@ -904,14 +920,15 @@ function handleInventoryClick(mx, my) {
   const slot = getSlotAtPos(mx, my);
   if (slot) { handleSlotInteract(slot); return; }
   // Craft buttons (account for scroll, only hit if inside clip area)
-  for (let ri = 0; ri < RECIPES.length; ri++) {
+  const _vis = getVisibleRecipes();
+  for (let ri = 0; ri < _vis.length; ri++) {
     const ry   = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
     if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
     const btnX = CRAFT_LEFT + CRAFT_W - 50;
     const btnY = ry + RECIPE_H - 22;
     if (mx >= btnX && mx < btnX + 48 && my >= btnY && my < btnY + 18 &&
         my >= CRAFT_TOP && my < CRAFT_TOP + GRID_H) {
-      if (canCraft(RECIPES[ri])) craft(RECIPES[ri]);
+      if (canCraft(_vis[ri])) craft(_vis[ri]);
       heldSlot = null; return;
     }
   }
@@ -1303,6 +1320,21 @@ function drawItemIcon(id, cx, cy, size) {
     // Plain black square — the ??? item
     ctx.fillStyle = '#000000';
     ctx.fillRect(ox, oy, ps * 8, ps * 8);
+
+  } else if (id === 'void_entrance') {
+    // Red neon mine entrance
+    const D = '#300606', M = '#4a0a0a', F = '#881010', L = '#cc1a1a', O = '#080000';
+    glow('#ff0000', 10);
+    [[D,0,0],[L,1,0],[L,2,0],[L,3,0],[L,4,0],[L,5,0],[L,6,0],[D,7,0],
+     [D,0,1],[F,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[F,6,1],[D,7,1],
+     [D,0,2],[F,1,2],[O,2,2],[O,3,2],[O,4,2],[O,5,2],[F,6,2],[D,7,2],
+     [D,0,3],[F,1,3],[O,2,3],[O,3,3],[O,4,3],[O,5,3],[F,6,3],[D,7,3],
+     [D,0,4],[L,1,4],[O,2,4],[O,3,4],[O,4,4],[O,5,4],[L,6,4],[D,7,4],
+     [D,0,5],[D,1,5],[D,2,5],[D,3,5],[D,4,5],[D,5,5],[D,6,5],[D,7,5],
+     [D,0,6],[D,1,6],[D,6,6],[D,7,6],
+     [D,0,7],[D,1,7],[D,6,7],[D,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+    noGlow();
   }
 }
 
@@ -1338,20 +1370,23 @@ function drawInventory() {
   ctx.rect(CRAFT_LEFT, CRAFT_TOP, CRAFT_W, GRID_H);
   ctx.clip();
 
-  for (let ri = 0; ri < RECIPES.length; ri++) {
-    const recipe   = RECIPES[ri];
+  const visRecipes = getVisibleRecipes();
+  for (let ri = 0; ri < visRecipes.length; ri++) {
+    const recipe   = visRecipes[ri];
     const ok       = canCraft(recipe);
     const ry       = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
     if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
+    const isMono   = recipe.tier === 'monolith';
 
-    ctx.fillStyle = ok ? '#0e1c08' : '#0d0a1c';
+    ctx.fillStyle   = isMono ? (ok ? '#1c1200' : '#180404') : (ok ? '#0e1c08' : '#0d0a1c');
     ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
-    ctx.strokeStyle = ok ? '#2e5818' : '#1e1240'; ctx.lineWidth = 1;
+    ctx.strokeStyle = isMono ? (ok ? '#4a3800' : '#4a0808') : (ok ? '#2e5818' : '#1e1240');
+    ctx.lineWidth = 1;
     ctx.strokeRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
 
     drawItemIcon(recipe.id, CRAFT_LEFT + 16, ry + 22, 22);
 
-    ctx.fillStyle = ok ? '#96d048' : '#5a4870';
+    ctx.fillStyle = isMono ? (ok ? '#ffdd40' : '#882020') : (ok ? '#96d048' : '#5a4870');
     ctx.font = '700 10px monospace';
     const nameLabel = recipe.yield > 1 ? `${recipe.name.toUpperCase()} x${recipe.yield}` : recipe.name.toUpperCase();
     ctx.fillText(nameLabel, CRAFT_LEFT + 32, ry + 16);
@@ -1368,25 +1403,26 @@ function drawInventory() {
       const ing = recipe.ingredients[ii];
       const iy  = ry + 30 + ii * 14;
       drawItemIcon(ing.id, CRAFT_LEFT + 38, iy, 11);
-      ctx.fillStyle = ok ? '#7a9a50' : '#4a3a60';
+      ctx.fillStyle = isMono ? (ok ? '#c8a830' : '#663030') : (ok ? '#7a9a50' : '#4a3a60');
       ctx.font = '500 8px monospace';
       ctx.fillText(`${ing.count}x ${ing.id}`, CRAFT_LEFT + 46, iy + 4);
     }
     if (recipe.fuelOptions) {
       const iy = ry + 30 + recipe.ingredients.length * 14;
       const fuelStr = recipe.fuelOptions.map(f => f.map(i => `${i.count}x ${i.id}`).join('+')).join(' or ');
-      ctx.fillStyle = ok ? '#7a9a50' : '#4a3a60';
+      ctx.fillStyle = isMono ? (ok ? '#c8a830' : '#663030') : (ok ? '#7a9a50' : '#4a3a60');
       ctx.font = '500 7px monospace';
       ctx.fillText(fuelStr, CRAFT_LEFT + 30, iy + 4);
     }
 
     const btnX = CRAFT_LEFT + CRAFT_W - 50, btnY = ry + RECIPE_H - 22;
-    ctx.fillStyle = ok ? '#162e0a' : '#120e22';
+    ctx.fillStyle = isMono ? (ok ? '#2a2000' : '#280808') : (ok ? '#162e0a' : '#120e22');
     ctx.fillRect(btnX, btnY, 48, 18);
-    if (ok) { glow('#5aaa28', 6); ctx.strokeStyle = '#5aaa28'; }
-    else      ctx.strokeStyle = '#2a1a4a';
+    const btnGlow = isMono ? (ok ? '#ffdd40' : '#880000') : (ok ? '#5aaa28' : '#2a1a4a');
+    if (ok) { glow(btnGlow, 6); ctx.strokeStyle = btnGlow; }
+    else      ctx.strokeStyle = btnGlow;
     ctx.lineWidth = 1; ctx.strokeRect(btnX, btnY, 48, 18); noGlow();
-    ctx.fillStyle = ok ? '#90d040' : '#3a2a58';
+    ctx.fillStyle = isMono ? (ok ? '#ffdd40' : '#882020') : (ok ? '#90d040' : '#3a2a58');
     ctx.font = '700 8px monospace'; ctx.letterSpacing = '0.1em';
     ctx.textAlign = 'center';
     ctx.fillText('CRAFT', btnX + 24, btnY + 12);
@@ -1394,7 +1430,7 @@ function drawInventory() {
   }
 
   // Scroll indicator
-  const totalCraftH = RECIPES.length * (RECIPE_H + 8) - 8;
+  const totalCraftH = visRecipes.length * (RECIPE_H + 8) - 8;
   if (totalCraftH > GRID_H) {
     const trackH = GRID_H, thumbH = Math.max(20, (GRID_H / totalCraftH) * trackH);
     const thumbY = CRAFT_TOP + (craftScrollY / (totalCraftH - GRID_H)) * (trackH - thumbH);
@@ -3126,6 +3162,7 @@ function restartGame() {
   _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
   butterflies.length = 0; butterflyDay = 0;
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
+  hasEnteredCave1 = false; hasEnteredCave2 = false;
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
