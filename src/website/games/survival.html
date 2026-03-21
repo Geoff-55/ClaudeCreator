@@ -278,7 +278,25 @@ function generateSurfaceWorld() {
         soilPatches.push({ x: px2, y: py2, isDirt, cells });
       }
 
-      worldChunks.push({ grass, tree, flowers, soilPatches });
+      // Flower patches — occasional dense cluster of blooms
+      const flowerPatch = [];
+      if (rng() < 0.38) {
+        const pcx = wx + 22 + Math.floor(rng() * (CHUNK_W - 44));
+        const pcy = wy + 22 + Math.floor(rng() * (CHUNK_H - 44));
+        const pCount = 4 + Math.floor(rng() * 5);
+        const pCol = FLOWER_COLS[Math.floor(rng() * FLOWER_COLS.length)];
+        const pCol2 = FLOWER_COLS[Math.floor(rng() * FLOWER_COLS.length)];
+        for (let i = 0; i < pCount; i++) {
+          flowerPatch.push({
+            x: pcx + Math.floor(rng() * 44) - 22,
+            y: pcy + Math.floor(rng() * 30) - 15,
+            col: rng() < 0.6 ? pCol : pCol2,
+            h: 4 + Math.floor(rng() * 3),
+          });
+        }
+      }
+
+      worldChunks.push({ grass, tree, flowers, soilPatches, flowerPatch });
     }
   }
 }
@@ -2268,7 +2286,7 @@ function handleInteract() {
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
   if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall', 'stone_wall'].includes(weapon.id)) {
-    const gx = snapToGrid(px), gy = snapToGrid(py);
+    const { gx, gy } = getPlacementPos();
     if (weapon.id === 'wood_wall' || weapon.id === 'stone_wall') {
       if (!isGridOccupied(gx, gy))
         walls.push({ x: gx, y: gy, level: caveLevel, type: weapon.id });
@@ -2429,6 +2447,12 @@ function updateMovement(dt) {
 const GRID = 40;
 
 function snapToGrid(v) { return Math.floor(v / GRID) * GRID + GRID / 2; }
+function getPlacementPos() {
+  return {
+    gx: snapToGrid(px + Math.cos(facingAngle) * GRID),
+    gy: snapToGrid(py + Math.sin(facingAngle) * GRID),
+  };
+}
 
 function isGridOccupied(gx, gy) {
   const near = (f) => Math.abs(f.x - gx) < 2 && Math.abs(f.y - gy) < 2;
@@ -2520,6 +2544,23 @@ function drawSurfaceGroundDetails() {
 
 function drawSurfaceDetails() {
   for (const chunk of worldChunks) {
+    // Flower patches
+    if (chunk.flowerPatch) {
+      for (const f of chunk.flowerPatch) {
+        const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
+        if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
+        const by = sy - f.h;
+        ctx.fillStyle = '#1e400e';
+        ctx.fillRect(sx, by, 1, f.h);
+        ctx.fillStyle = f.col;
+        ctx.fillRect(sx - 1, by - 6, 2, 2);
+        ctx.fillRect(sx - 1, by - 2, 2, 2);
+        ctx.fillRect(sx - 3, by - 4, 2, 2);
+        ctx.fillRect(sx + 1, by - 4, 2, 2);
+        ctx.fillStyle = '#ffe060';
+        ctx.fillRect(sx - 1, by - 4, 2, 2);
+      }
+    }
     if (!chunk.flowers) continue;
     for (const f of chunk.flowers) {
       const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
@@ -3980,8 +4021,7 @@ function drawHellPortal() {
 function drawCampfirePreview() {
   const weapon = equipSlots['furniture'];
   if (!weapon || inventoryOpen) return;
-  // Snap to grid cell center
-  const gx = snapToGrid(px), gy = snapToGrid(py);
+  const { gx, gy } = getPlacementPos();
   const sx = Math.round(gx - camX), sy = Math.round(gy - camY);
   const occupied = isGridOccupied(gx, gy);
   ctx.save();
