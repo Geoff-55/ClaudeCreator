@@ -156,6 +156,8 @@ let monolithBroken     = false;
 let hasEnteredCave1    = false;
 let hasEnteredCave2    = false;
 let hasEnteredHell     = false;
+let glitchScreenTimer  = 0;
+let lastLavaDmgTime    = -999;
 
 const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88','#ff9040','#d060ff'];
 
@@ -289,7 +291,7 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
     const numBig = 2 + Math.floor(rng() * 4);
     for (let i = 0; i < numBig; i++) {
         const rv = rng();
-      const oreType = rv < 0.22 ? 'coal' : rv < 0.38 ? 'bronze' : 'rock';
+      const oreType = rv < 0.22 ? 'coal' : rv < 0.52 ? 'bronze' : 'rock';
       caveRocks.push({
         x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
         y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
@@ -1439,6 +1441,21 @@ function drawItemIcon(id, cx, cy, size) {
     ctx.fillStyle = '#000000';
     ctx.fillRect(ox, oy, ps * 8, ps * 8);
 
+  } else if (id === 'cursed_soul') {
+    // Glowing purple-dark wisp
+    const V = '#1a0030', M = '#5a00aa', B = '#aa20ff', L = '#d060ff';
+    glow('#cc00ff', 12);
+    [[V,2,0],[V,3,0],[V,4,0],[V,5,0],
+     [V,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[V,6,1],
+     [M,0,2],[B,1,2],[B,2,2],[L,3,2],[L,4,2],[B,5,2],[B,6,2],[M,7,2],
+     [M,0,3],[B,1,3],[L,2,3],[L,3,3],[L,4,3],[L,5,3],[B,6,3],[M,7,3],
+     [V,0,4],[M,1,4],[B,2,4],[B,3,4],[B,4,4],[B,5,4],[M,6,4],[V,7,4],
+     [V,1,5],[M,2,5],[M,3,5],[M,4,5],[M,5,5],[V,6,5],
+     [V,2,6],[V,3,6],[V,4,6],[V,5,6],
+     [V,3,7],[V,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+    noGlow();
+
   } else if (id === 'void_entrance') {
     // Red neon mine entrance
     const D = '#300606', M = '#4a0a0a', F = '#881010', L = '#cc1a1a', O = '#080000';
@@ -2324,6 +2341,72 @@ function drawHellDetails() {
   }
 }
 
+function updateHellHazards(dt, now) {
+  if (caveLevel !== 3) return;
+  for (const d of hellDetails) {
+    const ddx = px - d.x, ddy = py - d.y;
+    if (d.type === 'lavapool') {
+      // Ellipse overlap check
+      if ((ddx / (d.rx + 12))**2 + (ddy / (d.ry + 12))**2 <= 1) {
+        // Deal ~3 hp/s, once per second
+        if (now - lastLavaDmgTime > 0.6) {
+          lastLavaDmgTime = now;
+          const dmg = Math.max(1, Math.round(3 * (1 - (equipSlots['boots']?.defPct || 0) / 100)));
+          playerHp = Math.max(0, playerHp - dmg);
+          lastHitTime = now;
+          spawnParticles(px, py, '#ff4400', 5);
+          spawnParticles(px, py, '#cc2200', 3);
+        }
+      }
+    } else if (d.type === 'glitch') {
+      // Bounding box of the glitch patch cells
+      if (Math.abs(ddx) < 60 && Math.abs(ddy) < 50) {
+        glitchScreenTimer = Math.max(glitchScreenTimer, 0.35);
+      }
+    }
+  }
+  if (glitchScreenTimer > 0) glitchScreenTimer -= dt;
+}
+
+function drawGlitchOverlay() {
+  if (glitchScreenTimer <= 0) return;
+  ctx.save();
+  const intensity = Math.min(1, glitchScreenTimer / 0.15);
+  // Horizontal scanline shifts
+  const numStrips = 8 + Math.floor(Math.random() * 10);
+  for (let i = 0; i < numStrips; i++) {
+    const sy2 = Math.floor(Math.random() * H);
+    const sh = 1 + Math.floor(Math.random() * 5);
+    const shift = (Math.random() - 0.5) * 55 * intensity;
+    const col = Math.random();
+    ctx.globalAlpha = 0.13 * intensity;
+    ctx.fillStyle = col < 0.5 ? '#ff0000' : col < 0.75 ? '#ff6600' : '#220000';
+    ctx.fillRect(shift, sy2, W, sh);
+  }
+  // Red static noise
+  ctx.globalAlpha = 0.22 * intensity;
+  ctx.fillStyle = '#ff0000';
+  for (let i = 0; i < 50; i++) {
+    ctx.fillRect(
+      Math.floor(Math.random() * W),
+      Math.floor(Math.random() * H),
+      1 + Math.floor(Math.random() * 7), 1
+    );
+  }
+  // Occasional vertical tear
+  if (Math.random() < 0.4) {
+    ctx.globalAlpha = 0.08 * intensity;
+    ctx.fillStyle = '#ff2200';
+    const tx = Math.floor(Math.random() * W);
+    ctx.fillRect(tx, 0, 2 + Math.floor(Math.random() * 4), H);
+  }
+  // Overall red tint flash
+  ctx.globalAlpha = 0.06 * intensity;
+  ctx.fillStyle = '#ff0000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
 function drawTrunkSeg(sx, segTopY, segH, dx) {
   ctx.fillStyle = '#2a1205';
   ctx.fillRect(sx - TW/2 + dx, segTopY, TW, segH);
@@ -2588,9 +2671,16 @@ function killMob(m) {
       worldGroundItems.push({ type: 'feather', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     spawnParticles(m.x, m.y, '#e8e0c8', 8);
   } else if (m.type === 'zombie') {
-    score += m.subtype === 'miner' ? 150 : m.subtype === 'brute' ? 100 : m.subtype === 'quick' ? 75 : 50;
+    score += m.subtype === 'magma' ? 250 : m.subtype === 'miner' ? 150 : m.subtype === 'brute' ? 100 : m.subtype === 'quick' ? 75 : 50;
     const ground = curGround();
-    if (m.subtype === 'miner') {
+    if (m.subtype === 'magma') {
+      const numSouls = 2 + Math.floor(Math.random() * 2); // 2-3
+      for (let i = 0; i < numSouls; i++) {
+        const a = Math.random() * Math.PI * 2, d = 10 + Math.random() * 22;
+        ground.push({ type: 'cursed_soul', x: m.x + Math.cos(a)*d, y: m.y + Math.sin(a)*d, pickedUp: false });
+      }
+      for (let pi = 0; pi < 18; pi++) spawnParticles(m.x + (Math.random()-0.5)*20, m.y + (Math.random()-0.5)*20, Math.random() < 0.5 ? '#ff4400' : '#aa0000', 1);
+    } else if (m.subtype === 'miner') {
       // Always drops 2-4 bones
       const numBones = 2 + Math.floor(Math.random() * 3);
       for (let i = 0; i < numBones; i++) {
@@ -2636,7 +2726,9 @@ function spawnMob(type, cap) {
   y = Math.max(50, Math.min(curWorldH() - 50, y));
   let subtype = 'normal', hp = 10;
   if (type === 'zombie') {
-    if (caveLevel === 2) {
+    if (caveLevel === 3) {
+      subtype = 'magma'; hp = 45;
+    } else if (caveLevel === 2) {
       subtype = 'miner'; hp = 30;
     } else if (caveLevel === 1 && Math.random() < 1/10) {
       subtype = 'miner'; hp = 30;
@@ -2703,9 +2795,9 @@ function updateMobs(dt, now) {
           const fd = Math.sqrt(fdx*fdx + fdy*fdy);
           if (fd < 120 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
         }
-        const spd = m.subtype === 'miner' ? 80 : m.subtype === 'brute' ? 32 : m.subtype === 'quick' ? 105 : 55;
-        const dmg = m.subtype === 'miner' ? 18 : m.subtype === 'brute' ? 12 : m.subtype === 'quick' ? 2  : 5;
-        const cd  = m.subtype === 'miner' ? 1.0 : m.subtype === 'brute' ? 1.2 : m.subtype === 'quick' ? 0.35 : 0.8;
+        const spd = m.subtype === 'magma' ? 120 : m.subtype === 'miner' ? 80 : m.subtype === 'brute' ? 32 : m.subtype === 'quick' ? 105 : 55;
+        const dmg = m.subtype === 'magma' ? 22 : m.subtype === 'miner' ? 18 : m.subtype === 'brute' ? 12 : m.subtype === 'quick' ? 2  : 5;
+        const cd  = m.subtype === 'magma' ? 0.9 : m.subtype === 'miner' ? 1.0 : m.subtype === 'brute' ? 1.2 : m.subtype === 'quick' ? 0.35 : 0.8;
         if (nearFire) {
           const fl = Math.sqrt(fleeX*fleeX + fleeY*fleeY);
           m.vx = (fleeX/fl)*spd; m.vy = (fleeY/fl)*spd;
@@ -2785,6 +2877,32 @@ function drawMobs() {
         ctx.fillRect(-4, -27, ps, ps); ctx.fillRect(1, -27, ps, ps);
         noGlow();
         ctx.restore();
+      } else if (m.subtype === 'magma') {
+        const zs = 1.3;
+        const zb = bob * zs;
+        // Dark charcoal body, lava-crack highlights
+        ctx.fillStyle = '#1a0400'; ctx.fillRect(sx-8*zs, sy-18*zs+zb, 16*zs, 20*zs);
+        ctx.fillStyle = '#3a0800'; ctx.fillRect(sx-7*zs, sy-32*zs+zb, 14*zs, 14*zs);
+        // Lava-glow cracks on body
+        ctx.fillStyle = '#e04400';
+        ctx.fillRect(sx-5*zs, sy-14*zs+zb, 2*zs, 8*zs);
+        ctx.fillRect(sx+2*zs, sy-10*zs+zb, 2*zs, 6*zs);
+        // Glowing orange eyes
+        glow('#ff6600', 12);
+        ctx.fillStyle = '#ff8800';
+        ctx.fillRect(sx-4*zs, sy-27*zs+zb, 3*zs, 3*zs); ctx.fillRect(sx+1*zs, sy-27*zs+zb, 3*zs, 3*zs);
+        noGlow();
+        // Arms
+        const aw = Math.sin(m.animTimer*5)*3*zs;
+        ctx.fillStyle = '#1a0400'; ctx.fillRect(sx-15*zs, sy-16*zs+aw, 7*zs, 12*zs); ctx.fillRect(sx+8*zs, sy-16*zs-aw, 7*zs, 12*zs);
+        // Lava drip on arm
+        ctx.fillStyle = '#cc3300';
+        ctx.fillRect(sx-13*zs, sy-10*zs+aw, 2*zs, 4*zs);
+        if (m.hp < m.maxHp) {
+          const bw = 28*zs, bx2 = sx - bw/2, by2 = sy - 44*zs + zb;
+          ctx.fillStyle = '#300'; ctx.fillRect(bx2, by2, bw, 3);
+          ctx.fillStyle = '#cc4400'; ctx.fillRect(bx2, by2, bw * m.hp/m.maxHp, 3);
+        }
       } else if (m.subtype === 'miner') {
         const zs = 1.1;
         const zb = bob * zs;
@@ -3426,6 +3544,7 @@ function restartGame() {
   butterflies.length = 0; butterflyDay = 0;
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
+  glitchScreenTimer = 0; lastLavaDmgTime = -999;
   particles.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
@@ -3933,6 +4052,7 @@ function loop(ts) {
     if (caveLevel === 1) updateCaveRockRespawn();
     if (caveLevel === 2) updateCave2RockRespawn();
     if (caveLevel === 3) updateHellRockRespawn();
+    updateHellHazards(dt, now);
     updateShadow(dt, now);
     updateTorches(dt);
     updateMonoliths();
@@ -3976,6 +4096,7 @@ function loop(ts) {
   drawTargetIndicators();
   drawRedFlash();
   drawNightOverlay();
+  drawGlitchOverlay();
   drawBorder();
   drawStamina();
   drawPlayerHp();
