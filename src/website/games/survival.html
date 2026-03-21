@@ -156,6 +156,11 @@ let monolithBroken     = false;
 let hasEnteredCave1    = false;
 let hasEnteredCave2    = false;
 let hasEnteredHell     = false;
+let hellEntryDay       = -1;
+let abyssEventActive   = false;  // corrupt player is currently visible + interactable
+let abyssEventDone     = false;  // event has been completed (permanent red tint)
+let abyssX             = 0;
+let abyssY             = 0;
 let glitchScreenTimer  = 0;
 let lastLavaDmgTime    = -999;
 
@@ -622,7 +627,8 @@ function enterHell(entranceIdx) {
     ent.hellExitIdx = hellExits.length;
     hellExits.push({ x: ent.x, y: ent.y, entranceIdx, fromLevel });
   }
-  inCave = true; caveLevel = 3; hasEnteredHell = true;
+  inCave = true; caveLevel = 3;
+  if (!hasEnteredHell) { hasEnteredHell = true; hellEntryDay = getCurrentDay(); }
   px = hellExits[ent.hellExitIdx].x;
   py = hellExits[ent.hellExitIdx].y;
   mobs.length = 0;
@@ -741,6 +747,7 @@ const ITEM_NAMES = {
   feather: 'Feather', rough_bronze: 'Rough Bronze', iron_ore: 'Iron Ore',
   copper: 'Copper', raw_chicken: 'Raw Chicken', unknown: 'Unknown',
   cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
+  abyss_key: 'Abyss Key',
 };
 
 function getSlotItem(slot) {
@@ -2180,6 +2187,33 @@ function handleInteract() {
       if (Math.sqrt(dx*dx + dy*dy) < 70) { enterHell(i); return; }
     }
   }
+  // Abyss corrupt player interact
+  if (abyssEventActive && !abyssEventDone && !inCave) {
+    const dx = abyssX - px, dy = abyssY - py;
+    if (Math.sqrt(dx*dx + dy*dy) < 80) {
+      abyssEventActive = false;
+      abyssEventDone   = true;
+      // Intense red flash — longer than monolith
+      redFlashTimer = 1.6;
+      // Massive burst of particles at corrupt player location
+      const colors = ['#ff0000','#cc0000','#880000','#ff4444','#330000','#ff2200'];
+      for (let i = 0; i < 60; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 60 + Math.random() * 160;
+        particles.push({
+          wx: abyssX + (Math.random()-0.5)*20,
+          wy: abyssY + (Math.random()-0.5)*20,
+          vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+          r: 2.5 + Math.random()*4,
+          color: colors[Math.floor(Math.random()*colors.length)],
+          life: 1.0, decay: 0.6 + Math.random()*0.6,
+        });
+      }
+      // Drop Abyss Key
+      worldGroundItems.push({ type: 'abyss_key', x: abyssX, y: abyssY });
+      return;
+    }
+  }
 }
 
 let lastPickupTime = -999;
@@ -2304,6 +2338,11 @@ function drawBg() {
     for (let cy = 0; cy <= CHUNKS_Y; cy++) {
       const sy = cy * CHUNK_H - camY;
       ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke();
+    }
+    // Permanent surface red tint after abyss event
+    if (abyssEventDone) {
+      ctx.fillStyle = 'rgba(60,0,0,0.06)';
+      ctx.fillRect(0, 0, W, H);
     }
   }
 }
@@ -3705,6 +3744,7 @@ function restartGame() {
   butterflies.length = 0; butterflyDay = 0;
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
+  hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
@@ -3976,6 +4016,76 @@ function drawRedFlash() {
   ctx.restore();
 }
 
+// ===================== ABYSS EVENT =====================
+function updateAbyssEvent() {
+  if (abyssEventDone || abyssEventActive) return;
+  if (!hasEnteredHell || hellEntryDay < 0) return;
+  if (inCave) return; // surface only
+  if (getCurrentDay() < hellEntryDay + 2) return;
+  // Spawn the corrupt player 100px in front of the player
+  const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
+  abyssX = px + fx * 100;
+  abyssY = py + fy * 100;
+  abyssEventActive = true;
+}
+
+function drawAbyssCorrupt() {
+  if (!abyssEventActive || inCave) return;
+  const sx = Math.round(abyssX - camX), sy = Math.round(abyssY - camY);
+  if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
+  const PS = 3; // larger pixels — more solid presence
+  const SR = BODY_R * 1.1;
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  // Pulsing dark aura
+  const pulse = Math.sin(gameNow * 3.2) * 0.4 + 0.6;
+  glow('#8a0000', 18 * pulse);
+  // Body — dark red pixelated
+  for (let gy = Math.floor(-SR/PS); gy < Math.ceil(SR/PS); gy++) {
+    for (let gx = Math.floor(-SR/PS); gx < Math.ceil(SR/PS); gx++) {
+      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+      const d = Math.sqrt(cx*cx + cy*cy);
+      if (d > SR) continue;
+      ctx.fillStyle = d > SR - PS*2.5 ? '#880000' : '#180000';
+      ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+    }
+  }
+  noGlow();
+  // Head
+  glow('#cc0000', 12 * pulse);
+  const hx = sx, hy = sy - Math.round(HEAD_DIST * 1.05);
+  for (let gy = Math.floor(-HEAD_R/PS); gy < Math.ceil(HEAD_R/PS); gy++) {
+    for (let gx = Math.floor(-HEAD_R/PS); gx < Math.ceil(HEAD_R/PS); gx++) {
+      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+      if (Math.sqrt(cx*cx + cy*cy) > HEAD_R) continue;
+      ctx.fillStyle = '#220000';
+      ctx.fillRect(hx + gx*PS, hy + gy*PS, PS, PS);
+    }
+  }
+  // Eyes — glowing void-red
+  const eyeOff = Math.round(HEAD_R * 0.35);
+  glow('#ff0000', 10);
+  ctx.fillStyle = '#ff0000';
+  ctx.fillRect(hx - eyeOff - PS, hy - PS, PS*2, PS*2);
+  ctx.fillRect(hx + eyeOff - PS, hy - PS, PS*2, PS*2);
+  noGlow();
+  ctx.globalAlpha = 1;
+  // [E] "death" interact prompt when player is near
+  const dist = Math.sqrt((abyssX-px)**2 + (abyssY-py)**2);
+  if (dist < 120) {
+    ctx.globalAlpha = 0.92;
+    glow('#ff0000', 8);
+    ctx.fillStyle = '#ff4444';
+    ctx.font = '700 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('[E] "death"', sx, sy - Math.round(SR + HEAD_DIST + HEAD_R + 14));
+    noGlow();
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
 // ===================== SHADOW FIGURE =====================
 const shadowSightings = []; // { x, y, timer, duration }
 let lastShadowAppear = -9999;
@@ -4220,6 +4330,7 @@ function loop(ts) {
       const prevKey = _invHoverSlot ? (_invHoverSlot.type === 'inv' ? `i${_invHoverSlot.idx}` : `e${_invHoverSlot.name}`) : null;
       if (key !== prevKey) { _invHoverSlot = hs; _invHoverTime = now; }
     }
+    updateAbyssEvent();
     updateShadow(dt, now);
     updateTorches(dt);
     updateMonoliths();
@@ -4255,6 +4366,7 @@ function loop(ts) {
   drawVoidEntrances();
   if (caveLevel === 3) drawHellExits();
   drawShadowFigures();
+  drawAbyssCorrupt();
   drawPlayer();
   drawMobs();
   if (!inCave) drawTreeTops();
