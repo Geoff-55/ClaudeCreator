@@ -3144,7 +3144,7 @@ function updateHellHazards(dt, now) {
 function drawGlitchOverlay() {
   if (glitchScreenTimer <= 0) return;
   ctx.save();
-  const intensity = Math.min(1, glitchScreenTimer / 0.15);
+  const intensity = Math.min(1, glitchScreenTimer / 0.6);
   // Horizontal scanline shifts
   const numStrips = 8 + Math.floor(Math.random() * 10);
   for (let i = 0; i < numStrips; i++) {
@@ -4964,7 +4964,8 @@ function drawMonoliths() {
     const sy = Math.round(m.y - camY);
     if (sx < -60 || sx > W+60 || sy < -100 || sy > H+20) continue;
 
-    glow('#5a0000', 16);
+    const mPulse = Math.sin(gameNow * 2.1 + m.x * 0.01) * 0.35 + 0.65;
+    glow('#cc0000', 55 * mPulse);
     // Main column: 6px wide, 16 rows tall
     for (let gy = 0; gy < 16; gy++) {
       for (let gx = 0; gx < 6; gx++) {
@@ -5050,7 +5051,7 @@ function drawAbyssCorrupt() {
   ctx.globalAlpha = 0.95;
   // Pulsing dark aura
   const pulse = Math.sin(gameNow * 3.2) * 0.4 + 0.6;
-  glow('#8a0000', 18 * pulse);
+  glow('#cc0000', 40 * pulse);
   // Body — dark red pixelated
   for (let gy = Math.floor(-SR/PS); gy < Math.ceil(SR/PS); gy++) {
     for (let gx = Math.floor(-SR/PS); gx < Math.ceil(SR/PS); gx++) {
@@ -5063,7 +5064,7 @@ function drawAbyssCorrupt() {
   }
   noGlow();
   // Head
-  glow('#cc0000', 12 * pulse);
+  glow('#cc0000', 22 * pulse);
   const hx = sx, hy = sy - Math.round(HEAD_DIST * 1.05);
   for (let gy = Math.floor(-HEAD_R/PS); gy < Math.ceil(HEAD_R/PS); gy++) {
     for (let gx = Math.floor(-HEAD_R/PS); gx < Math.ceil(HEAD_R/PS); gx++) {
@@ -5384,10 +5385,10 @@ function loop(ts) {
   if (caveLevel >= 4) drawCorruptWorld();
   if (caveLevel >= 4) { drawCorruptCreatures(); drawCorruptNets(); }
   drawShadowFigures();
-  drawAbyssCorrupt();
   drawPlayer();
   drawMobs();
   drawAltarTop();
+  drawAbyssCorrupt();
   if (!inCave) drawTreeTops();
   drawRockTops();
   drawParticles();
