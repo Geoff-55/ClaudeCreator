@@ -182,6 +182,9 @@ let hellPortalActive   = false;
 let hellPortalX        = 0;
 let hellPortalY        = 0;
 let glitchScreenTimer  = 0;
+let inCorruptWorld     = false;
+let corruptReturnX     = 0, corruptReturnY = 0; // hell position to return to
+let corruptEntryX      = 0, corruptEntryY  = 0; // spawn/exit point in corrupt world
 let lastLavaDmgTime    = -999;
 
 const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88','#ff9040','#d060ff'];
@@ -691,10 +694,11 @@ const hellExits = [];
 const voidEntrances = [];
 let surfacePx = 0, surfacePy = 0;
 
-function curRocks()  { return caveLevel === 3 ? hellRocks : caveLevel === 2 ? cave2Rocks : inCave ? caveRocks : worldRocks; }
-function curGround() { return caveLevel === 3 ? hellGroundItems : caveLevel === 2 ? cave2GroundItems : inCave ? caveGroundItems : worldGroundItems; }
-function curWorldW() { return caveLevel === 3 ? HELL_W : caveLevel === 2 ? CAVE2_W : inCave ? CAVE_W : WORLD_W; }
-function curWorldH() { return caveLevel === 3 ? HELL_H : caveLevel === 2 ? CAVE2_H : inCave ? CAVE_H : WORLD_H; }
+const _emptyArr = [];
+function curRocks()  { return caveLevel >= 4 ? _emptyArr : caveLevel === 3 ? hellRocks : caveLevel === 2 ? cave2Rocks : inCave ? caveRocks : worldRocks; }
+function curGround() { return caveLevel >= 4 ? _emptyArr : caveLevel === 3 ? hellGroundItems : caveLevel === 2 ? cave2GroundItems : inCave ? caveGroundItems : worldGroundItems; }
+function curWorldW() { return caveLevel >= 4 ? HELL_W : caveLevel === 3 ? HELL_W : caveLevel === 2 ? CAVE2_W : inCave ? CAVE_W : WORLD_W; }
+function curWorldH() { return caveLevel >= 4 ? HELL_H : caveLevel === 3 ? HELL_H : caveLevel === 2 ? CAVE2_H : inCave ? CAVE_H : WORLD_H; }
 
 function enterCave(entranceIdx) {
   const ent = mineEntrances[entranceIdx];
@@ -757,6 +761,20 @@ function exitHell(exitIdx) {
   mobs.length = 0;
   px = voidEntrances[exit.entranceIdx].x;
   py = voidEntrances[exit.entranceIdx].y;
+}
+
+function enterCorruptWorld() {
+  corruptReturnX = px; corruptReturnY = py;
+  caveLevel = 4; inCave = true; inCorruptWorld = true;
+  corruptEntryX = HELL_W / 2; corruptEntryY = HELL_H / 2;
+  px = corruptEntryX; py = corruptEntryY;
+  mobs.length = 0;
+}
+
+function exitCorruptWorld() {
+  caveLevel = 3; inCave = true; inCorruptWorld = false;
+  px = corruptReturnX; py = corruptReturnY;
+  mobs.length = 0;
 }
 
 let gameNow = 0; // updated each frame, used by sapling grow check
@@ -2338,6 +2356,12 @@ function handleInteract() {
       if (Math.sqrt(dx*dx + dy*dy) < 70) { exitCave2(i); return; }
     }
   }
+  if (caveLevel >= 4) {
+    // Corrupt world: exit portal
+    const dx = corruptEntryX - px, dy = corruptEntryY - py;
+    if (Math.sqrt(dx*dx + dy*dy) < 90) { exitCorruptWorld(); return; }
+    return;
+  }
   if (caveLevel === 3) {
     for (let i = 0; i < hellExits.length; i++) {
       const exit = hellExits[i];
@@ -2354,12 +2378,12 @@ function handleInteract() {
           if (inventorySlots[i]?.id === 'abyss_key') { keyIdx = i; break; }
         }
         if (keyIdx >= 0) {
-          // Consume key, reward 5 score
+          // Consume key — enter corrupt world
           inventorySlots[keyIdx].count--;
           if (inventorySlots[keyIdx].count <= 0) inventorySlots[keyIdx] = null;
-          score += 5;
-          spawnParticles(px, py, '#8800ff', 10);
-          spawnParticles(px, py, '#cc00ff', 8);
+          spawnParticles(px, py, '#8800ff', 14);
+          spawnParticles(px, py, '#cc00ff', 10);
+          enterCorruptWorld();
         } else {
           // No key — portal rejects, deal 1 dmg
           playerHp = Math.max(0, playerHp - 1);
@@ -2413,7 +2437,7 @@ function handleInteract() {
     }
   }
   // Abyss corrupt player interact
-  if (abyssEventActive && !abyssEventDone && !inCave) {
+  if (abyssEventActive && !abyssEventDone && caveLevel === 3) {
     const dx = abyssX - px, dy = abyssY - py;
     if (Math.sqrt(dx*dx + dy*dy) < 80) {
       abyssEventActive = false;
@@ -2437,8 +2461,8 @@ function handleInteract() {
           life: 1.0, decay: 0.6 + Math.random()*0.6,
         });
       }
-      // Drop Abyss Key
-      worldGroundItems.push({ type: 'abyss_key', x: abyssX, y: abyssY });
+      // Drop Abyss Key (in hell)
+      hellGroundItems.push({ type: 'abyss_key', x: abyssX, y: abyssY });
       return;
     }
   }
@@ -2559,6 +2583,22 @@ function isGridOccupied(gx, gy) {
 
 function drawBg() {
   const ox = camX % GRID, oy = camY % GRID;
+  if (caveLevel >= 4) {
+    ctx.fillStyle = '#03000a';
+    ctx.fillRect(0, 0, W, H);
+    // Corrupt grid — faint red-purple
+    ctx.strokeStyle = '#120008'; ctx.lineWidth = 0.5;
+    for (let x = -ox; x < W; x += GRID) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = -oy; y < H; y += GRID) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    // Subtle random noise flicker
+    ctx.globalAlpha = 0.04;
+    for (let i = 0; i < 20; i++) {
+      ctx.fillStyle = Math.random() < 0.5 ? '#660000' : '#330022';
+      ctx.fillRect(Math.floor(Math.random()*W), Math.floor(Math.random()*H), Math.floor(Math.random()*80)+5, 1);
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
   if (caveLevel === 3) {
     ctx.fillStyle = '#0d0100';
     ctx.fillRect(0, 0, W, H);
@@ -2602,8 +2642,8 @@ function drawBg() {
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  const gc = caveLevel === 3 ? '#cc0000' : caveLevel === 2 ? '#8a3010' : inCave ? '#6a4820' : '#3a5a20';
-  const sc = caveLevel === 3 ? '#ff1a1a' : caveLevel === 2 ? '#c04820' : inCave ? '#8a6030' : '#4a6a28';
+  const gc = caveLevel >= 4 ? '#6600cc' : caveLevel === 3 ? '#cc0000' : caveLevel === 2 ? '#8a3010' : inCave ? '#6a4820' : '#3a5a20';
+  const sc = caveLevel >= 4 ? '#8800ff' : caveLevel === 3 ? '#ff1a1a' : caveLevel === 2 ? '#c04820' : inCave ? '#8a6030' : '#4a6a28';
   glow(gc, 18); ctx.strokeStyle = sc; ctx.lineWidth = 4;
   ctx.strokeRect(bx, by, curWorldW(), curWorldH()); noGlow();
 }
@@ -3424,6 +3464,7 @@ function spawnMob(type, cap) {
 }
 
 function updateMobs(dt, now) {
+  if (caveLevel >= 4) { mobs.length = 0; return; } // no mobs in corrupt world
   if (!inCave && now - lastMobSpawn > 3.5) {
     lastMobSpawn = now;
     if (darkAlpha > 0.6) spawnMob('zombie', 12);
@@ -4088,6 +4129,30 @@ function drawHellExits() {
   }
 }
 
+// ===================== CORRUPT WORLD =====================
+function drawCorruptWorld() {
+  // Return portal at entry point
+  const sx = Math.round(corruptEntryX - camX), sy = Math.round(corruptEntryY - camY);
+  if (sx > -60 && sx < W+60 && sy > -60 && sy < H+60) {
+    const pulse = Math.sin(gameNow * 2.8) * 0.3 + 0.7;
+    glow('#6600cc', 20 * pulse);
+    ctx.strokeStyle = '#8800ff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 28, 38, 0, 0, Math.PI*2); ctx.stroke();
+    glow('#330066', 10);
+    ctx.strokeStyle = '#550099'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 16, 22, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = `rgba(20,0,40,${(0.4 * pulse).toFixed(2)})`;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 16, 22, 0, 0, Math.PI*2); ctx.fill();
+    noGlow();
+    const dist = Math.sqrt((corruptEntryX-px)**2 + (corruptEntryY-py)**2);
+    if (dist < 90) {
+      ctx.fillStyle = '#bb88ff'; ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
+      ctx.fillText('[E] return', sx, sy - 46);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
 // ===================== HELL PORTAL =====================
 function drawHellPortal() {
   if (!hellPortalActive || caveLevel !== 3) return;
@@ -4294,7 +4359,7 @@ function drawMap() {
 
   ctx.fillStyle = '#a855f7'; ctx.font = '600 10px monospace';
   ctx.letterSpacing = '0.12em'; ctx.textAlign = 'center';
-  const mapTitle = caveLevel === 3 ? 'MAP — HELL' : caveLevel === 2 ? 'MAP — FLOOR 2' : caveLevel === 1 ? 'MAP — FLOOR 1' : 'MAP';
+  const mapTitle = caveLevel >= 4 ? 'MAP — ???' : caveLevel === 3 ? 'MAP — HELL' : caveLevel === 2 ? 'MAP — FLOOR 2' : caveLevel === 1 ? 'MAP — FLOOR 1' : 'MAP';
   ctx.fillText(mapTitle, mx + MW/2, my + 16);
   ctx.letterSpacing = '0'; ctx.textAlign = 'left';
 
@@ -4412,6 +4477,7 @@ function restartGame() {
   deadBushes.length = 0; bloodPiles.length = 0; lastBloodSpawn = -9999;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false;
+  inCorruptWorld = false; corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
   hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
@@ -4711,19 +4777,32 @@ function drawRedFlash() {
 
 // ===================== ABYSS EVENT =====================
 function updateAbyssEvent() {
-  if (abyssEventDone || abyssEventActive) return;
-  if (!hasEnteredHell || hellEntryDay < 0) return;
-  if (inCave) return; // surface only
-  if (getCurrentDay() < hellEntryDay + 2) return;
-  // Spawn the corrupt player 100px in front of the player
-  const fx = Math.cos(facingAngle), fy = Math.sin(facingAngle);
-  abyssX = px + fx * 100;
-  abyssY = py + fy * 100;
-  abyssEventActive = true;
+  if (abyssEventDone) return;
+  if (!hasEnteredHell) return;
+  // Only active in hell, only at night
+  if (caveLevel !== 3) { abyssEventActive = false; return; }
+  const isNight = darkAlpha > 0.45;
+  if (!isNight) { abyssEventActive = false; return; }
+  if (!abyssEventActive) {
+    // Position at a hell monolith if one exists, else near center
+    const hellMon = monoliths.find(m => m.caveLevel === 3 && !m.mined);
+    if (hellMon) {
+      abyssX = hellMon.x; abyssY = hellMon.y - 55;
+    } else {
+      abyssX = HELL_W / 2; abyssY = HELL_H / 2 - 100;
+    }
+    abyssEventActive = true;
+  }
+  // Proximity-based continuous glitch effect
+  const dist = Math.sqrt((abyssX-px)**2 + (abyssY-py)**2);
+  if (dist < 500) {
+    const t = Math.pow(1 - dist / 500, 1.5);
+    glitchScreenTimer = Math.max(glitchScreenTimer, t * 0.7 + 0.05);
+  }
 }
 
 function drawAbyssCorrupt() {
-  if (!abyssEventActive || inCave) return;
+  if (!abyssEventActive || caveLevel !== 3) return;
   const sx = Math.round(abyssX - camX), sy = Math.round(abyssY - camY);
   if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
   const PS = 3; // larger pixels — more solid presence
@@ -5062,6 +5141,7 @@ function loop(ts) {
   drawVoidEntrances();
   if (caveLevel === 3) drawHellExits();
   if (caveLevel === 3) drawHellPortal();
+  if (caveLevel >= 4) drawCorruptWorld();
   drawShadowFigures();
   drawAbyssCorrupt();
   drawPlayer();
