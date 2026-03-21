@@ -5010,10 +5010,8 @@ function drawRedFlash() {
 function updateAbyssEvent() {
   if (abyssEventDone) return;
   if (!hasEnteredHell) return;
-  // Only active in hell, only at night
+  // Only active in hell (hell is always visually dark — treat as permanent night)
   if (caveLevel !== 3) { abyssEventActive = false; return; }
-  const isNight = darkAlpha > 0.45;
-  if (!isNight) { abyssEventActive = false; return; }
   if (!abyssEventActive) {
     // Position at a hell monolith if one exists, else near center
     const hellMon = monoliths.find(m => m.caveLevel === 3 && !m.mined);
