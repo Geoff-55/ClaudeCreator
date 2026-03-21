@@ -2226,6 +2226,7 @@ function getNearbyInteractable() {
 }
 
 function getNearbyChopTarget() {
+  if (inCave) return null;
   const weapon = equipSlots['hatchet_slot'];
   if (!weapon || !['hatchet','bronze_hatchet','iron_hatchet'].includes(weapon.id)) return null;
   let best = null, bestDist = Infinity;
@@ -3396,7 +3397,7 @@ function handleAttackClick(mx, my) {
       if (c.hp <= 0) { c.dead = true; c.hp = 0; score += 80; }
     }
   }
-  if (hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet' || hatchet.id === 'iron_hatchet')) {
+  if (!inCave && hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet' || hatchet.id === 'iron_hatchet')) {
     const power = hatchet.id === 'iron_hatchet' ? 3 : hatchet.id === 'bronze_hatchet' ? 2 : 1;
     let best = null, bestD = Infinity;
     for (const t of allTrees()) {
@@ -3876,6 +3877,17 @@ function drawNightOverlay() {
     tg.addColorStop(0.5, `rgba(255,150,50,${(0.4 * effectiveDark).toFixed(3)})`);
     tg.addColorStop(1, 'rgba(255,100,20,0)');
     lctx.fillStyle = tg; lctx.fillRect(0, 0, W, H);
+  }
+  // Furnaces
+  for (const f of furnaces) {
+    if (f.cave !== caveLevel) continue;
+    const fx = f.x - camX, fy = f.y - camY;
+    if (fx < -200 || fx > W+200 || fy < -200 || fy > H+200) continue;
+    const fg2 = lctx.createRadialGradient(fx, fy, 0, fx, fy, 160);
+    fg2.addColorStop(0, `rgba(255,160,40,${(0.92 * effectiveDark).toFixed(3)})`);
+    fg2.addColorStop(0.45, `rgba(255,100,20,${(0.5 * effectiveDark).toFixed(3)})`);
+    fg2.addColorStop(1, 'rgba(200,60,0,0)');
+    lctx.fillStyle = fg2; lctx.fillRect(0, 0, W, H);
   }
   lctx.globalCompositeOperation = 'source-over';
   ctx.drawImage(lightCanvas, 0, 0);
