@@ -550,6 +550,15 @@ function generateCave2World() {
           stones: ashStones,
         });
       }
+      // Rare stalagmites (~30% per chunk, 1 only)
+      if (rng() < 0.3) {
+        cave2Details.push({
+          type: 'stag',
+          x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
+          y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
+          h: 10 + Math.floor(rng() * 10),
+        });
+      }
     }
   }
 }
@@ -1063,7 +1072,7 @@ function getVisibleRecipes() {
 
 function nearCraftingStation() {
   return craftingStations.some(s => {
-    if (s.cave !== inCave) return false;
+    if (s.cave !== caveLevel) return false;
     const dx = s.x - px, dy = s.y - py;
     return Math.sqrt(dx*dx + dy*dy) < STATION_RANGE;
   });
@@ -2797,7 +2806,15 @@ function drawCave2Details() {
   for (const d of cave2Details) {
     const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
     if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
-    if (d.type === 'scorch') {
+    if (d.type === 'stag') {
+      ctx.fillStyle = '#1e1410';
+      for (let i = 0; i < d.h; i++) {
+        const w = Math.max(1, Math.round(3 * (1 - i / d.h)));
+        ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
+      }
+      ctx.fillStyle = '#2e2018';
+      ctx.fillRect(sx, sy - d.h + 1, 1, 2);
+    } else if (d.type === 'scorch') {
       ctx.save();
       ctx.globalAlpha = 0.4;
       const PS = 5;
@@ -3653,7 +3670,7 @@ function drawAttackRadius() {
 // ===================== CRAFTING STATIONS (WORLD) =====================
 function drawCraftingStations() {
   for (const s of craftingStations) {
-    if (s.cave !== inCave) continue;
+    if (s.cave !== caveLevel) continue;
     const sx = Math.round(s.x - camX), sy = Math.round(s.y - camY);
     if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
     // Tabletop
@@ -4116,6 +4133,11 @@ function drawCampfirePreview() {
     ctx.fillStyle = '#300606'; ctx.fillRect(sx-22, sy-22, 44, 36);
     ctx.fillStyle = '#080000'; ctx.fillRect(sx-15, sy-18, 30, 28);
     ctx.fillStyle = '#cc1010'; ctx.fillRect(sx-15, sy-18, 30, 3);
+  } else if (weapon.id === 'sapling') {
+    // Tiny sapling preview: stem + small leaves
+    ctx.fillStyle = '#5c2a0a'; ctx.fillRect(sx, sy-2, 2, 10);
+    ctx.fillStyle = '#2a6614'; ctx.fillRect(sx-4, sy-8, 10, 6);
+    ctx.fillStyle = '#3a8020'; ctx.fillRect(sx-2, sy-11, 6, 4);
   } else {
     ctx.restore(); return;
   }
