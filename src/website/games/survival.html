@@ -97,14 +97,21 @@ const WORLD_H  = CHUNK_H * CHUNKS_Y;
 // Single forest: random location per game, away from spawn
 let FOREST_CX, FOREST_CY, FOREST_ALTAR_X, FOREST_ALTAR_Y;
 function initForest() {
-  const spawnCX = Math.floor((WORLD_W / 2) / CHUNK_W); // ~4
-  const spawnCY = Math.floor((WORLD_H / 2) / CHUNK_H); // ~5
-  let cx, cy;
-  do {
-    cx = 2 + Math.floor(Math.random() * (CHUNKS_X - 4));
-    cy = 2 + Math.floor(Math.random() * (CHUNKS_Y - 4));
-  } while ((cx - spawnCX) ** 2 + (cy - spawnCY) ** 2 < 9);
-  FOREST_CX = cx; FOREST_CY = cy;
+  const spawnCX = Math.floor((WORLD_W / 2) / CHUNK_W); // 4
+  const spawnCY = Math.floor((WORLD_H / 2) / CHUNK_H); // 5
+  // Build candidate list: ≥2 chunk border buffer, ≥2.83 chunks from spawn
+  const cands = [];
+  for (let x = 2; x <= CHUNKS_X - 3; x++) {
+    for (let y = 2; y <= CHUNKS_Y - 3; y++) {
+      const d2 = (x - spawnCX) ** 2 + (y - spawnCY) ** 2;
+      if (d2 >= 8) cands.push([x, y, d2]);
+    }
+  }
+  // Sort farthest-first, pick randomly from the top candidates
+  cands.sort((a, b) => b[2] - a[2]);
+  const pool = cands.slice(0, Math.min(cands.length, 8));
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  FOREST_CX = pick[0]; FOREST_CY = pick[1];
   FOREST_ALTAR_X = (FOREST_CX + 0.5) * CHUNK_W;
   FOREST_ALTAR_Y = (FOREST_CY + 0.5) * CHUNK_H;
 }
@@ -195,6 +202,9 @@ let glitchScreenTimer  = 0;
 let inCorruptWorld     = false;
 let corruptReturnX     = 0, corruptReturnY = 0; // hell position to return to
 let corruptEntryX      = 0, corruptEntryY  = 0; // spawn/exit point in corrupt world
+let corruptCreatures   = [];
+let corruptNets        = [];
+let lastCorruptSpawn   = -999;
 let lastLavaDmgTime    = -999;
 
 const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88','#ff9040','#d060ff'];
@@ -386,6 +396,14 @@ function generateSurfaceWorld() {
       }
 
       worldChunks.push({ grass, tree, flowers, soilPatches, flowerPatch, extraTrees });
+    }
+  }
+  // Post-process: remove rocks that overlap any tree trunk
+  for (let i = worldRocks.length - 1; i >= 0; i--) {
+    const r = worldRocks[i];
+    for (const t of allTrees()) {
+      const dx = r.x - t.x, dy = r.y - t.y;
+      if (dx*dx + dy*dy < 70*70) { worldRocks.splice(i, 1); break; }
     }
   }
 }
@@ -780,12 +798,16 @@ function enterCorruptWorld() {
   corruptEntryX = HELL_W / 2; corruptEntryY = HELL_H / 2;
   px = corruptEntryX; py = corruptEntryY;
   mobs.length = 0;
+  corruptCreatures.length = 0; corruptNets.length = 0;
+  for (let i = 0; i < 5; i++) spawnCorruptCreature();
+  lastCorruptSpawn = 0;
 }
 
 function exitCorruptWorld() {
   caveLevel = 3; inCave = true; inCorruptWorld = false;
   px = corruptReturnX; py = corruptReturnY;
   mobs.length = 0;
+  corruptCreatures.length = 0; corruptNets.length = 0;
 }
 
 let gameNow = 0; // updated each frame, used by sapling grow check
@@ -3352,6 +3374,18 @@ function handleAttackClick(mx, my) {
       spawnParticles(m.x, m.y, sword.id === 'void_sword' ? '#8800ff' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
       if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
     }
+    // Also hit corrupt creatures
+    for (const c of corruptCreatures) {
+      if (c.dead) continue;
+      const dx = c.x - px, dy = c.y - py;
+      if (Math.sqrt(dx*dx + dy*dy) > SWORD_RANGE) continue;
+      const cdx = wx - c.x, cdy = wy - c.y;
+      if (Math.sqrt(cdx*cdx + cdy*cdy) > 40) continue;
+      c.hp -= dmg;
+      spawnParticles(c.x, c.y, '#aa00ff', 5);
+      glitchScreenTimer = Math.max(glitchScreenTimer, 0.15);
+      if (c.hp <= 0) { c.dead = true; c.hp = 0; score += 80; }
+    }
   }
   if (hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet' || hatchet.id === 'iron_hatchet')) {
     const power = hatchet.id === 'iron_hatchet' ? 3 : hatchet.id === 'bronze_hatchet' ? 2 : 1;
@@ -4140,6 +4174,155 @@ function drawHellExits() {
   }
 }
 
+// ===================== CORRUPT CREATURES =====================
+function spawnCorruptCreature() {
+  let x, y, tries = 0;
+  do {
+    x = 120 + Math.random() * (HELL_W - 240);
+    y = 120 + Math.random() * (HELL_H - 240);
+    tries++;
+  } while (Math.sqrt((x-px)**2 + (y-py)**2) < 280 && tries < 20);
+  corruptCreatures.push({
+    x, y, vx: 0, vy: 0,
+    hp: 30, maxHp: 30,
+    animTimer: Math.random() * 10,
+    glitchOffset: Math.random() * 100,
+    shootTimer: 1.5 + Math.random() * 2.5,
+    dashTimer: 3 + Math.random() * 3,
+    dead: false, deathTimer: 0,
+  });
+}
+
+function updateCorruptCreatures(dt, now) {
+  if (caveLevel < 4) { corruptCreatures.length = 0; corruptNets.length = 0; return; }
+  // Spawn more over time (max 8 alive)
+  if (now - lastCorruptSpawn > 9 && corruptCreatures.filter(c => !c.dead).length < 8) {
+    lastCorruptSpawn = now;
+    spawnCorruptCreature();
+  }
+  for (let i = corruptCreatures.length - 1; i >= 0; i--) {
+    const c = corruptCreatures[i];
+    if (c.dead) { c.deathTimer += dt; if (c.deathTimer > 0.7) corruptCreatures.splice(i, 1); continue; }
+    c.animTimer += dt;
+    c.dashTimer -= dt;
+    c.shootTimer -= dt;
+    const dx = px - c.x, dy = py - c.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    // Slow creep toward player
+    const spd = 32;
+    if (dist > 0) { c.vx = (dx/dist)*spd; c.vy = (dy/dist)*spd; }
+    c.x += c.vx * dt; c.y += c.vy * dt;
+    c.x = Math.max(30, Math.min(curWorldW()-30, c.x));
+    c.y = Math.max(30, Math.min(curWorldH()-30, c.y));
+    // Teleport dash: jump to ~180-280px from player
+    if (c.dashTimer <= 0 && dist > 100) {
+      c.dashTimer = 2.5 + Math.random() * 3;
+      const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.4;
+      const dashR = 180 + Math.random() * 100;
+      c.x = Math.max(30, Math.min(curWorldW()-30, px - Math.cos(angle)*dashR));
+      c.y = Math.max(30, Math.min(curWorldH()-30, py - Math.sin(angle)*dashR));
+      spawnParticles(c.x, c.y, '#aa00ff', 5);
+      glitchScreenTimer = Math.max(glitchScreenTimer, 0.18);
+    }
+    // Shoot glitch net
+    if (c.shootTimer <= 0 && dist < 650) {
+      c.shootTimer = 2 + Math.random() * 2.5;
+      const ang = Math.atan2(dy, dx);
+      const spd2 = 175;
+      corruptNets.push({ x: c.x, y: c.y, vx: Math.cos(ang)*spd2, vy: Math.sin(ang)*spd2, born: now, hit: false });
+    }
+  }
+  // Update nets
+  for (let i = corruptNets.length - 1; i >= 0; i--) {
+    const n = corruptNets[i];
+    if (n.hit || now - n.born > 5) { corruptNets.splice(i, 1); continue; }
+    n.x += n.vx * dt; n.y += n.vy * dt;
+    const ddx = px - n.x, ddy = py - n.y;
+    if (ddx*ddx + ddy*ddy < 22*22) {
+      n.hit = true;
+      playerHp = Math.max(0, playerHp - 7);
+      lastHitTime = now; lastZombieDmg = now;
+      glitchScreenTimer = Math.max(glitchScreenTimer, 0.5);
+      spawnParticles(px, py, '#aa00ff', 8);
+    }
+  }
+}
+
+function drawCorruptCreatures() {
+  for (const c of corruptCreatures) {
+    const sx = Math.round(c.x - camX), sy = Math.round(c.y - camY);
+    if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
+    const alpha = c.dead ? Math.max(0, 1 - c.deathTimer * 1.4) : 1;
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.translate(sx, sy);
+    const t = gameNow;
+    const go = c.glitchOffset;
+    // Glitch pixel offsets — jitter on fast timers
+    const gx = Math.floor(Math.sin(t * 19 + go) * 3);
+    const gy = Math.floor(Math.cos(t * 23 + go) * 2);
+    const gx2 = Math.floor(Math.sin(t * 31 + go + 2) * 2);
+    // Dark corrupt body — irregular blocky mass
+    ctx.fillStyle = '#08001a';
+    ctx.fillRect(-10 + gx,  -22, 20, 30);  // torso
+    ctx.fillRect(-7  + gx,  -34, 14, 13);  // head
+    ctx.fillRect(-16 + gx,  -20, 6,  14);  // left arm
+    ctx.fillRect( 10 + gx,  -18, 6,  14);  // right arm
+    ctx.fillRect(-4  + gx2, -10, 8,  16);  // lower/legs
+    // Corruption color fragments (cycle through glitch palette)
+    const cols = ['#2200aa', '#6600cc', '#440088', '#110033', '#001a44'];
+    const ci = Math.floor(t * 6 + go) % cols.length;
+    ctx.fillStyle = cols[ci];
+    ctx.fillRect(-8 + gx,  -26 + gy, 5, 7);
+    ctx.fillRect( 3 + gx2, -18 + gy, 4, 6);
+    ctx.fillRect(-6 + gx2, -10 + gy, 3, 5);
+    // Neon glitch streaks — random displaced pixels
+    const nCols = ['#00ffcc', '#ff00ff', '#8800ff', '#00ff88'];
+    for (let ni = 0; ni < 5; ni++) {
+      const nx = Math.floor(Math.sin(t * 28 + ni * 6.7 + go) * 13);
+      const ny = Math.floor(Math.cos(t * 22 + ni * 4.3 + go) * 18) - 10;
+      ctx.fillStyle = nCols[ni % nCols.length];
+      ctx.fillRect(nx - 1, ny - 1, 2, 2);
+    }
+    // Flickering eyes
+    if (Math.floor(t * 11 + go) % 4 !== 0) {
+      glow('#cc00ff', 10);
+      ctx.fillStyle = '#ff44ff';
+      ctx.fillRect(-4 + gx, -31, 3, 3);
+      ctx.fillRect( 2 + gx, -31, 3, 3);
+      noGlow();
+    }
+    // HP bar
+    if (c.hp < c.maxHp) {
+      const bw = 26, bx2 = -13, by2 = -42;
+      ctx.fillStyle = '#1a0030'; ctx.fillRect(bx2, by2, bw, 3);
+      ctx.fillStyle = '#aa00ff'; ctx.fillRect(bx2, by2, bw * c.hp / c.maxHp, 3);
+    }
+    ctx.restore();
+  }
+}
+
+function drawCorruptNets() {
+  for (const n of corruptNets) {
+    if (n.hit) continue;
+    const sx = Math.round(n.x - camX), sy = Math.round(n.y - camY);
+    if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
+    const r = 9;
+    // Outer glitch net cage
+    glow('#aa00ff', 14);
+    ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx - r, sy - r, r*2, r*2);
+    ctx.beginPath();
+    ctx.moveTo(sx-r, sy-r); ctx.lineTo(sx+r, sy+r);
+    ctx.moveTo(sx+r, sy-r); ctx.lineTo(sx-r, sy+r);
+    ctx.stroke();
+    // Inner glitch offset layer
+    const go = Math.sin(gameNow * 24) * 2.5;
+    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 1;
+    ctx.strokeRect(sx - r + go, sy - r, r*2, r*2);
+    noGlow();
+  }
+}
+
 // ===================== CORRUPT WORLD =====================
 function drawCorruptWorld() {
   // Return portal at entry point
@@ -4489,6 +4672,7 @@ function restartGame() {
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false;
   inCorruptWorld = false; corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
+  corruptCreatures.length = 0; corruptNets.length = 0; lastCorruptSpawn = -999;
   hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
@@ -5098,6 +5282,7 @@ function loop(ts) {
     handleEat();
     updateMovement(dt);
     updateMobs(dt, now);
+    if (caveLevel >= 4) updateCorruptCreatures(dt, now);
     updatePlayerRegen(dt, now);
     updateRespawns(dt);
     if (!inCave) updateSaplings();
@@ -5154,6 +5339,7 @@ function loop(ts) {
   if (caveLevel === 3) drawHellExits();
   if (caveLevel === 3) drawHellPortal();
   if (caveLevel >= 4) drawCorruptWorld();
+  if (caveLevel >= 4) { drawCorruptCreatures(); drawCorruptNets(); }
   drawShadowFigures();
   drawAbyssCorrupt();
   drawPlayer();
