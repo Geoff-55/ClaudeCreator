@@ -69,7 +69,7 @@ const DIAG_GRACE = 50;
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (['w','a','s','d'].includes(k)) e.preventDefault();
-  if (k === 'i') { inventoryOpen = !inventoryOpen; mapOpen = false; return; }
+  if (k === 'i') { inventoryOpen = !inventoryOpen; mapOpen = false; _invHoverSlot = null; _invHoverTime = 0; return; }
   if (k === 'm') { mapOpen = !mapOpen; inventoryOpen = false; return; }
   if (k === 'e') { justPressed.add('e'); keys['e'] = true; return; }
   if (k === 'f') { justPressed.add('f'); return; }
@@ -482,10 +482,10 @@ function generateHellWorld() {
     for (let cx = 0; cx < HELL_CHUNKS; cx++) {
       const rng = chunkRNG(cx + 5000, cy + 5000);
       const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
-      // Hell rocks: iron-heavy
+      // Hell rocks: coal + glitch_ore only (no stone)
       const numBig = 2 + Math.floor(rng() * 4);
       for (let i = 0; i < numBig; i++) {
-        const oreType = rng() < 0.2 ? 'coal' : 'iron';
+        const oreType = rng() < 0.3 ? 'coal' : 'glitch_ore';
         hellRocks.push({
           x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
           y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
@@ -493,10 +493,10 @@ function generateHellWorld() {
           mined: false, mineHealth: undefined, hitsLeft: undefined,
         });
       }
-      const numSmall = 1 + Math.floor(rng() * 2);
-      for (let i = 0; i < numSmall; i++) {
+      // Loose coal nuggets on floor
+      if (rng() < 0.5) {
         hellGroundItems.push({
-          type: 'rock',
+          type: 'coal',
           x: wx + 20 + Math.floor(rng() * (CHUNK_W - 40)),
           y: wy + 20 + Math.floor(rng() * (CHUNK_H - 40)),
           pickedUp: false,
@@ -733,6 +733,15 @@ let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | n
 let mapOpen = false;
 let mouseX = W / 2, mouseY = H / 2;
 let craftScrollY = 0;
+let _invHoverSlot = null;
+let _invHoverTime  = 0;
+
+const ITEM_NAMES = {
+  stick: 'Stick', rock: 'Rock', coal: 'Coal', bone: 'Bone',
+  feather: 'Feather', rough_bronze: 'Rough Bronze', iron_ore: 'Iron Ore',
+  copper: 'Copper', raw_chicken: 'Raw Chicken', unknown: '???',
+  cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
+};
 
 function getSlotItem(slot) {
   if (!slot) return null;
@@ -923,13 +932,21 @@ const RECIPES = [
     ingredients: [{ id: 'iron_ingot', count: 15 }, { id: 'unknown', count: 5 }],
     requiresStation: true, tier: 'monolith',
   },
+  {
+    id: 'void_singularity', name: 'Void Singularity',
+    ingredients: [{ id: 'glitch_ore', count: 1 }, { id: 'cursed_soul', count: 1 }],
+    requiresStation: true, tier: 'hell',
+  },
 ];
+
+for (const r of RECIPES) ITEM_NAMES[r.id] = r.name;
 
 function getVisibleRecipes() {
   return RECIPES.filter(r => {
     if (r.tier === 'bronze')   return hasEnteredCave1;
     if (r.tier === 'iron')     return hasEnteredCave2;
     if (r.tier === 'monolith') return monolithBroken;
+    if (r.tier === 'hell')     return hasEnteredHell;
     return true;
   });
 }
@@ -1441,6 +1458,34 @@ function drawItemIcon(id, cx, cy, size) {
     ctx.fillStyle = '#000000';
     ctx.fillRect(ox, oy, ps * 8, ps * 8);
 
+  } else if (id === 'glitch_ore') {
+    // Dark rock with red glitch cracks
+    const D = '#0d0000', M = '#2a0505', R = '#cc0000', B = '#ff2020';
+    glow('#ff0000', 8);
+    [[D,0,1],[D,1,1],[D,2,1],[D,3,1],[D,4,1],[D,5,1],[D,6,1],
+     [D,0,2],[M,1,2],[M,2,2],[M,3,2],[M,4,2],[M,5,2],[D,6,2],
+     [D,0,3],[M,1,3],[R,2,3],[M,3,3],[R,4,3],[M,5,3],[D,6,3],
+     [D,0,4],[M,1,4],[M,2,4],[R,3,4],[M,4,4],[M,5,4],[D,6,4],
+     [D,0,5],[M,1,5],[R,2,5],[M,3,5],[M,4,5],[M,5,5],[D,6,5],
+     [D,1,6],[D,2,6],[B,3,6],[D,4,6],[D,5,6],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+    noGlow();
+
+  } else if (id === 'void_singularity') {
+    // Black orb with swirling void energy
+    const V = '#000000', D = '#0a0018', M = '#1a0040', B = '#4400aa', L = '#8800ff', W2 = '#cc44ff';
+    glow('#8800ff', 14);
+    [[D,2,0],[D,3,0],[D,4,0],[D,5,0],
+     [D,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[D,6,1],
+     [D,0,2],[M,1,2],[B,2,2],[V,3,2],[V,4,2],[B,5,2],[M,6,2],[D,7,2],
+     [D,0,3],[M,1,3],[V,2,3],[V,3,3],[L,4,3],[V,5,3],[M,6,3],[D,7,3],
+     [D,0,4],[M,1,4],[B,2,4],[V,3,4],[V,4,4],[V,5,4],[M,6,4],[D,7,4],
+     [D,0,5],[M,1,5],[W2,2,5],[B,3,5],[B,4,5],[M,5,5],[M,6,5],[D,7,5],
+     [D,1,6],[M,2,6],[M,3,6],[M,4,6],[M,5,6],[D,6,6],
+     [D,2,7],[B,3,7],[B,4,7],[D,5,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+    noGlow();
+
   } else if (id === 'cursed_soul') {
     // Glowing purple-dark wisp
     const V = '#1a0030', M = '#5a00aa', B = '#aa20ff', L = '#d060ff';
@@ -1511,7 +1556,7 @@ function drawInventory() {
     const ok       = canCraft(recipe);
     const ry       = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
     if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
-    const isMono   = recipe.tier === 'monolith';
+    const isMono   = recipe.tier === 'monolith' || recipe.tier === 'hell';
 
     ctx.fillStyle   = isMono ? (ok ? '#1c1200' : '#180404') : (ok ? '#0e1c08' : '#0d0a1c');
     ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
@@ -1680,6 +1725,26 @@ function drawInventory() {
     ctx.globalAlpha = 0.85;
     drawItemIcon(heldItem.id, mouseX, mouseY, 30);
     ctx.globalAlpha = 1;
+  }
+
+  // Item name tooltip (0.5s hover delay, don't show while dragging)
+  if (_invHoverSlot && !heldSlot && (gameNow - _invHoverTime) > 0.5) {
+    const tipItem = getSlotItem(_invHoverSlot);
+    if (tipItem) {
+      const name = ITEM_NAMES[tipItem.id] || tipItem.id;
+      ctx.font = '600 10px monospace';
+      const tw = ctx.measureText(name).width;
+      const tx = Math.min(mouseX + 14, W - tw - 14);
+      const ty = Math.max(mouseY - 20, 14);
+      ctx.fillStyle = 'rgba(6,4,18,0.94)';
+      ctx.fillRect(tx - 7, ty - 13, tw + 14, 19);
+      glow('#a855f7', 6);
+      ctx.strokeStyle = '#5a3a80'; ctx.lineWidth = 1;
+      ctx.strokeRect(tx - 7, ty - 13, tw + 14, 19);
+      noGlow();
+      ctx.fillStyle = '#d4b8ff';
+      ctx.fillText(name, tx, ty);
+    }
   }
 }
 
@@ -1963,31 +2028,32 @@ function chopTree(tree, power) {
 function mineRock(rock, power) {
   power = power || 1;
   if (rock.mineHealth === undefined) {
-    const baseH = rock.type === 'coal' ? 3 : rock.type === 'iron' ? 5 : rock.type === 'bronze' ? 5 : 5 + Math.floor(Math.random() * 3);
+    const baseH = rock.type === 'coal' ? 3 : rock.type === 'iron' ? 5 : rock.type === 'bronze' ? 5 : rock.type === 'glitch_ore' ? 6 : 5 + Math.floor(Math.random() * 3);
     rock.mineHealth = baseH;
     rock.hitsLeft   = rock.mineHealth;
   }
   rock.hitsLeft -= power;
 
-  const isCoal   = rock.type === 'coal';
-  const isBronze = rock.type === 'bronze';
-  const isIron   = rock.type === 'iron';
-  const pc1 = isCoal ? '#383838' : isBronze ? '#c07030' : isIron ? '#a06040' : '#909090';
-  const pc2 = isCoal ? '#1a1a1a' : isBronze ? '#8a4818' : isIron ? '#704020' : '#555555';
+  const isCoal    = rock.type === 'coal';
+  const isBronze  = rock.type === 'bronze';
+  const isIron    = rock.type === 'iron';
+  const isGlitch  = rock.type === 'glitch_ore';
+  const pc1 = isCoal ? '#383838' : isBronze ? '#c07030' : isIron ? '#a06040' : isGlitch ? '#cc0000' : '#909090';
+  const pc2 = isCoal ? '#1a1a1a' : isBronze ? '#8a4818' : isIron ? '#704020' : isGlitch ? '#440000' : '#555555';
   spawnParticles(rock.x, rock.y, pc1, 4);
   spawnParticles(rock.x, rock.y, pc2, 3);
 
   if (rock.hitsLeft <= 0) {
     rock.mined = true; rock.minedTime = gameNow;
-    score += isCoal ? 30 : isBronze ? 45 : isIron ? 50 : 40;
-    const dropType = isCoal ? 'coal' : isBronze ? 'rough_bronze' : isIron ? 'iron_ore' : 'rock';
-    const numDrop = isCoal || isBronze || isIron ? 2 + Math.floor(Math.random() * 3) : 3 + Math.floor(Math.random() * 3);
+    score += isCoal ? 30 : isBronze ? 45 : isIron ? 50 : isGlitch ? 60 : 40;
+    const dropType = isCoal ? 'coal' : isBronze ? 'rough_bronze' : isIron ? 'iron_ore' : isGlitch ? 'glitch_ore' : 'rock';
+    const numDrop = isCoal || isBronze || isIron || isGlitch ? 2 + Math.floor(Math.random() * 3) : 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < numDrop; i++) {
       const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 38;
       curGround().push({ type: dropType, x: rock.x + Math.cos(a)*d, y: rock.y + Math.sin(a)*d, pickedUp: false });
     }
-    spawnParticles(rock.x, rock.y, isBronze ? '#c07030' : isCoal ? '#2a2a2a' : isIron ? '#a06040' : '#7a7a7a', 20);
-    spawnParticles(rock.x, rock.y, isBronze ? '#8a4010' : isCoal ? '#101010' : isIron ? '#704020' : '#484848', 12);
+    spawnParticles(rock.x, rock.y, isBronze ? '#c07030' : isCoal ? '#2a2a2a' : isIron ? '#a06040' : isGlitch ? '#cc0000' : '#7a7a7a', 20);
+    spawnParticles(rock.x, rock.y, isBronze ? '#8a4010' : isCoal ? '#101010' : isIron ? '#704020' : isGlitch ? '#440000' : '#484848', 12);
   }
 }
 
@@ -2539,17 +2605,20 @@ function drawRockTops() {
     const isBronzeRock = rock.type === 'bronze';
     const isCoalRock   = rock.type === 'coal';
     const isIronRock   = rock.type === 'iron';
+    const isGlitchRock = rock.type === 'glitch_ore';
     const [cD,cM,cH,cL] = isBronzeRock
       ? ['#3a2010','#6a3818','#a05828','#c87840']
       : isCoalRock
       ? ['#141210','#201e1a','#2c2820','#383428']
       : isIronRock
       ? ['#281810','#4a3020','#7a5035','#b07848']
+      : isGlitchRock
+      ? ['#0d0000','#220000','#550000','#cc0000']
       : inCave
       ? ['#2a2820','#3c3830','#504c42','#6a6458']
       : ['#363636','#4c4c4c','#646464','#7e7e7e'];
     const rx = ROCK_R, ry = ROCK_R * 0.72;
-    glow('#181818', 10);
+    glow(isGlitchRock ? '#ff0000' : '#181818', isGlitchRock ? 14 : 10);
     for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
       for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
         const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
@@ -3593,7 +3662,7 @@ function restartGame() {
   butterflies.length = 0; butterflyDay = 0;
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
-  glitchScreenTimer = 0; lastLavaDmgTime = -999;
+  glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
@@ -3709,7 +3778,7 @@ function updateHellRockRespawn() {
     rock.x = 80 + Math.random() * (HELL_W - 160);
     rock.y = 60 + Math.random() * (HELL_H - 160);
     rock.mined = false; rock.minedTime = undefined;
-    rock.mineHealth = rock.type === 'coal' ? 3 : 5;
+    rock.mineHealth = rock.type === 'coal' ? 3 : rock.type === 'glitch_ore' ? 6 : 5;
     rock.hitsLeft = rock.mineHealth;
   }
 }
@@ -3982,8 +4051,8 @@ function spawnDayButterflies() {
   if (day === butterflyDay) return;
   butterflyDay = day;
   butterflies.length = 0;
-  // ~45% chance of 1 butterfly, ~18% chance of 2
-  const count = Math.random() < 0.45 ? (Math.random() < 0.4 ? 2 : 1) : 0;
+  // ~70% chance of 1 butterfly, ~35% chance of 2
+  const count = Math.random() < 0.70 ? (Math.random() < 0.5 ? 2 : 1) : 0;
   if (count === 0) return;
   const grassPatches = [];
   for (const chunk of worldChunks) {
@@ -4102,6 +4171,12 @@ function loop(ts) {
     if (caveLevel === 2) updateCave2RockRespawn();
     if (caveLevel === 3) updateHellRockRespawn();
     updateHellHazards(dt, now);
+    if (inventoryOpen) {
+      const hs  = getSlotAtPos(mouseX, mouseY);
+      const key = hs ? (hs.type === 'inv' ? `i${hs.idx}` : `e${hs.name}`) : null;
+      const prevKey = _invHoverSlot ? (_invHoverSlot.type === 'inv' ? `i${_invHoverSlot.idx}` : `e${_invHoverSlot.name}`) : null;
+      if (key !== prevKey) { _invHoverSlot = hs; _invHoverTime = now; }
+    }
     updateShadow(dt, now);
     updateTorches(dt);
     updateMonoliths();
