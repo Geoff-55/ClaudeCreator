@@ -888,6 +888,16 @@ const EQUIP_SLOT_POS = {};
 const equipSlots = {};
 for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
 
+// ===================== TESTING: starting gear =====================
+equipSlots['weapon']       = { id: 'iron_sword',      count: 1 };
+equipSlots['pickaxe_slot'] = { id: 'iron_pickaxe',    count: 1 };
+equipSlots['hatchet_slot'] = { id: 'iron_hatchet',    count: 1 };
+equipSlots['helmet']       = { id: 'iron_helmet',     count: 1 };
+equipSlots['chestplate']   = { id: 'iron_chestplate', count: 1 };
+equipSlots['pants']        = { id: 'iron_pants',      count: 1 };
+equipSlots['furniture']    = { id: 'void_entrance',   count: 3 };
+// ===================== END TESTING =====================
+
 // Precompute equip slot screen positions once (avoids filter+indexOf every frame)
 (function buildEquipSlotPos() {
   const col0 = EQUIP_SLOT_DEFS.filter(d => d.col === 0);
@@ -2480,16 +2490,18 @@ function handleInteract() {
     }
   }
   // Abyss corrupt player interact
-  if (abyssEventActive && !abyssEventDone && caveLevel === 3) {
+  if (abyssEventActive && !abyssEventDone && caveLevel === 0) {
     const dx = abyssX - px, dy = abyssY - py;
     if (Math.sqrt(dx*dx + dy*dy) < 80) {
       abyssEventActive = false;
       abyssEventDone   = true;
+      // Portal opens in hell (player must travel there to use it)
       hellPortalActive = true;
       hellPortalX = HELL_W / 2;
       hellPortalY = HELL_H / 2;
-      // Intense red flash — longer than monolith
-      redFlashTimer = 1.6;
+      // Heavy glitch + red flash
+      glitchScreenTimer = 2.5;
+      redFlashTimer = 1.8;
       // Massive burst of particles at corrupt player location
       const colors = ['#ff0000','#cc0000','#880000','#ff4444','#330000','#ff2200'];
       for (let i = 0; i < 60; i++) {
@@ -2504,8 +2516,8 @@ function handleInteract() {
           life: 1.0, decay: 0.6 + Math.random()*0.6,
         });
       }
-      // Drop Abyss Key (in hell)
-      hellGroundItems.push({ type: 'abyss_key', x: abyssX, y: abyssY });
+      // Drop Abyss Key at altar (surface) — player carries it to hell
+      worldGroundItems.push({ type: 'abyss_key', x: abyssX + 20, y: abyssY + 20, pickedUp: false });
       return;
     }
   }
@@ -5010,16 +5022,14 @@ function drawRedFlash() {
 function updateAbyssEvent() {
   if (abyssEventDone) return;
   if (!hasEnteredHell) return;
-  // Only active in hell (hell is always visually dark — treat as permanent night)
-  if (caveLevel !== 3) { abyssEventActive = false; return; }
+  // Only active on surface at night, after player has entered hell
+  if (caveLevel !== 0) { abyssEventActive = false; return; }
+  const isNight = darkAlpha > 0.45;
+  if (!isNight) { abyssEventActive = false; return; }
   if (!abyssEventActive) {
-    // Position at a hell monolith if one exists, else near center
-    const hellMon = monoliths.find(m => m.caveLevel === 3 && !m.mined);
-    if (hellMon) {
-      abyssX = hellMon.x; abyssY = hellMon.y - 55;
-    } else {
-      abyssX = HELL_W / 2; abyssY = HELL_H / 2 - 100;
-    }
+    // Stand at the forest stone altar
+    abyssX = FOREST_ALTAR_X;
+    abyssY = FOREST_ALTAR_Y - 30;
     abyssEventActive = true;
   }
   // Proximity-based continuous glitch effect
@@ -5031,7 +5041,7 @@ function updateAbyssEvent() {
 }
 
 function drawAbyssCorrupt() {
-  if (!abyssEventActive || caveLevel !== 3) return;
+  if (!abyssEventActive || caveLevel !== 0) return;
   const sx = Math.round(abyssX - camX), sy = Math.round(abyssY - camY);
   if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
   const PS = 3; // larger pixels — more solid presence
