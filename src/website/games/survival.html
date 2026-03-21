@@ -888,15 +888,6 @@ const EQUIP_SLOT_POS = {};
 const equipSlots = {};
 for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
 
-// ===================== TESTING: starting gear =====================
-equipSlots['weapon']       = { id: 'iron_sword',      count: 1 };
-equipSlots['pickaxe_slot'] = { id: 'iron_pickaxe',    count: 1 };
-equipSlots['hatchet_slot'] = { id: 'iron_hatchet',    count: 1 };
-equipSlots['helmet']       = { id: 'iron_helmet',     count: 1 };
-equipSlots['chestplate']   = { id: 'iron_chestplate', count: 1 };
-equipSlots['pants']        = { id: 'iron_pants',      count: 1 };
-equipSlots['furniture']    = { id: 'void_entrance',   count: 3 };
-// ===================== END TESTING =====================
 
 // Precompute equip slot screen positions once (avoids filter+indexOf every frame)
 (function buildEquipSlotPos() {
@@ -2499,8 +2490,8 @@ function handleInteract() {
       hellPortalActive = true;
       hellPortalX = HELL_W / 2;
       hellPortalY = HELL_H / 2;
-      // Heavy glitch + red flash
-      glitchScreenTimer = 2.5;
+      // Clear glitch instantly, brief red flash
+      glitchScreenTimer = 0;
       redFlashTimer = 1.8;
       // Massive burst of particles at corrupt player location
       const colors = ['#ff0000','#cc0000','#880000','#ff4444','#330000','#ff2200'];
