@@ -663,7 +663,7 @@ const STATION_RANGE = 110;
 const FURNACE_RANGE = 110;
 
 function nearFurnace() {
-  return furnaces.some(f => f.cave === inCave && Math.sqrt((f.x-px)**2 + (f.y-py)**2) < FURNACE_RANGE);
+  return furnaces.some(f => f.cave === caveLevel && Math.sqrt((f.x-px)**2 + (f.y-py)**2) < FURNACE_RANGE);
 }
 
 const mobs = [];
@@ -2118,8 +2118,11 @@ function mineMonolith(m, power) {
   spawnParticles(m.x, m.y, '#5a0808', 5);
   spawnParticles(m.x, m.y, '#0d0000', 4);
   if (m.hitsLeft <= 0) {
+    const brokenLevel = m.caveLevel;
     const idx = monoliths.indexOf(m);
     if (idx >= 0) monoliths.splice(idx, 1);
+    // Respawn on same level at a new random position
+    spawnMonolithOnLevel(brokenLevel);
     redFlashTimer = 0.8;
     if (!monolithBroken) {
       monolithBroken = true;
@@ -2194,11 +2197,11 @@ function handleInteract() {
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
   if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
-    if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: inCave });
-    else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: inCave });
-    else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: inCave });
+    if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: caveLevel });
+    else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: caveLevel });
+    else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: caveLevel });
     else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: px, y: py, plantedTime: gameNow }); }
-    else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: inCave, redTimer: 0 });
+    else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: caveLevel, redTimer: 0 });
     else if (weapon.id === 'mine_entrance' && !inCave) mineEntrances.push({ x: px, y: py });
     else if (weapon.id === 'mine_entrance_t2' && !inCave) mineEntrancesT2.push({ x: px, y: py });
     else if (weapon.id === 'void_entrance') voidEntrances.push({ x: px, y: py, fromLevel: caveLevel });
@@ -3110,13 +3113,13 @@ function updateMobs(dt, now) {
         // Check fire flee (campfires + torches)
         let fleeX = 0, fleeY = 0, nearFire = false;
         for (const f of campfires) {
-          if (f.cave !== inCave) continue;
+          if (f.cave !== caveLevel) continue;
           const fdx = m.x - f.x, fdy = m.y - f.y;
           const fd = Math.sqrt(fdx*fdx + fdy*fdy);
           if (fd < 180 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
         }
         for (const f of torches) {
-          if (f.cave !== inCave) continue;
+          if (f.cave !== caveLevel) continue;
           const fdx = m.x - f.x, fdy = m.y - f.y;
           const fd = Math.sqrt(fdx*fdx + fdy*fdy);
           if (fd < 120 && fd > 0) { fleeX += fdx/fd; fleeY += fdy/fd; nearFire = true; }
@@ -3303,7 +3306,7 @@ function drawCampfires() {
   const t = performance.now() / 1000;
   const PS = 3;
   for (const f of campfires) {
-    if (f.cave !== inCave) continue;
+    if (f.cave !== caveLevel) continue;
     const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
     if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
     // Logs
@@ -3347,7 +3350,7 @@ function drawCampfires() {
 function drawTorches() {
   const t = performance.now() / 1000;
   for (const f of torches) {
-    if (f.cave !== inCave) continue;
+    if (f.cave !== caveLevel) continue;
     const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
     if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
     // Stake
@@ -3386,7 +3389,7 @@ function drawNightOverlay() {
   lctx.fillStyle = pg; lctx.fillRect(0, 0, W, H);
   // Campfires
   for (const f of campfires) {
-    if (f.cave !== inCave) continue;
+    if (f.cave !== caveLevel) continue;
     const fx = f.x - camX, fy = f.y - camY;
     if (fx < -220 || fx > W+220 || fy < -220 || fy > H+220) continue;
     const fg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 180);
@@ -3397,7 +3400,7 @@ function drawNightOverlay() {
   }
   // Torches
   for (const f of torches) {
-    if (f.cave !== inCave) continue;
+    if (f.cave !== caveLevel) continue;
     const fx = f.x - camX, fy = f.y - camY;
     if (fx < -120 || fx > W+120 || fy < -120 || fy > H+120) continue;
     const tg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 100);
@@ -3459,7 +3462,7 @@ function drawCraftingStations() {
 function drawFurnaces() {
   const t = performance.now() / 1000;
   for (const f of furnaces) {
-    if (f.cave !== inCave) continue;
+    if (f.cave !== caveLevel) continue;
     const sx = Math.round(f.x - camX), sy = Math.round(f.y - camY);
     if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
     // Body
@@ -3928,7 +3931,7 @@ function drawMap() {
 
   // Campfire icons (current world only)
   for (const f of campfires) {
-    if (f.cave !== inCave) continue;
+    if (f.cave !== caveLevel) continue;
     const fx = WX + f.x * scaleX, fy = WY + f.y * scaleY;
     if (fx < WX || fx > WX+WW || fy < WY || fy > WY+WH) continue;
     // Tiny flame
@@ -3936,6 +3939,18 @@ function drawMap() {
     glow('#e05010', 4); ctx.fillStyle = '#e05010';
     ctx.fillRect(fx-1, fy-3, 2, 3);
     ctx.fillStyle = '#ffa020'; ctx.fillRect(fx-0, fy-2, 1, 2);
+    noGlow();
+  }
+
+  // Hell portal on map (hell only)
+  if (caveLevel === 3 && hellPortalActive) {
+    const hpx = WX + hellPortalX * scaleX, hpy = WY + hellPortalY * scaleY;
+    glow('#ff0000', 10);
+    ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(hpx, hpy, 6, 8, 0, 0, Math.PI*2); ctx.stroke();
+    glow('#aa00ff', 6);
+    ctx.strokeStyle = '#8800cc'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(hpx, hpy, 4, 5, 0, 0, Math.PI*2); ctx.stroke();
     noGlow();
   }
 
@@ -4174,29 +4189,41 @@ function updateRespawns(dt) {
 }
 
 // ===================== MONOLITHS =====================
-const MONOLITH_CAP = 6; // total across all levels
+const MONOLITH_CAP_PER_LEVEL = 5;
+
+function countMonolithsOnLevel(level) {
+  return monoliths.filter(m => m.caveLevel === level).length;
+}
+
+function spawnMonolithOnLevel(level) {
+  let x, y;
+  if (level === 0) {
+    x = 150 + Math.random() * (WORLD_W - 300);
+    y = 100 + Math.random() * (WORLD_H - 200);
+  } else if (level === 1) {
+    x = 80  + Math.random() * (CAVE_W  - 160);
+    y = 60  + Math.random() * (CAVE_H  - 120);
+  } else if (level === 2) {
+    x = 80  + Math.random() * (CAVE2_W - 160);
+    y = 60  + Math.random() * (CAVE2_H - 120);
+  } else {
+    x = 80  + Math.random() * (HELL_W  - 160);
+    y = 60  + Math.random() * (HELL_H  - 120);
+  }
+  monoliths.push({ x, y, caveLevel: level, mineHealth: 8, hitsLeft: 8 });
+}
 
 function updateMonoliths() {
   if (!hasEnteredCave2) return;
-  if (monoliths.length >= MONOLITH_CAP) return;
-  if (gameTime - lastMonolithSpawn < CYCLE_LEN) return;
+  if (gameTime - lastMonolithSpawn < CYCLE_LEN * 0.75) return;
   lastMonolithSpawn = gameTime;
-  if (Math.random() < 0.65) {
-    // Pick a random level — surface more likely, caves less so
-    const r = Math.random();
-    const spawnLevel = r < 0.55 ? 0 : r < 0.78 ? 1 : 2;
-    let x, y;
-    if (spawnLevel === 0) {
-      x = 150 + Math.random() * (WORLD_W - 300);
-      y = 100 + Math.random() * (WORLD_H - 200);
-    } else if (spawnLevel === 1) {
-      x = 80  + Math.random() * (CAVE_W - 160);
-      y = 60  + Math.random() * (CAVE_H - 120);
-    } else {
-      x = 80  + Math.random() * (CAVE2_W - 160);
-      y = 60  + Math.random() * (CAVE2_H - 120);
+  // Try to top up each level to its cap (75% chance per level per cycle)
+  const levels = [0, 1, 2];
+  if (hasEnteredHell) levels.push(3);
+  for (const lv of levels) {
+    if (countMonolithsOnLevel(lv) < MONOLITH_CAP_PER_LEVEL && Math.random() < 0.75) {
+      spawnMonolithOnLevel(lv);
     }
-    monoliths.push({ x, y, caveLevel: spawnLevel, mineHealth: 8, hitsLeft: 8 });
   }
 }
 
