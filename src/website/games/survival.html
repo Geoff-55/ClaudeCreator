@@ -108,6 +108,14 @@ function chunkRNG(cx, cy) {
   };
 }
 
+// ===================== TREE VARIANTS =====================
+const TREE_VARIANTS = [
+  { glow: '#0e2a06', c1: '#0f2408', c2: '#1e4a0e', c3: '#2a6614', c4: '#3a8a1c' }, // forest green
+  { glow: '#062814', c1: '#062010', c2: '#104030', c3: '#186048', c4: '#288060' }, // blue-green pine
+  { glow: '#1a2606', c1: '#181e06', c2: '#34400e', c3: '#4c5e18', c4: '#628028' }, // warm olive
+  { glow: '#040e02', c1: '#030a02', c2: '#0a1e08', c3: '#123010', c4: '#1c4818' }, // very dark
+];
+
 // ===================== TREE GEOMETRY =====================
 const CBS   = 5;
 const CRX   = 12;
@@ -165,6 +173,7 @@ let hasEnteredCave1    = false;
 let hasEnteredCave2    = false;
 let hasEnteredHell     = false;
 let hellEntryDay       = -1;
+let altarSeen          = false;  // altar appeared on map once player got close
 let abyssEventActive   = false;  // corrupt player is currently visible + interactable
 let abyssEventDone     = false;  // event has been completed (permanent red tint)
 let abyssX             = 0;
@@ -197,7 +206,8 @@ function generateSurfaceWorld() {
       }
 
       let tree = null;
-      // Forest: always a tree; clearing: never; normal: 42%
+      const cellW = Math.floor(CHUNK_W / 3), cellH = Math.floor(CHUNK_H / 2);
+      // Forest: always; clearing: never; normal: 42%
       const treeChance = isForestCenter ? 0 : isForest ? 1.0 : 0.42;
       if (rng() < treeChance) {
         const numSegs = Math.ceil(TH / SEG_H);
@@ -208,12 +218,13 @@ function generateSurfaceWorld() {
           drift = Math.max(-6, Math.min(6, drift));
           segs.push(drift);
         }
+        // Forest base tree in cell (0,0); normal tree anywhere
         tree = {
-          x: wx + 60 + Math.floor(rng() * (CHUNK_W - 120)),
-          y: wy + 50 + Math.floor(rng() * (CHUNK_H - 120)),
+          x: isForest ? wx + 20 + Math.floor(rng() * (cellW - 40)) : wx + 60 + Math.floor(rng() * (CHUNK_W - 120)),
+          y: isForest ? wy + 20 + Math.floor(rng() * (cellH - 40)) : wy + 50 + Math.floor(rng() * (CHUNK_H - 120)),
           segs,
-          chopped: false,
-          chopHealth: undefined, chopsLeft: undefined,
+          variant: Math.floor(rng() * TREE_VARIANTS.length),
+          chopped: false, chopHealth: undefined, chopsLeft: undefined,
         };
       }
 
@@ -305,11 +316,12 @@ function generateSurfaceWorld() {
         }
       }
 
-      // Extra trees for forest chunks (3-4 per chunk, none in clearing)
+      // Extra trees
       const extraTrees = [];
       if (isForest && !isForestCenter) {
-        const nExtra = 3 + Math.floor(rng() * 2);
-        for (let e = 0; e < nExtra; e++) {
+        // Fill remaining 5 grid cells [col,row] — base tree already in (0,0)
+        const cells = [[1,0],[2,0],[0,1],[1,1],[2,1]];
+        for (const [col, row] of cells) {
           const numSegs2 = Math.ceil(TH / SEG_H);
           const segs2 = [];
           let drift2 = 0;
@@ -319,11 +331,30 @@ function generateSurfaceWorld() {
             segs2.push(drift2);
           }
           extraTrees.push({
-            x: wx + 60 + Math.floor(rng() * (CHUNK_W - 120)),
-            y: wy + 50 + Math.floor(rng() * (CHUNK_H - 120)),
-            segs: segs2, chopped: false, chopHealth: undefined, chopsLeft: undefined,
+            x: wx + col * cellW + 20 + Math.floor(rng() * (cellW - 40)),
+            y: wy + row * cellH + 20 + Math.floor(rng() * (cellH - 40)),
+            segs: segs2,
+            variant: Math.floor(rng() * TREE_VARIANTS.length),
+            chopped: false, chopHealth: undefined, chopsLeft: undefined,
           });
         }
+      } else if (!isForest && tree && rng() < 0.28) {
+        // Non-forest: occasional natural 2-tree cluster in a different position
+        const numSegs2 = Math.ceil(TH / SEG_H);
+        const segs2 = [];
+        let drift2 = 0;
+        for (let i = 0; i < numSegs2; i++) {
+          drift2 += Math.round(rng() * 6 - 3);
+          drift2 = Math.max(-6, Math.min(6, drift2));
+          segs2.push(drift2);
+        }
+        extraTrees.push({
+          x: wx + 100 + Math.floor(rng() * (CHUNK_W - 200)),
+          y: wy + 80 + Math.floor(rng() * (CHUNK_H - 160)),
+          segs: segs2,
+          variant: Math.floor(rng() * TREE_VARIANTS.length),
+          chopped: false, chopHealth: undefined, chopsLeft: undefined,
+        });
       }
       // Stone patch: ~25% chance, 1 minable rock + 3-4 loose rocks clustered nearby
       if (rng() < 0.25) {
@@ -2497,6 +2528,12 @@ function updateMovement(dt) {
   resolveTreeCollisions();
   resolveRockCollisions();
   resolveWallCollisions();
+  resolveAltarCollision();
+  // Check if player is near altar (reveals it on map)
+  if (!inCave && !altarSeen) {
+    const _adx = px - FOREST_ALTAR_X, _ady = py - FOREST_ALTAR_Y;
+    if (_adx*_adx + _ady*_ady < 350*350) altarSeen = true;
+  }
 }
 
 // ===================== DRAW =====================
@@ -2650,21 +2687,44 @@ function drawSurfaceDetails() {
 }
 
 // ===================== STONE ALTAR =====================
-function drawAltar() {
+function _altarScreenPos() {
+  return { ax: Math.round(FOREST_ALTAR_X - camX), ay: Math.round(FOREST_ALTAR_Y - camY) };
+}
+
+// Bottom half — drawn before player (player appears in front)
+function drawAltarBase() {
   if (inCave) return;
-  const ax = Math.round(FOREST_ALTAR_X - camX);
-  const ay = Math.round(FOREST_ALTAR_Y - camY);
+  const { ax, ay } = _altarScreenPos();
   if (ax < -250 || ax > W+250 || ay < -250 || ay > H+250) return;
-  const S1 = '#141414', S2 = '#222222', S3 = '#303030', S4 = '#3c3c3c', SH = '#4e4e4e', M = '#0d2204';
+  const S1 = '#141414', S2 = '#222222', S3 = '#303030', SH = '#4e4e4e', M = '#0d2204';
 
   // Base step (widest)
   ctx.fillStyle = S2; ctx.fillRect(ax - 100, ay - 18, 200, 18);
   ctx.fillStyle = SH; ctx.fillRect(ax - 100, ay - 18, 200, 3);
-  ctx.fillStyle = S1; ctx.fillRect(ax - 100, ay - 2, 200, 2); // bottom shadow
+  ctx.fillStyle = S1; ctx.fillRect(ax - 100, ay - 2, 200, 2);
 
   // Second step
   ctx.fillStyle = S3; ctx.fillRect(ax - 72, ay - 34, 144, 16);
   ctx.fillStyle = SH; ctx.fillRect(ax - 72, ay - 34, 144, 3);
+
+  // Lower pillar shafts (below the split at ay-50)
+  for (const ox of [-88, 78]) {
+    ctx.fillStyle = S2; ctx.fillRect(ax + ox, ay - 50, 12, 16);
+    ctx.fillStyle = S1; ctx.fillRect(ax + ox + 1, ay - 49, 3, 14);
+  }
+
+  // Moss on base
+  ctx.fillStyle = M;
+  ctx.fillRect(ax - 98, ay - 16, 7, 3); ctx.fillRect(ax + 72, ay - 16, 9, 4);
+  ctx.fillRect(ax - 70, ay - 32, 6, 3);
+}
+
+// Top half — drawn after player (player appears behind)
+function drawAltarTop() {
+  if (inCave) return;
+  const { ax, ay } = _altarScreenPos();
+  if (ax < -250 || ax > W+250 || ay < -250 || ay > H+250) return;
+  const S1 = '#141414', S2 = '#222222', S3 = '#303030', S4 = '#3c3c3c', SH = '#4e4e4e', M = '#0d2204';
 
   // Third step
   ctx.fillStyle = S3; ctx.fillRect(ax - 48, ay - 50, 96, 16);
@@ -2677,26 +2737,46 @@ function drawAltar() {
   // Central standing stone
   ctx.fillStyle = S2; ctx.fillRect(ax - 9, ay - 100, 18, 30);
   ctx.fillStyle = SH; ctx.fillRect(ax - 9, ay - 102, 18, 4);
-  ctx.fillStyle = S1; ctx.fillRect(ax - 7, ay - 99, 6, 20); // shading
+  ctx.fillStyle = S1; ctx.fillRect(ax - 7, ay - 99, 6, 20);
 
-  // Four corner pillars on base
+  // Upper pillar capitals (above ay-50)
   for (const ox of [-88, 78]) {
-    ctx.fillStyle = S2; ctx.fillRect(ax + ox, ay - 60, 12, 42);
-    ctx.fillStyle = SH; ctx.fillRect(ax + ox, ay - 63, 12, 5);
-    ctx.fillStyle = S1; ctx.fillRect(ax + ox + 1, ay - 59, 3, 35);
+    ctx.fillStyle = S2; ctx.fillRect(ax + ox, ay - 63, 12, 13);
+    ctx.fillStyle = SH; ctx.fillRect(ax + ox, ay - 64, 12, 5);
+    ctx.fillStyle = S1; ctx.fillRect(ax + ox + 1, ay - 62, 3, 10);
   }
 
-  // Moss patches
+  // Moss patches on upper
   ctx.fillStyle = M;
-  ctx.fillRect(ax - 98, ay - 16, 7, 3); ctx.fillRect(ax + 72, ay - 16, 9, 4);
-  ctx.fillRect(ax - 70, ay - 32, 6, 3); ctx.fillRect(ax + 44, ay - 50, 5, 3);
+  ctx.fillRect(ax + 44, ay - 50, 5, 3);
   ctx.fillRect(ax - 30, ay - 68, 4, 3); ctx.fillRect(ax + 18, ay - 68, 6, 3);
 
-  // Carved rune marks on top slab
-  ctx.fillStyle = S1;
+  // Carved rune marks — glow red at night
+  const runeGlow = darkAlpha > 0.05;
+  if (runeGlow) { glow('#cc0000', Math.round(6 * darkAlpha)); ctx.fillStyle = `rgba(200,20,0,${(darkAlpha * 0.85).toFixed(2)})`; }
+  else { ctx.fillStyle = S1; }
   ctx.fillRect(ax - 22, ay - 66, 2, 12); ctx.fillRect(ax - 18, ay - 62, 8, 2);
   ctx.fillRect(ax + 12, ay - 66, 2, 12); ctx.fillRect(ax + 10, ay - 60, 6, 2);
   ctx.fillRect(ax - 4, ay - 67, 2, 6); ctx.fillRect(ax + 2, ay - 67, 2, 6); ctx.fillRect(ax - 4, ay - 62, 8, 2);
+  if (runeGlow) noGlow();
+}
+
+function resolveAltarCollision() {
+  if (inCave) return;
+  // Collision: bottom half of altar — the first two steps (ay-34 wide 144px, ay-18 wide 200px)
+  const ax = FOREST_ALTAR_X, ay = FOREST_ALTAR_Y;
+  const rects = [
+    { x1: ax - 100, x2: ax + 100, y1: ay - 18, y2: ay },
+    { x1: ax - 72,  x2: ax + 72,  y1: ay - 34, y2: ay - 18 },
+  ];
+  for (const r of rects) {
+    const cx = Math.max(r.x1, Math.min(r.x2, px));
+    const cy = Math.max(r.y1, Math.min(r.y2, py));
+    const dx = px - cx, dy = py - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < BODY_R && dist > 0) { const ov = BODY_R - dist; px += (dx/dist)*ov; py += (dy/dist)*ov; }
+    else if (dist === 0) py = r.y1 - BODY_R;
+  }
 }
 
 // ===================== DEAD BUSHES (Tier 3) =====================
@@ -3061,14 +3141,15 @@ function drawTreeTops() {
       if (segTopY >= splitY) break;
       drawTrunkSeg(sx, segTopY, Math.min(segBotY, splitY) - segTopY, t.segs[i]);
     }
-    glow('#0e2a06', 8); ctx.fillStyle = '#0f2408';
+    const tv = TREE_VARIANTS[t.variant || 0];
+    glow(tv.glow, 8); ctx.fillStyle = tv.c1;
     for (const [row, col] of C_OUTER) ctx.fillRect(sx+col*CBS, sy+row*CBS, CBS, CBS);
     noGlow();
-    ctx.fillStyle = '#1e4a0e';
+    ctx.fillStyle = tv.c2;
     for (const [row, col] of C_MID) ctx.fillRect(sx+col*CBS, sy+row*CBS, CBS, CBS);
-    ctx.fillStyle = '#2a6614';
+    ctx.fillStyle = tv.c3;
     for (const [row, col] of C_INNER) ctx.fillRect(sx+col*CBS, sy+row*CBS, CBS, CBS);
-    ctx.fillStyle = '#3a8a1c';
+    ctx.fillStyle = tv.c4;
     ctx.fillRect(sx-CBS, sy-CBS, CBS, CBS);
     ctx.fillRect(sx+CBS*2, sy+CBS, CBS, CBS);
     ctx.fillRect(sx-CBS*3, sy, CBS, CBS);
@@ -4268,6 +4349,18 @@ function drawMap() {
     noGlow();
   }
 
+  // Altar dot (surface only, once seen)
+  if (caveLevel === 0 && altarSeen) {
+    const altMapX = WX + FOREST_ALTAR_X * scaleX, altMapY = WY + FOREST_ALTAR_Y * scaleY;
+    ctx.fillStyle = '#444444'; ctx.fillRect(altMapX - 4, altMapY - 3, 8, 3);
+    ctx.fillStyle = '#333333'; ctx.fillRect(altMapX - 1, altMapY - 6, 2, 3);
+    if (darkAlpha > 0.05) { glow('#cc0000', 5); ctx.fillStyle = `rgba(200,30,0,${(darkAlpha * 0.9).toFixed(2)})`; }
+    else { ctx.fillStyle = '#880000'; }
+    ctx.fillRect(altMapX - 3, altMapY - 2, 1, 1); ctx.fillRect(altMapX + 2, altMapY - 2, 1, 1);
+    ctx.fillRect(altMapX - 1, altMapY - 2, 2, 1);
+    noGlow();
+  }
+
   // Player dot
   const pdx = WX + px * scaleX, pdy = WY + py * scaleY;
   glow('#7ab038', 8); ctx.fillStyle = '#7ab038';
@@ -4318,7 +4411,7 @@ function restartGame() {
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   deadBushes.length = 0; bloodPiles.length = 0; lastBloodSpawn = -9999;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
-  hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0;
+  hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false;
   hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
@@ -4397,6 +4490,7 @@ function updateSaplings() {
     }
     worldChunks.push({ grass: [], tree: {
       x: s.x, y: s.y, segs,
+      variant: Math.floor(Math.random() * TREE_VARIANTS.length),
       chopped: false, chopHealth: undefined, chopsLeft: undefined,
     }});
     spawnParticles(s.x, s.y, '#3a8a1c', 14);
@@ -4954,7 +5048,7 @@ function loop(ts) {
   if (caveLevel === 3) drawHellDetails();
   drawWalls();
   drawGroundItemBodies();
-  drawAltar();
+  drawAltarBase();
   if (!inCave) drawTreeBases();
   drawRockBases();
   drawMonoliths();
@@ -4972,6 +5066,7 @@ function loop(ts) {
   drawAbyssCorrupt();
   drawPlayer();
   drawMobs();
+  drawAltarTop();
   if (!inCave) drawTreeTops();
   drawRockTops();
   drawParticles();
