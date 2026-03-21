@@ -190,7 +190,7 @@ function generateSurfaceWorld() {
       }
 
       let tree = null;
-      if (rng() < 0.35) {
+      if (rng() < 0.42) {
         const numSegs = Math.ceil(TH / SEG_H);
         const segs = [];
         let drift = 0;
@@ -218,7 +218,7 @@ function generateSurfaceWorld() {
         });
       }
 
-      if (rng() < 0.25) {
+      if (rng() < 0.33) {
         worldRocks.push({
           x: wx + 80 + Math.floor(rng() * (CHUNK_W - 160)),
           y: wy + 60 + Math.floor(rng() * (CHUNK_H - 160)),
@@ -299,7 +299,7 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
   for (let cx = 0; cx < CAVE_CHUNKS; cx++) {
     const rng = chunkRNG(cx + 500, cy + 500); // offset seed from surface
     const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
-    const numBig = 2 + Math.floor(rng() * 4);
+    const numBig = 3 + Math.floor(rng() * 4);
     for (let i = 0; i < numBig; i++) {
         const rv = rng();
       const oreType = rv < 0.22 ? 'coal' : rv < 0.52 ? 'bronze' : 'rock';
@@ -655,6 +655,7 @@ const saplings = []; // { x, y, plantedTime }
 // ===================== CAMPFIRES + MOBS =====================
 const campfires = [];
 const craftingStations = [];
+const walls = []; // { x, y, level } — grid-snapped wood walls
 const mineEntrances = [];
 const mineEntrancesT2 = [];
 const furnaces = [];
@@ -753,7 +754,7 @@ const ITEM_NAMES = {
   feather: 'Feather', rough_bronze: 'Rough Bronze', iron_ore: 'Iron Ore',
   copper: 'Copper', raw_chicken: 'Raw Chicken', unknown: 'Unknown',
   cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
-  abyss_key: 'Abyss Key',
+  abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall',
 };
 
 function getSlotItem(slot) {
@@ -827,6 +828,11 @@ const RECIPES = [
   {
     id: 'campfire', name: 'Campfire',
     ingredients: [{ id: 'stick', count: 5 }],
+  },
+  {
+    id: 'wood_wall', name: 'Wood Wall',
+    ingredients: [{ id: 'wood', count: 2 }],
+    yield: 4,
   },
   {
     id: 'sword', name: 'Sword',
@@ -1027,7 +1033,7 @@ const ITEM_SLOT = {
   hatchet: 'hatchet_slot', bronze_hatchet: 'hatchet_slot', iron_hatchet: 'hatchet_slot',
   pickaxe: 'pickaxe_slot', bronze_pickaxe: 'pickaxe_slot', iron_pickaxe: 'pickaxe_slot',
   campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture', mine_entrance_t2: 'furniture', void_entrance: 'furniture',
-  furnace: 'furniture', sapling: 'furniture', torch: 'furniture',
+  furnace: 'furniture', sapling: 'furniture', torch: 'furniture', wood_wall: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
   iron_helmet: 'helmet', iron_pants: 'pants', iron_chestplate: 'chestplate',
   bone_armor: 'chestplate', bone_shield: 'shield', glitch_shield: 'shield',
@@ -1971,6 +1977,22 @@ function resolveTreeCollisions() {
   }
 }
 
+function resolveWallCollisions() {
+  const half = GRID / 2;
+  for (const w of walls) {
+    if (w.level !== caveLevel) continue;
+    // Closest point on wall rect to player center
+    const cx = Math.max(w.x - half, Math.min(w.x + half, px));
+    const cy = Math.max(w.y - half, Math.min(w.y + half, py));
+    const dx = px - cx, dy = py - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < BODY_R && dist > 0) {
+      const ov = BODY_R - dist;
+      px += (dx/dist)*ov; py += (dy/dist)*ov;
+    }
+  }
+}
+
 function resolveRockCollisions() {
   for (const rock of curRocks()) {
     if (rock.mined) continue;
@@ -2065,10 +2087,15 @@ function chopTree(tree, power) {
     tree.chopped = true;
     score += 20;
     const dropY  = tree.y + CRY * CBS + TH;
-    const numDrop = 7 + Math.floor(Math.random() * 4);
+    const numDrop = 5 + Math.floor(Math.random() * 4);
     for (let i = 0; i < numDrop; i++) {
       const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 55;
       worldGroundItems.push({ type: 'stick', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
+    }
+    const numWood = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < numWood; i++) {
+      const a = Math.random() * Math.PI * 2, d = 15 + Math.random() * 45;
+      worldGroundItems.push({ type: 'wood', x: tree.x + Math.cos(a)*d, y: dropY + Math.sin(a)*d, pickedUp: false });
     }
     const saplingCount = 1 + (Math.random() < 0.5 ? 1 : 0);
     for (let i = 0; i < saplingCount; i++) {
@@ -2196,8 +2223,13 @@ function handleInteract() {
   }
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
-  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch'].includes(weapon.id)) {
-    if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: caveLevel });
+  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall'].includes(weapon.id)) {
+    if (weapon.id === 'wood_wall') {
+      const wx = Math.round(px / GRID) * GRID;
+      const wy = Math.round(py / GRID) * GRID;
+      if (!walls.some(w => w.x === wx && w.y === wy && w.level === caveLevel))
+        walls.push({ x: wx, y: wy, level: caveLevel });
+    } else if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: caveLevel });
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: caveLevel });
     else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: caveLevel });
     else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: px, y: py, plantedTime: gameNow }); }
@@ -2347,6 +2379,7 @@ function updateMovement(dt) {
 
   resolveTreeCollisions();
   resolveRockCollisions();
+  resolveWallCollisions();
 }
 
 // ===================== DRAW =====================
@@ -2542,6 +2575,29 @@ function drawBloodPiles() {
     ctx.fillStyle = '#2a0000';
     for (const c of b.cells) ctx.fillRect(sx + c.dx + 1, sy + c.dy + 1, c.s - 1, c.s - 1);
     ctx.globalAlpha = 1;
+  }
+}
+
+function drawWalls() {
+  const half = GRID / 2;
+  for (const w of walls) {
+    if (w.level !== caveLevel) continue;
+    const sx = Math.round(w.x - camX), sy = Math.round(w.y - camY);
+    if (sx < -half-4 || sx > W+half+4 || sy < -half-4 || sy > H+half+4) continue;
+    // Wood plank fill
+    ctx.fillStyle = '#3d1f08';
+    ctx.fillRect(sx - half, sy - half, GRID, GRID);
+    // Plank lines (horizontal grain)
+    ctx.fillStyle = '#2a1405';
+    ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.32), GRID, 2);
+    ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.66), GRID, 2);
+    // Dark border
+    ctx.strokeStyle = '#1a0a02';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
+    // Subtle top highlight
+    ctx.fillStyle = '#5a2e10';
+    ctx.fillRect(sx - half + 2, sy - half + 2, GRID - 4, 3);
   }
 }
 
@@ -3173,6 +3229,18 @@ function updateMobs(dt, now) {
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.x = Math.max(30, Math.min(curWorldW()-30, m.x));
     m.y = Math.max(30, Math.min(curWorldH()-30, m.y));
+    // Wall collision — all non-phantom mobs
+    if (m.subtype !== 'phantom') {
+      const half = GRID / 2, mr = MOB_COLL_R;
+      for (const w of walls) {
+        if (w.level !== caveLevel) continue;
+        const cx = Math.max(w.x - half, Math.min(w.x + half, m.x));
+        const cy = Math.max(w.y - half, Math.min(w.y + half, m.y));
+        const dx2 = m.x - cx, dy2 = m.y - cy;
+        const d2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+        if (d2 < mr && d2 > 0) { m.x += (dx2/d2)*(mr-d2); m.y += (dy2/d2)*(mr-d2); }
+      }
+    }
   }
 }
 
@@ -3989,7 +4057,7 @@ function checkGameOver() {
 
 function restartGame() {
   playerHp = 75; score = 0; gameOver = false; lastHitTime = -999;
-  mobs.length = 0; campfires.length = 0; craftingStations.length = 0;
+  mobs.length = 0; campfires.length = 0; craftingStations.length = 0; walls.length = 0;
   mineEntrances.length = 0; mineEntrancesT2.length = 0; furnaces.length = 0; torches.length = 0; saplings.length = 0;
   inCave = false; caveLevel = 0; mineExits.length = 0; cave2Exits.length = 0; hellExits.length = 0; voidEntrances.length = 0; lavaDrips.length = 0;
   inventorySlots.fill(null);
@@ -4091,6 +4159,18 @@ function updateSaplings() {
 }
 
 const ROCK_RESPAWN_TIME = CYCLE_LEN * 2; // ~170s, two full day cycles
+function updateSurfaceRockRespawn() {
+  for (const rock of worldRocks) {
+    if (!rock.mined || rock.minedTime === undefined) continue;
+    if (gameNow - rock.minedTime < ROCK_RESPAWN_TIME) continue;
+    rock.x = 80 + Math.random() * (WORLD_W - 160);
+    rock.y = 60 + Math.random() * (WORLD_H - 160);
+    rock.mined = false; rock.minedTime = undefined;
+    rock.mineHealth = rock.type === 'coal' ? 3 : 4;
+    rock.hitsLeft = rock.mineHealth;
+  }
+}
+
 function updateCaveRockRespawn() {
   for (const rock of caveRocks) {
     if (!rock.mined || rock.minedTime === undefined) continue;
@@ -4591,6 +4671,7 @@ function loop(ts) {
     updatePlayerRegen(dt, now);
     updateRespawns(dt);
     if (!inCave) updateSaplings();
+    if (caveLevel === 0) updateSurfaceRockRespawn();
     if (caveLevel === 1) updateCaveRockRespawn();
     if (caveLevel === 2) updateCave2RockRespawn();
     if (caveLevel === 3) updateHellRockRespawn();
@@ -4626,6 +4707,7 @@ function loop(ts) {
   if (caveLevel === 1) drawCave1Details();
   if (caveLevel === 2) drawCave2Details();
   if (caveLevel === 3) drawHellDetails();
+  drawWalls();
   drawGroundItemBodies();
   if (!inCave) drawTreeBases();
   drawRockBases();
