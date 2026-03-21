@@ -161,6 +161,9 @@ let abyssEventActive   = false;  // corrupt player is currently visible + intera
 let abyssEventDone     = false;  // event has been completed (permanent red tint)
 let abyssX             = 0;
 let abyssY             = 0;
+let hellPortalActive   = false;
+let hellPortalX        = 0;
+let hellPortalY        = 0;
 let glitchScreenTimer  = 0;
 let lastLavaDmgTime    = -999;
 
@@ -2148,6 +2151,31 @@ function handleInteract() {
       const dx = exit.x - px, dy = exit.y - py;
       if (Math.sqrt(dx*dx + dy*dy) < 70) { exitHell(i); return; }
     }
+    // Hell portal interact
+    if (hellPortalActive) {
+      const dx = hellPortalX - px, dy = hellPortalY - py;
+      if (Math.sqrt(dx*dx + dy*dy) < 90) {
+        // Check for abyss_key in inventory
+        let keyIdx = -1;
+        for (let i = 0; i < inventorySlots.length; i++) {
+          if (inventorySlots[i]?.id === 'abyss_key') { keyIdx = i; break; }
+        }
+        if (keyIdx >= 0) {
+          // Consume key, reward 5 score
+          inventorySlots[keyIdx].count--;
+          if (inventorySlots[keyIdx].count <= 0) inventorySlots[keyIdx] = null;
+          score += 5;
+          spawnParticles(px, py, '#8800ff', 10);
+          spawnParticles(px, py, '#cc00ff', 8);
+        } else {
+          // No key — portal rejects, deal 1 dmg
+          playerHp = Math.max(0, playerHp - 1);
+          lastHitTime = gameNow;
+          spawnParticles(px, py, '#ff0000', 5);
+        }
+        return;
+      }
+    }
   }
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
@@ -2193,6 +2221,9 @@ function handleInteract() {
     if (Math.sqrt(dx*dx + dy*dy) < 80) {
       abyssEventActive = false;
       abyssEventDone   = true;
+      hellPortalActive = true;
+      hellPortalX = HELL_W / 2;
+      hellPortalY = HELL_H / 2;
       // Intense red flash — longer than monolith
       redFlashTimer = 1.6;
       // Massive burst of particles at corrupt player location
@@ -3600,6 +3631,124 @@ function drawHellExits() {
   }
 }
 
+// ===================== HELL PORTAL =====================
+function drawHellPortal() {
+  if (!hellPortalActive || caveLevel !== 3) return;
+  const sx = Math.round(hellPortalX - camX), sy = Math.round(hellPortalY - camY);
+  if (sx < -120 || sx > W+120 || sy < -120 || sy > H+120) return;
+  const t = gameNow;
+  const PW = 80, PH = 110; // portal half-width, half-height
+  ctx.save();
+
+  // Outer dark stone arch — two pillars + lintel
+  ctx.fillStyle = '#1a0000';
+  ctx.fillRect(sx - PW - 14, sy - PH - 8, 14, PH*2 + 8); // left pillar
+  ctx.fillRect(sx + PW,      sy - PH - 8, 14, PH*2 + 8); // right pillar
+  ctx.fillRect(sx - PW - 14, sy - PH - 22, PW*2 + 28, 14); // lintel
+  // Pillar rune marks
+  ctx.fillStyle = '#550000';
+  for (let ry = 0; ry < 5; ry++) {
+    const rpy = sy - PH + 10 + ry * 36;
+    ctx.fillRect(sx - PW - 11, rpy, 8, 6);
+    ctx.fillRect(sx + PW + 3,  rpy, 8, 6);
+  }
+  // Capstones — glowing red
+  glow('#ff0000', 16);
+  ctx.fillStyle = '#cc1010';
+  ctx.fillRect(sx - PW - 14, sy - PH - 30, PW*2 + 28, 8);
+  noGlow();
+
+  // Portal interior — layered ellipses from back to front
+  // Deep void core
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, PW, PH, 0, 0, Math.PI*2);
+  ctx.clip();
+
+  // Black void background
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(sx-PW, sy-PH, PW*2, PH*2);
+
+  // Swirling energy rings — drawn as rotating arcs
+  for (let ring = 0; ring < 6; ring++) {
+    const frac  = ring / 6;
+    const rw    = PW * (1 - frac * 0.55);
+    const rh    = PH * (1 - frac * 0.55);
+    const speed = (ring % 2 === 0 ? 1 : -1) * (0.6 + ring * 0.18);
+    const angle = t * speed + frac * Math.PI;
+    const alpha = 0.15 + frac * 0.22;
+    const hue   = ring < 3 ? '#ff0000' : '#8800aa';
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(angle);
+    ctx.strokeStyle = hue;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 3 + (5 - ring) * 1.5;
+    glow(hue, 12);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 1.4);
+    ctx.stroke();
+    noGlow();
+    ctx.restore();
+  }
+
+  // Bright pulsing center core
+  const cPulse = Math.sin(t * 4.5) * 0.3 + 0.7;
+  const cg = ctx.createRadialGradient(sx, sy, 0, sx, sy, PW * 0.45);
+  cg.addColorStop(0,   `rgba(120, 0, 180, ${(0.55 * cPulse).toFixed(2)})`);
+  cg.addColorStop(0.4, `rgba(180, 0, 60,  ${(0.30 * cPulse).toFixed(2)})`);
+  cg.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = cg; ctx.globalAlpha = 1;
+  ctx.fillRect(sx-PW, sy-PH, PW*2, PH*2);
+
+  // Vertical void tendrils flickering
+  for (let td = 0; td < 8; td++) {
+    const tx2 = sx + (td - 3.5) * (PW * 0.26);
+    const flicker = Math.sin(t * (7 + td * 1.3) + td * 2.1) > 0.2;
+    if (!flicker) continue;
+    const tlen = PH * (0.3 + Math.random() * 0.5);
+    ctx.globalAlpha = 0.18 + Math.random() * 0.18;
+    ctx.strokeStyle = Math.random() < 0.5 ? '#ff2200' : '#aa00ff';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(tx2, sy - PH); ctx.lineTo(tx2, sy - PH + tlen); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx2, sy + PH); ctx.lineTo(tx2, sy + PH - tlen); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore(); // un-clip
+
+  // Portal rim glow
+  glow('#ff0000', 22);
+  ctx.strokeStyle = '#cc0000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, PW, PH, 0, 0, Math.PI*2);
+  ctx.stroke();
+  glow('#aa00ff', 14);
+  ctx.strokeStyle = '#8800cc';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, PW + 4, PH + 4, 0, 0, Math.PI*2);
+  ctx.stroke();
+  noGlow();
+
+  // Interact prompt
+  const dist = Math.sqrt((hellPortalX-px)**2 + (hellPortalY-py)**2);
+  if (dist < 160) {
+    // Check if player has abyss key
+    const hasKey = inventorySlots.some(s => s?.id === 'abyss_key');
+    ctx.globalAlpha = 0.95;
+    glow(hasKey ? '#aa00ff' : '#ff0000', 10);
+    ctx.fillStyle = hasKey ? '#cc88ff' : '#ff6666';
+    ctx.font = '700 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(hasKey ? '[E] insert key' : '[E] ???', sx, sy - PH - 36);
+    noGlow();
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
 // ===================== PLACEMENT PREVIEW =====================
 function drawCampfirePreview() {
   const weapon = equipSlots['furniture'];
@@ -3745,6 +3894,7 @@ function restartGame() {
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0;
+  hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
@@ -4365,6 +4515,7 @@ function loop(ts) {
   if (caveLevel === 2) { drawCave2Exits(); drawLavaDrips(); }
   drawVoidEntrances();
   if (caveLevel === 3) drawHellExits();
+  if (caveLevel === 3) drawHellPortal();
   drawShadowFigures();
   drawAbyssCorrupt();
   drawPlayer();
