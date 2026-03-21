@@ -94,6 +94,11 @@ const CHUNK_W = W, CHUNK_H = H;
 const CHUNKS_X = 8, CHUNKS_Y = 10;
 const WORLD_W  = CHUNK_W * CHUNKS_X;
 const WORLD_H  = CHUNK_H * CHUNKS_Y;
+// Single forest: fixed location (top-right area, ~3 chunks from spawn)
+const FOREST_CX = 6, FOREST_CY = 2;
+const FOREST_ALTAR_X = (FOREST_CX + 0.5) * CHUNK_W;
+const FOREST_ALTAR_Y = (FOREST_CY + 0.5) * CHUNK_H;
+function isForestChunk(cx, cy) { return (cx-FOREST_CX)**2 + (cy-FOREST_CY)**2 <= 5.5; }
 
 function chunkRNG(cx, cy) {
   let s = (cx * 73856093 ^ cy * 19349663) >>> 0;
@@ -174,25 +179,12 @@ const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88'
 
 function generateSurfaceWorld() {
   worldChunks.length = 0; worldGroundItems.length = 0; worldRocks.length = 0;
-  // Forest zones: 2-3 cluster seeds, radius 1 — covers ~20% of surface
-  const forestSet = new Set();
-  const fr = chunkRNG(42, 1337);
-  const nSeeds = 2 + Math.floor(fr() * 2);
-  for (let s = 0; s < nSeeds; s++) {
-    const scx = 1 + Math.floor(fr() * (CHUNKS_X - 2));
-    const scy = 1 + Math.floor(fr() * (CHUNKS_Y - 2));
-    for (let fdx = -1; fdx <= 1; fdx++) {
-      for (let fdy = -1; fdy <= 1; fdy++) {
-        const ffx = scx + fdx, ffy = scy + fdy;
-        if (ffx >= 0 && ffx < CHUNKS_X && ffy >= 0 && ffy < CHUNKS_Y)
-          forestSet.add(`${ffx},${ffy}`);
-      }
-    }
-  }
   for (let cy = 0; cy < CHUNKS_Y; cy++) {
     for (let cx = 0; cx < CHUNKS_X; cx++) {
       const rng = chunkRNG(cx, cy);
       const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
+      const isForest = isForestChunk(cx, cy);
+      const isForestCenter = cx === FOREST_CX && cy === FOREST_CY;
 
       const grass = [];
       const n = 2 + Math.floor(rng() * 3);
@@ -205,7 +197,9 @@ function generateSurfaceWorld() {
       }
 
       let tree = null;
-      if (rng() < 0.42) {
+      // Forest: always a tree; clearing: never; normal: 42%
+      const treeChance = isForestCenter ? 0 : isForest ? 1.0 : 0.42;
+      if (rng() < treeChance) {
         const numSegs = Math.ceil(TH / SEG_H);
         const segs = [];
         let drift = 0;
@@ -215,8 +209,8 @@ function generateSurfaceWorld() {
           segs.push(drift);
         }
         tree = {
-          x: wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
-          y: wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
+          x: wx + 60 + Math.floor(rng() * (CHUNK_W - 120)),
+          y: wy + 50 + Math.floor(rng() * (CHUNK_H - 120)),
           segs,
           chopped: false,
           chopHealth: undefined, chopsLeft: undefined,
@@ -311,10 +305,10 @@ function generateSurfaceWorld() {
         }
       }
 
-      // Extra trees for forest chunks (1-2 additional per chunk)
+      // Extra trees for forest chunks (3-4 per chunk, none in clearing)
       const extraTrees = [];
-      if (forestSet.has(`${cx},${cy}`)) {
-        const nExtra = 1 + Math.floor(rng() * 2);
+      if (isForest && !isForestCenter) {
+        const nExtra = 3 + Math.floor(rng() * 2);
         for (let e = 0; e < nExtra; e++) {
           const numSegs2 = Math.ceil(TH / SEG_H);
           const segs2 = [];
@@ -325,8 +319,8 @@ function generateSurfaceWorld() {
             segs2.push(drift2);
           }
           extraTrees.push({
-            x: wx + 90 + Math.floor(rng() * (CHUNK_W - 180)),
-            y: wy + 70 + Math.floor(rng() * (CHUNK_H - 180)),
+            x: wx + 60 + Math.floor(rng() * (CHUNK_W - 120)),
+            y: wy + 50 + Math.floor(rng() * (CHUNK_H - 120)),
             segs: segs2, chopped: false, chopHealth: undefined, chopsLeft: undefined,
           });
         }
@@ -2655,6 +2649,56 @@ function drawSurfaceDetails() {
   }
 }
 
+// ===================== STONE ALTAR =====================
+function drawAltar() {
+  if (inCave) return;
+  const ax = Math.round(FOREST_ALTAR_X - camX);
+  const ay = Math.round(FOREST_ALTAR_Y - camY);
+  if (ax < -250 || ax > W+250 || ay < -250 || ay > H+250) return;
+  const S1 = '#141414', S2 = '#222222', S3 = '#303030', S4 = '#3c3c3c', SH = '#4e4e4e', M = '#0d2204';
+
+  // Base step (widest)
+  ctx.fillStyle = S2; ctx.fillRect(ax - 100, ay - 18, 200, 18);
+  ctx.fillStyle = SH; ctx.fillRect(ax - 100, ay - 18, 200, 3);
+  ctx.fillStyle = S1; ctx.fillRect(ax - 100, ay - 2, 200, 2); // bottom shadow
+
+  // Second step
+  ctx.fillStyle = S3; ctx.fillRect(ax - 72, ay - 34, 144, 16);
+  ctx.fillStyle = SH; ctx.fillRect(ax - 72, ay - 34, 144, 3);
+
+  // Third step
+  ctx.fillStyle = S3; ctx.fillRect(ax - 48, ay - 50, 96, 16);
+  ctx.fillStyle = SH; ctx.fillRect(ax - 48, ay - 50, 96, 3);
+
+  // Top altar slab
+  ctx.fillStyle = S4; ctx.fillRect(ax - 32, ay - 70, 64, 20);
+  ctx.fillStyle = SH; ctx.fillRect(ax - 32, ay - 70, 64, 3);
+
+  // Central standing stone
+  ctx.fillStyle = S2; ctx.fillRect(ax - 9, ay - 100, 18, 30);
+  ctx.fillStyle = SH; ctx.fillRect(ax - 9, ay - 102, 18, 4);
+  ctx.fillStyle = S1; ctx.fillRect(ax - 7, ay - 99, 6, 20); // shading
+
+  // Four corner pillars on base
+  for (const ox of [-88, 78]) {
+    ctx.fillStyle = S2; ctx.fillRect(ax + ox, ay - 60, 12, 42);
+    ctx.fillStyle = SH; ctx.fillRect(ax + ox, ay - 63, 12, 5);
+    ctx.fillStyle = S1; ctx.fillRect(ax + ox + 1, ay - 59, 3, 35);
+  }
+
+  // Moss patches
+  ctx.fillStyle = M;
+  ctx.fillRect(ax - 98, ay - 16, 7, 3); ctx.fillRect(ax + 72, ay - 16, 9, 4);
+  ctx.fillRect(ax - 70, ay - 32, 6, 3); ctx.fillRect(ax + 44, ay - 50, 5, 3);
+  ctx.fillRect(ax - 30, ay - 68, 4, 3); ctx.fillRect(ax + 18, ay - 68, 6, 3);
+
+  // Carved rune marks on top slab
+  ctx.fillStyle = S1;
+  ctx.fillRect(ax - 22, ay - 66, 2, 12); ctx.fillRect(ax - 18, ay - 62, 8, 2);
+  ctx.fillRect(ax + 12, ay - 66, 2, 12); ctx.fillRect(ax + 10, ay - 60, 6, 2);
+  ctx.fillRect(ax - 4, ay - 67, 2, 6); ctx.fillRect(ax + 2, ay - 67, 2, 6); ctx.fillRect(ax - 4, ay - 62, 8, 2);
+}
+
 // ===================== DEAD BUSHES (Tier 3) =====================
 function drawDeadBushes() {
   if (!monolithBroken || inCave || deadBushes.length === 0) return;
@@ -4910,6 +4954,7 @@ function loop(ts) {
   if (caveLevel === 3) drawHellDetails();
   drawWalls();
   drawGroundItemBodies();
+  drawAltar();
   if (!inCave) drawTreeBases();
   drawRockBases();
   drawMonoliths();
