@@ -1582,6 +1582,45 @@ function drawItemIcon(id, cx, cy, size) {
      [D,0,7],[D,1,7],[D,6,7],[D,7,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
     noGlow();
+
+  } else if (id === 'wood') {
+    // Brown log cross-section with grain rings
+    const D = '#2a0e00', M = '#5c2a0a', L = '#8b4513', H = '#a0522d', R = '#c47a3a';
+    [[D,0,0],[M,1,0],[M,2,0],[M,3,0],[M,4,0],[M,5,0],[M,6,0],[D,7,0],
+     [M,0,1],[L,1,1],[L,2,1],[H,3,1],[H,4,1],[L,5,1],[L,6,1],[M,7,1],
+     [M,0,2],[L,1,2],[H,2,2],[R,3,2],[R,4,2],[H,5,2],[L,6,2],[M,7,2],
+     [M,0,3],[H,1,3],[R,2,3],[H,3,3],[H,4,3],[R,5,3],[H,6,3],[M,7,3],
+     [M,0,4],[H,1,4],[R,2,4],[H,3,4],[H,4,4],[R,5,4],[H,6,4],[M,7,4],
+     [M,0,5],[L,1,5],[H,2,5],[R,3,5],[R,4,5],[H,5,5],[L,6,5],[M,7,5],
+     [M,0,6],[L,1,6],[L,2,6],[H,3,6],[H,4,6],[L,5,6],[L,6,6],[M,7,6],
+     [D,0,7],[M,1,7],[M,2,7],[M,3,7],[M,4,7],[M,5,7],[M,6,7],[D,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'wood_wall') {
+    // Brown plank wall — horizontal planks with grain and dark mortar lines
+    const D = '#1a0800', M = '#4a1e06', L = '#7a3510', H = '#a04820', G = '#8b3d14';
+    [[D,0,0],[D,1,0],[D,2,0],[D,3,0],[D,4,0],[D,5,0],[D,6,0],[D,7,0],
+     [M,0,1],[L,1,1],[H,2,1],[G,3,1],[G,4,1],[H,5,1],[L,6,1],[M,7,1],
+     [M,0,2],[G,1,2],[L,2,2],[H,3,2],[H,4,2],[L,5,2],[G,6,2],[M,7,2],
+     [D,0,3],[D,1,3],[D,2,3],[D,3,3],[D,4,3],[D,5,3],[D,6,3],[D,7,3],
+     [M,0,4],[H,1,4],[G,2,4],[L,3,4],[L,4,4],[G,5,4],[H,6,4],[M,7,4],
+     [M,0,5],[L,1,5],[H,2,5],[G,3,5],[G,4,5],[H,5,5],[L,6,5],[M,7,5],
+     [D,0,6],[D,1,6],[D,2,6],[D,3,6],[D,4,6],[D,5,6],[D,6,6],[D,7,6],
+     [M,0,7],[G,1,7],[L,2,7],[H,3,7],[H,4,7],[L,5,7],[G,6,7],[M,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+
+  } else if (id === 'stone_wall') {
+    // Gray brick wall with darker mortar lines
+    const D = '#1a1a1a', M = '#383838', L = '#555555', H = '#707070', B = '#888888';
+    [[D,0,0],[D,1,0],[D,2,0],[D,3,0],[D,4,0],[D,5,0],[D,6,0],[D,7,0],
+     [M,0,1],[L,1,1],[H,2,1],[B,3,1],[B,4,1],[H,5,1],[L,6,1],[M,7,1],
+     [M,0,2],[H,1,2],[B,2,2],[H,3,2],[H,4,2],[B,5,2],[H,6,2],[M,7,2],
+     [D,0,3],[D,1,3],[D,2,3],[D,3,3],[D,4,3],[D,5,3],[D,6,3],[D,7,3],
+     [M,0,4],[B,1,4],[H,2,4],[L,3,4],[L,4,4],[H,5,4],[B,6,4],[M,7,4],
+     [M,0,5],[H,1,5],[B,2,5],[H,3,5],[H,4,5],[B,5,5],[H,6,5],[M,7,5],
+     [D,0,6],[D,1,6],[D,2,6],[D,3,6],[D,4,6],[D,5,6],[D,6,6],[D,7,6],
+     [M,0,7],[L,1,7],[H,2,7],[B,3,7],[B,4,7],[H,5,7],[L,6,7],[M,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
   }
 }
 
@@ -2229,19 +2268,18 @@ function handleInteract() {
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
   if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall', 'stone_wall'].includes(weapon.id)) {
+    const gx = snapToGrid(px), gy = snapToGrid(py);
     if (weapon.id === 'wood_wall' || weapon.id === 'stone_wall') {
-      const wx = Math.round(px / GRID) * GRID;
-      const wy = Math.round(py / GRID) * GRID;
-      if (!walls.some(w => w.x === wx && w.y === wy && w.level === caveLevel))
-        walls.push({ x: wx, y: wy, level: caveLevel, type: weapon.id });
-    } else if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: caveLevel });
-    else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: caveLevel });
-    else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: caveLevel });
-    else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: px, y: py, plantedTime: gameNow }); }
-    else if (weapon.id === 'torch') torches.push({ x: px, y: py, cave: caveLevel, redTimer: 0 });
-    else if (weapon.id === 'mine_entrance' && !inCave) mineEntrances.push({ x: px, y: py });
-    else if (weapon.id === 'mine_entrance_t2' && !inCave) mineEntrancesT2.push({ x: px, y: py });
-    else if (weapon.id === 'void_entrance') voidEntrances.push({ x: px, y: py, fromLevel: caveLevel });
+      if (!isGridOccupied(gx, gy))
+        walls.push({ x: gx, y: gy, level: caveLevel, type: weapon.id });
+    } else if (weapon.id === 'campfire') { if (!isGridOccupied(gx, gy)) campfires.push({ x: gx, y: gy, cave: caveLevel }); }
+    else if (weapon.id === 'crafting_station') { if (!isGridOccupied(gx, gy)) craftingStations.push({ x: gx, y: gy, cave: caveLevel }); }
+    else if (weapon.id === 'furnace') { if (!isGridOccupied(gx, gy)) furnaces.push({ x: gx, y: gy, cave: caveLevel }); }
+    else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: gx, y: gy, plantedTime: gameNow }); }
+    else if (weapon.id === 'torch') { if (!isGridOccupied(gx, gy)) torches.push({ x: gx, y: gy, cave: caveLevel, redTimer: 0 }); }
+    else if (weapon.id === 'mine_entrance' && !inCave) mineEntrances.push({ x: gx, y: gy });
+    else if (weapon.id === 'mine_entrance_t2' && !inCave) mineEntrancesT2.push({ x: gx, y: gy });
+    else if (weapon.id === 'void_entrance') voidEntrances.push({ x: gx, y: gy, fromLevel: caveLevel });
     else { return; }
     weapon.count--;
     if (weapon.count <= 0) equipSlots['furniture'] = null;
@@ -2389,6 +2427,18 @@ function updateMovement(dt) {
 
 // ===================== DRAW =====================
 const GRID = 40;
+
+function snapToGrid(v) { return Math.floor(v / GRID) * GRID + GRID / 2; }
+
+function isGridOccupied(gx, gy) {
+  const near = (f) => Math.abs(f.x - gx) < 2 && Math.abs(f.y - gy) < 2;
+  const caveCheck = (f) => f.cave === caveLevel && near(f);
+  if (campfires.some(caveCheck) || craftingStations.some(caveCheck) ||
+      furnaces.some(caveCheck) || torches.some(caveCheck)) return true;
+  if (walls.some(w => w.level === caveLevel && near(w))) return true;
+  if (mineEntrances.some(near) || mineEntrancesT2.some(near)) return true;
+  return false;
+}
 
 function drawBg() {
   const ox = camX % GRID, oy = camY % GRID;
@@ -2589,37 +2639,25 @@ function drawWalls() {
     if (w.level !== caveLevel) continue;
     const sx = Math.round(w.x - camX), sy = Math.round(w.y - camY);
     if (sx < -half-4 || sx > W+half+4 || sy < -half-4 || sy > H+half+4) continue;
+    // 1px inset so grid lines remain visible at cell borders
+    const wx0 = sx - half + 1, wy0 = sy - half + 1, ws = GRID - 2;
     if (w.type === 'stone_wall') {
-      // Stone fill
       ctx.fillStyle = '#4a4a4a';
-      ctx.fillRect(sx - half, sy - half, GRID, GRID);
-      // Stone block lines (brick pattern)
+      ctx.fillRect(wx0, wy0, ws, ws);
       ctx.fillStyle = '#2e2e2e';
-      ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.5), GRID, 2);  // horizontal mid
-      ctx.fillRect(sx - half + Math.round(GRID*0.25), sy - half, 2, Math.round(GRID*0.5));    // upper vertical
-      ctx.fillRect(sx - half + Math.round(GRID*0.75), sy - half + Math.round(GRID*0.5), 2, Math.round(GRID*0.5)); // lower vertical
-      // Border
-      ctx.strokeStyle = '#1a1a1a';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
-      // Top highlight
+      ctx.fillRect(wx0, wy0 + Math.round(ws*0.5), ws, 2);
+      ctx.fillRect(wx0 + Math.round(ws*0.25), wy0, 2, Math.round(ws*0.5));
+      ctx.fillRect(wx0 + Math.round(ws*0.75), wy0 + Math.round(ws*0.5), 2, Math.round(ws*0.5));
       ctx.fillStyle = '#666666';
-      ctx.fillRect(sx - half + 2, sy - half + 2, GRID - 4, 3);
+      ctx.fillRect(wx0 + 2, wy0 + 1, ws - 4, 2);
     } else {
-      // Wood plank fill
       ctx.fillStyle = '#3d1f08';
-      ctx.fillRect(sx - half, sy - half, GRID, GRID);
-      // Plank lines (horizontal grain)
+      ctx.fillRect(wx0, wy0, ws, ws);
       ctx.fillStyle = '#2a1405';
-      ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.32), GRID, 2);
-      ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.66), GRID, 2);
-      // Dark border
-      ctx.strokeStyle = '#1a0a02';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
-      // Subtle top highlight
+      ctx.fillRect(wx0, wy0 + Math.round(ws*0.33), ws, 2);
+      ctx.fillRect(wx0, wy0 + Math.round(ws*0.67), ws, 2);
       ctx.fillStyle = '#5a2e10';
-      ctx.fillRect(sx - half + 2, sy - half + 2, GRID - 4, 3);
+      ctx.fillRect(wx0 + 2, wy0 + 1, ws - 4, 2);
     }
   }
 }
@@ -3941,43 +3979,71 @@ function drawHellPortal() {
 // ===================== PLACEMENT PREVIEW =====================
 function drawCampfirePreview() {
   const weapon = equipSlots['furniture'];
-  if (!weapon) return;
-  const sx = Math.round(px - camX), sy = Math.round(py - camY);
+  if (!weapon || inventoryOpen) return;
+  // Snap to grid cell center
+  const gx = snapToGrid(px), gy = snapToGrid(py);
+  const sx = Math.round(gx - camX), sy = Math.round(gy - camY);
+  const occupied = isGridOccupied(gx, gy);
   ctx.save();
-  if (weapon.id === 'campfire') {
-    ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = occupied ? 0.25 : 0.55;
+  const half = GRID / 2, ws = GRID - 2;
+  if (weapon.id === 'wood_wall' || weapon.id === 'stone_wall') {
+    if (weapon.id === 'stone_wall') {
+      ctx.fillStyle = '#4a4a4a'; ctx.fillRect(sx-half+1, sy-half+1, ws, ws);
+      ctx.fillStyle = '#2e2e2e';
+      ctx.fillRect(sx-half+1, sy+1, ws, 2);
+      ctx.fillRect(sx-half+1+Math.round(ws*0.25), sy-half+1, 2, Math.round(ws*0.5));
+    } else {
+      ctx.fillStyle = '#3d1f08'; ctx.fillRect(sx-half+1, sy-half+1, ws, ws);
+      ctx.fillStyle = '#2a1405';
+      ctx.fillRect(sx-half+1, sy-half+1+Math.round(ws*0.33), ws, 2);
+      ctx.fillRect(sx-half+1, sy-half+1+Math.round(ws*0.67), ws, 2);
+    }
+    // Grid cell outline
+    ctx.strokeStyle = occupied ? '#ff4444' : '#ffff88';
+    ctx.lineWidth = 1; ctx.globalAlpha = 0.7;
+    ctx.strokeRect(sx-half+0.5, sy-half+0.5, GRID-1, GRID-1);
+  } else if (weapon.id === 'campfire') {
     ctx.fillStyle = '#3d1a05';
     ctx.fillRect(sx-9, sy-2, 18, 4); ctx.fillRect(sx-2, sy-9, 4, 11);
     ctx.fillStyle = '#e05010'; ctx.fillRect(sx-3, sy-16, 6, 8);
     ctx.fillStyle = '#ffc020'; ctx.fillRect(sx-2, sy-16, 3, 6);
   } else if (weapon.id === 'crafting_station') {
-    ctx.globalAlpha = 0.55;
     ctx.fillStyle = '#5c2a0a'; ctx.fillRect(sx-16, sy-5, 32, 7);
     ctx.fillStyle = '#8a5020'; ctx.fillRect(sx-16, sy-5, 32, 2);
     ctx.fillStyle = '#4a2208';
     ctx.fillRect(sx-13, sy+2, 4, 10); ctx.fillRect(sx+9, sy+2, 4, 10);
-  } else if (weapon.id === 'mine_entrance') {
-    ctx.globalAlpha = 0.55;
+  } else if (weapon.id === 'mine_entrance' || weapon.id === 'mine_entrance_t2') {
     ctx.fillStyle = '#2a2018'; ctx.fillRect(sx-20, sy-20, 40, 30);
     ctx.fillStyle = '#080604'; ctx.fillRect(sx-13, sy-16, 26, 22);
     ctx.fillStyle = '#4a3820'; ctx.fillRect(sx-20, sy+10, 40, 6);
   } else if (weapon.id === 'furnace') {
-    ctx.globalAlpha = 0.55;
     ctx.fillStyle = '#4a3828'; ctx.fillRect(sx-18, sy-18, 36, 36);
     ctx.fillStyle = '#e05010'; ctx.fillRect(sx-8, sy-8, 16, 16);
     ctx.fillStyle = '#ffa020'; ctx.fillRect(sx-5, sy-6, 10, 12);
   } else if (weapon.id === 'torch') {
-    ctx.globalAlpha = 0.6;
     ctx.fillStyle = '#5c2a0a'; ctx.fillRect(sx-2, sy-2, 4, 12);
     ctx.fillStyle = '#e05010'; ctx.fillRect(sx-3, sy-10, 6, 7);
     ctx.fillStyle = '#ffc020'; ctx.fillRect(sx-2, sy-9, 3, 5);
+  } else if (weapon.id === 'void_entrance') {
+    ctx.fillStyle = '#300606'; ctx.fillRect(sx-22, sy-22, 44, 36);
+    ctx.fillStyle = '#080000'; ctx.fillRect(sx-15, sy-18, 30, 28);
+    ctx.fillStyle = '#cc1010'; ctx.fillRect(sx-15, sy-18, 30, 3);
   } else {
     ctx.restore(); return;
   }
+  // Grid snap indicator (yellow outline) for non-wall items
+  if (weapon.id !== 'wood_wall' && weapon.id !== 'stone_wall') {
+    ctx.globalAlpha = occupied ? 0.35 : 0.5;
+    ctx.strokeStyle = occupied ? '#ff4444' : '#ffff88';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
+  }
   ctx.globalAlpha = 0.9;
-  ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+  ctx.fillStyle = occupied ? '#ff8888' : '#e8e8a0';
+  ctx.font = '700 9px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('[E] place', sx, sy - 22);
+  ctx.fillText(occupied ? 'occupied' : '[E] place', sx, sy - half - 8);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -4771,15 +4837,6 @@ function loop(ts) {
   if (gameOver) drawGameOver();
   requestAnimationFrame(loop);
 }
-
-// ===================== TESTING: starting gear =====================
-equipSlots['weapon']       = { id: 'iron_sword',      count: 1 };
-equipSlots['pickaxe_slot'] = { id: 'iron_pickaxe',    count: 1 };
-equipSlots['hatchet_slot'] = { id: 'iron_hatchet',    count: 1 };
-equipSlots['helmet']       = { id: 'iron_helmet',     count: 1 };
-equipSlots['chestplate']   = { id: 'iron_chestplate', count: 1 };
-equipSlots['pants']        = { id: 'iron_pants',      count: 1 };
-equipSlots['furniture']    = { id: 'void_entrance',   count: 3 };
 
 requestAnimationFrame(loop);
 </script>
