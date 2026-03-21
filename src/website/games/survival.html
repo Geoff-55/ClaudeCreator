@@ -841,7 +841,7 @@ const RECIPES = [
   },
   {
     id: 'mine_entrance_t2', name: 'Mine Entrance T2',
-    ingredients: [{ id: 'rock', count: 25 }, { id: 'stick', count: 25 }, { id: 'bronze_ingot', count: 10 }, { id: 'bone', count: 10 }],
+    ingredients: [{ id: 'rock', count: 25 }, { id: 'stick', count: 25 }, { id: 'bronze_ingot', count: 10 }, { id: 'bone', count: 5 }],
     requiresStation: true, tier: 'bronze',
   },
   {
@@ -1708,6 +1708,7 @@ let walkingTimer = 0;
 
 // ===================== PARTICLES =====================
 const particles = [];
+const leaves = [];
 
 function spawnParticles(wx, wy, color, count) {
   for (let i = 0; i < count; i++) {
@@ -1742,6 +1743,54 @@ function drawParticles() {
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
     ctx.fillRect(sx - p.r/2, sy - p.r/2, p.r, p.r);
+  }
+  ctx.globalAlpha = 1;
+}
+
+const LEAF_COLS = ['#4a8a1c', '#3a7018', '#5ca020', '#2e6010', '#6ab028'];
+
+function updateLeaves(dt) {
+  if (inCave) { leaves.length = 0; return; }
+  // Spawn from visible tree canopies
+  for (const chunk of worldChunks) {
+    if (!chunk.tree || chunk.tree.chopped) continue;
+    const t = chunk.tree;
+    if (t.x < camX - 250 || t.x > camX + W + 250 || t.y < camY - 250 || t.y > camY + H + 250) continue;
+    if (Math.random() < dt * 0.55) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist  = Math.random() * CRX * CBS * 0.8;
+      leaves.push({
+        wx: t.x + Math.cos(angle) * dist,
+        wy: t.y + Math.sin(angle) * dist * 0.6,
+        vx: (Math.random() - 0.5) * 20,
+        vy: 6 + Math.random() * 8,
+        life: 1.0,
+        decay: 0.18 + Math.random() * 0.12,
+        phase: Math.random() * Math.PI * 2,
+        size: 2 + Math.floor(Math.random() * 2),
+        col: LEAF_COLS[Math.floor(Math.random() * LEAF_COLS.length)],
+      });
+    }
+  }
+  for (let i = leaves.length - 1; i >= 0; i--) {
+    const l = leaves[i];
+    l.phase += dt * 2.8;
+    l.wx += (l.vx + Math.sin(l.phase) * 10) * dt;
+    l.wy += l.vy * dt;
+    l.vy = Math.min(l.vy + 3 * dt, 22);
+    l.life -= l.decay * dt;
+    if (l.life <= 0) leaves.splice(i, 1);
+  }
+}
+
+function drawLeaves() {
+  if (inCave) return;
+  for (const l of leaves) {
+    const sx = Math.round(l.wx - camX), sy = Math.round(l.wy - camY);
+    if (sx < -6 || sx > W + 6 || sy < -6 || sy > H + 6) continue;
+    ctx.globalAlpha = Math.max(0, l.life) * 0.85;
+    ctx.fillStyle = l.col;
+    ctx.fillRect(sx, sy, l.size, l.size);
   }
   ctx.globalAlpha = 1;
 }
@@ -2748,17 +2797,17 @@ function spawnMob(type, cap) {
 }
 
 function updateMobs(dt, now) {
-  if (!inCave && now - lastMobSpawn > 5) {
+  if (!inCave && now - lastMobSpawn > 3.5) {
     lastMobSpawn = now;
-    if (darkAlpha > 0.6) spawnMob('zombie');
+    if (darkAlpha > 0.6) spawnMob('zombie', 12);
   }
   if (!inCave && darkAlpha < 0.4 && now - lastChickenSpawn > 2.5) {
     lastChickenSpawn = now;
     spawnMob('chicken', 6);
   }
-  if (inCave && now - lastCaveMobSpawn > 28) {
+  if (inCave && now - lastCaveMobSpawn > 18) {
     lastCaveMobSpawn = now;
-    spawnMob('zombie', caveLevel === 3 ? 5 : 3);
+    spawnMob('zombie', caveLevel === 3 ? 7 : 5);
   }
   for (let i = mobs.length - 1; i >= 0; i--) {
     const m = mobs[i];
@@ -3545,7 +3594,7 @@ function restartGame() {
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   glitchScreenTimer = 0; lastLavaDmgTime = -999;
-  particles.length = 0; lastPickupTime = -999;
+  particles.length = 0; leaves.length = 0; lastPickupTime = -999;
   generateSurfaceWorld();
   generateCaveWorld();
   generateCave2World();
@@ -4059,6 +4108,7 @@ function loop(ts) {
     if (redFlashTimer > 0) redFlashTimer -= dt;
     updateButterflies(dt, now);
     updateLavaDrips(dt);
+    updateLeaves(dt);
     updateParticles(dt);
     checkGameOver();
     updateCamera();
@@ -4069,6 +4119,7 @@ function loop(ts) {
   if (!inCave) drawSurfaceDetails();
   if (!inCave) drawSaplings();
   if (!inCave) drawButterflies();
+  if (!inCave) drawLeaves();
   if (caveLevel === 1) drawCave1Details();
   if (caveLevel === 2) drawCave2Details();
   if (caveLevel === 3) drawHellDetails();
