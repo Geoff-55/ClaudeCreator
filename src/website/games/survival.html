@@ -2256,6 +2256,15 @@ function getNearbyMineTarget() {
     if (fx*(dx/dist) + fy*(dy/dist) < FACING_DOT) continue;
     if (dist < bestDist) { bestDist = dist; best = rock; }
   }
+  // Also check walls on this level
+  for (const w of walls) {
+    if (w.level !== caveLevel) continue;
+    const dx = w.x - px, dy = w.y - py;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > MINE_RANGE || dist === 0) continue;
+    if (fx*(dx/dist) + fy*(dy/dist) < FACING_DOT) continue;
+    if (dist < bestDist) { bestDist = dist; best = w; }
+  }
   return best;
 }
 
@@ -3409,6 +3418,20 @@ function handleAttackClick(mx, my) {
       if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
     }
     if (best) mineRock(best, power);
+    // Walls: any pickaxe breaks in 1 hit, drops materials
+    let bestWall = null, bestWD = Infinity;
+    for (const w of walls) {
+      if (w.level !== caveLevel) continue;
+      const dx = w.x - px, dy = w.y - py;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < MINE_RANGE && d < bestWD) { bestWD = d; bestWall = w; }
+    }
+    if (bestWall) {
+      walls.splice(walls.indexOf(bestWall), 1);
+      const drop = bestWall.type === 'stone_wall' ? 'rock' : 'wood';
+      curGround().push({ type: drop, x: bestWall.x + (Math.random()-0.5)*20, y: bestWall.y + (Math.random()-0.5)*20, pickedUp: false });
+      spawnParticles(bestWall.x, bestWall.y, bestWall.type === 'stone_wall' ? '#888888' : '#8b4513', 5);
+    }
     // Monoliths: iron pickaxe only, current level only
     if (pickaxe.id === 'iron_pickaxe') {
       let bestM = null, bestMD = Infinity;
