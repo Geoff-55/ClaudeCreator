@@ -285,9 +285,9 @@ function generateSurfaceWorld() {
 generateSurfaceWorld();
 
 // ===================== CAVE WORLD =====================
-const CAVE_CHUNKS = 8;
-const CAVE_W = CHUNK_W * CAVE_CHUNKS;
-const CAVE_H = CHUNK_H * CAVE_CHUNKS;
+const CAVE_CHUNKS_X = 8, CAVE_CHUNKS_Y = 10;
+const CAVE_W = CHUNK_W * CAVE_CHUNKS_X;
+const CAVE_H = CHUNK_H * CAVE_CHUNKS_Y;
 const caveRocks       = [];
 const caveGroundItems = [];
 const cave1Details    = [];
@@ -295,8 +295,8 @@ const cave1Details    = [];
 function generateCaveWorld() {
   caveRocks.length = 0; caveGroundItems.length = 0; cave1Details.length = 0;
 
-for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
-  for (let cx = 0; cx < CAVE_CHUNKS; cx++) {
+for (let cy = 0; cy < CAVE_CHUNKS_Y; cy++) {
+  for (let cx = 0; cx < CAVE_CHUNKS_X; cx++) {
     const rng = chunkRNG(cx + 500, cy + 500); // offset seed from surface
     const wx  = cx * CHUNK_W, wy = cy * CHUNK_H;
     const numBig = 3 + Math.floor(rng() * 4);
@@ -393,17 +393,17 @@ for (let cy = 0; cy < CAVE_CHUNKS; cy++) {
 generateCaveWorld();
 
 // ===================== CAVE 2 WORLD =====================
-const CAVE2_CHUNKS = 8;
-const CAVE2_W = CHUNK_W * CAVE2_CHUNKS;
-const CAVE2_H = CHUNK_H * CAVE2_CHUNKS;
+const CAVE2_CHUNKS_X = 8, CAVE2_CHUNKS_Y = 10;
+const CAVE2_W = CHUNK_W * CAVE2_CHUNKS_X;
+const CAVE2_H = CHUNK_H * CAVE2_CHUNKS_Y;
 const cave2Rocks       = [];
 const cave2GroundItems = [];
 const cave2Details     = [];
 
 function generateCave2World() {
   cave2Rocks.length = 0; cave2GroundItems.length = 0; cave2Details.length = 0;
-  for (let cy = 0; cy < CAVE2_CHUNKS; cy++) {
-    for (let cx = 0; cx < CAVE2_CHUNKS; cx++) {
+  for (let cy = 0; cy < CAVE2_CHUNKS_Y; cy++) {
+    for (let cx = 0; cx < CAVE2_CHUNKS_X; cx++) {
       const rng = chunkRNG(cx + 2000, cy + 2000);
       const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
       const numBig = 2 + Math.floor(rng() * 4);
@@ -480,17 +480,17 @@ function generateCave2World() {
 generateCave2World();
 
 // ===================== HELL WORLD =====================
-const HELL_CHUNKS = 8;
-const HELL_W = CHUNK_W * HELL_CHUNKS;
-const HELL_H = CHUNK_H * HELL_CHUNKS;
+const HELL_CHUNKS_X = 8, HELL_CHUNKS_Y = 10;
+const HELL_W = CHUNK_W * HELL_CHUNKS_X;
+const HELL_H = CHUNK_H * HELL_CHUNKS_Y;
 const hellRocks       = [];
 const hellGroundItems = [];
 const hellDetails     = [];
 
 function generateHellWorld() {
   hellRocks.length = 0; hellGroundItems.length = 0; hellDetails.length = 0;
-  for (let cy = 0; cy < HELL_CHUNKS; cy++) {
-    for (let cx = 0; cx < HELL_CHUNKS; cx++) {
+  for (let cy = 0; cy < HELL_CHUNKS_Y; cy++) {
+    for (let cx = 0; cx < HELL_CHUNKS_X; cx++) {
       const rng = chunkRNG(cx + 5000, cy + 5000);
       const wx = cx * CHUNK_W, wy = cy * CHUNK_H;
       // Hell rocks: coal + glitch_ore only (no stone)
@@ -754,7 +754,7 @@ const ITEM_NAMES = {
   feather: 'Feather', rough_bronze: 'Rough Bronze', iron_ore: 'Iron Ore',
   copper: 'Copper', raw_chicken: 'Raw Chicken', unknown: 'Unknown',
   cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
-  abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall',
+  abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall', stone_wall: 'Stone Wall',
 };
 
 function getSlotItem(slot) {
@@ -832,6 +832,11 @@ const RECIPES = [
   {
     id: 'wood_wall', name: 'Wood Wall',
     ingredients: [{ id: 'wood', count: 2 }],
+    yield: 4,
+  },
+  {
+    id: 'stone_wall', name: 'Stone Wall',
+    ingredients: [{ id: 'rock', count: 2 }],
     yield: 4,
   },
   {
@@ -1033,7 +1038,7 @@ const ITEM_SLOT = {
   hatchet: 'hatchet_slot', bronze_hatchet: 'hatchet_slot', iron_hatchet: 'hatchet_slot',
   pickaxe: 'pickaxe_slot', bronze_pickaxe: 'pickaxe_slot', iron_pickaxe: 'pickaxe_slot',
   campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture', mine_entrance_t2: 'furniture', void_entrance: 'furniture',
-  furnace: 'furniture', sapling: 'furniture', torch: 'furniture', wood_wall: 'furniture',
+  furnace: 'furniture', sapling: 'furniture', torch: 'furniture', wood_wall: 'furniture', stone_wall: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
   iron_helmet: 'helmet', iron_pants: 'pants', iron_chestplate: 'chestplate',
   bone_armor: 'chestplate', bone_shield: 'shield', glitch_shield: 'shield',
@@ -2223,12 +2228,12 @@ function handleInteract() {
   }
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
-  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall'].includes(weapon.id)) {
-    if (weapon.id === 'wood_wall') {
+  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall', 'stone_wall'].includes(weapon.id)) {
+    if (weapon.id === 'wood_wall' || weapon.id === 'stone_wall') {
       const wx = Math.round(px / GRID) * GRID;
       const wy = Math.round(py / GRID) * GRID;
       if (!walls.some(w => w.x === wx && w.y === wy && w.level === caveLevel))
-        walls.push({ x: wx, y: wy, level: caveLevel });
+        walls.push({ x: wx, y: wy, level: caveLevel, type: weapon.id });
     } else if (weapon.id === 'campfire') campfires.push({ x: px, y: py, cave: caveLevel });
     else if (weapon.id === 'crafting_station') craftingStations.push({ x: px, y: py, cave: caveLevel });
     else if (weapon.id === 'furnace') furnaces.push({ x: px, y: py, cave: caveLevel });
@@ -2584,20 +2589,38 @@ function drawWalls() {
     if (w.level !== caveLevel) continue;
     const sx = Math.round(w.x - camX), sy = Math.round(w.y - camY);
     if (sx < -half-4 || sx > W+half+4 || sy < -half-4 || sy > H+half+4) continue;
-    // Wood plank fill
-    ctx.fillStyle = '#3d1f08';
-    ctx.fillRect(sx - half, sy - half, GRID, GRID);
-    // Plank lines (horizontal grain)
-    ctx.fillStyle = '#2a1405';
-    ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.32), GRID, 2);
-    ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.66), GRID, 2);
-    // Dark border
-    ctx.strokeStyle = '#1a0a02';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
-    // Subtle top highlight
-    ctx.fillStyle = '#5a2e10';
-    ctx.fillRect(sx - half + 2, sy - half + 2, GRID - 4, 3);
+    if (w.type === 'stone_wall') {
+      // Stone fill
+      ctx.fillStyle = '#4a4a4a';
+      ctx.fillRect(sx - half, sy - half, GRID, GRID);
+      // Stone block lines (brick pattern)
+      ctx.fillStyle = '#2e2e2e';
+      ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.5), GRID, 2);  // horizontal mid
+      ctx.fillRect(sx - half + Math.round(GRID*0.25), sy - half, 2, Math.round(GRID*0.5));    // upper vertical
+      ctx.fillRect(sx - half + Math.round(GRID*0.75), sy - half + Math.round(GRID*0.5), 2, Math.round(GRID*0.5)); // lower vertical
+      // Border
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
+      // Top highlight
+      ctx.fillStyle = '#666666';
+      ctx.fillRect(sx - half + 2, sy - half + 2, GRID - 4, 3);
+    } else {
+      // Wood plank fill
+      ctx.fillStyle = '#3d1f08';
+      ctx.fillRect(sx - half, sy - half, GRID, GRID);
+      // Plank lines (horizontal grain)
+      ctx.fillStyle = '#2a1405';
+      ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.32), GRID, 2);
+      ctx.fillRect(sx - half, sy - half + Math.round(GRID*0.66), GRID, 2);
+      // Dark border
+      ctx.strokeStyle = '#1a0a02';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(sx - half + 0.5, sy - half + 0.5, GRID - 1, GRID - 1);
+      // Subtle top highlight
+      ctx.fillStyle = '#5a2e10';
+      ctx.fillRect(sx - half + 2, sy - half + 2, GRID - 4, 3);
+    }
   }
 }
 
@@ -3971,7 +3994,8 @@ function drawMap() {
 
   ctx.fillStyle = '#a855f7'; ctx.font = '600 10px monospace';
   ctx.letterSpacing = '0.12em'; ctx.textAlign = 'center';
-  ctx.fillText(inCave ? 'MAP — CAVE' : 'MAP', mx + MW/2, my + 16);
+  const mapTitle = caveLevel === 3 ? 'MAP — HELL' : caveLevel === 2 ? 'MAP — FLOOR 2' : caveLevel === 1 ? 'MAP — FLOOR 1' : 'MAP';
+  ctx.fillText(mapTitle, mx + MW/2, my + 16);
   ctx.letterSpacing = '0'; ctx.textAlign = 'left';
 
   // World area inside panel
@@ -3984,14 +4008,17 @@ function drawMap() {
   ctx.strokeStyle = inCave ? '#3a2a10' : '#2a4a14'; ctx.lineWidth = 1;
   ctx.strokeRect(WX, WY, WW, WH);
 
-  // Chunk grid lines (surface only)
-  if (!inCave) {
-    ctx.strokeStyle = '#162810'; ctx.lineWidth = 0.5;
-    for (let cx = 1; cx < CHUNKS_X; cx++) {
+  // Chunk grid lines (all levels)
+  {
+    const gcol = caveLevel === 3 ? '#2a0800' : caveLevel === 2 ? '#1a1008' : inCave ? '#14120a' : '#162810';
+    const chunksX = caveLevel === 0 ? CHUNKS_X : 8;
+    const chunksY = caveLevel === 0 ? CHUNKS_Y : 10;
+    ctx.strokeStyle = gcol; ctx.lineWidth = 0.5;
+    for (let cx = 1; cx < chunksX; cx++) {
       const sx = WX + cx * CHUNK_W * scaleX;
       ctx.beginPath(); ctx.moveTo(sx, WY); ctx.lineTo(sx, WY+WH); ctx.stroke();
     }
-    for (let cy = 1; cy < CHUNKS_Y; cy++) {
+    for (let cy = 1; cy < chunksY; cy++) {
       const sy = WY + cy * CHUNK_H * scaleY;
       ctx.beginPath(); ctx.moveTo(WX, sy); ctx.lineTo(WX+WW, sy); ctx.stroke();
     }
