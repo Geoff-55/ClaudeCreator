@@ -267,6 +267,7 @@ let hasEnteredCave2    = false;
 let hasEnteredHell     = false;
 let hellEntryDay       = -1;
 let altarSeen          = false;  // altar appeared on map once player got close
+let lakeSeen           = false;  // lake appeared on map once player got close
 let abyssEventActive   = false;  // corrupt player is currently visible + interactable
 let abyssEventDone     = false;  // event has been completed (permanent red tint)
 let abyssX             = 0;
@@ -2727,6 +2728,13 @@ function updateMovement(dt) {
     const _adx = px - FOREST_ALTAR_X, _ady = py - FOREST_ALTAR_Y;
     if (_adx*_adx + _ady*_ady < 350*350) altarSeen = true;
   }
+  // Check if player is near lake (reveals it on map)
+  if (!inCave && !lakeSeen) {
+    for (const e of LAKE_CIRCLES) {
+      const _ldx = px - e.cx, _ldy = py - e.cy;
+      if (_ldx*_ldx + _ldy*_ldy < 400*400) { lakeSeen = true; break; }
+    }
+  }
 }
 
 // ===================== DRAW =====================
@@ -4753,8 +4761,8 @@ function drawMap() {
   ctx.strokeStyle = inCave ? '#3a2a10' : '#2a4a14'; ctx.lineWidth = 1;
   ctx.strokeRect(WX, WY, WW, WH);
 
-  // Lake on map (surface only)
-  if (caveLevel === 0) {
+  // Lake on map (surface only, once discovered)
+  if (caveLevel === 0 && lakeSeen) {
     ctx.save();
     ctx.fillStyle = '#122a40';
     for (const e of LAKE_CIRCLES) {
@@ -4872,7 +4880,7 @@ function restartGame() {
   monoliths.length = 0; redFlashTimer = 0; lastMonolithSpawn = -9999; monolithBroken = false;
   deadBushes.length = 0; bloodPiles.length = 0; lastBloodSpawn = -9999;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
-  hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false;
+  hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false; lakeSeen = false;
   corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
   corruptCreatures.length = 0; corruptNets.length = 0; lastCorruptSpawn = -999;
   hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
