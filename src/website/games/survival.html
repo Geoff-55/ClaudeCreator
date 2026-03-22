@@ -3445,13 +3445,13 @@ function drawGroundItemBodies() {
 function drawPlayer() {
   const sx = Math.round(px - camX), sy = Math.round(py - camY);
   const PS = 3;
-  glow('#7ab038', 16);
+  glow('#3888e8', 16);
   for (let gy = Math.floor(-BODY_R/PS); gy < Math.ceil(BODY_R/PS); gy++) {
     for (let gx = Math.floor(-BODY_R/PS); gx < Math.ceil(BODY_R/PS); gx++) {
       const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
       const d = Math.sqrt(cx*cx + cy*cy);
       if (d > BODY_R) continue;
-      ctx.fillStyle = d > BODY_R - PS*1.8 ? '#7ab038' : '#111a08';
+      ctx.fillStyle = d > BODY_R - PS*1.8 ? '#3888e8' : '#081428';
       ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
     }
   }
