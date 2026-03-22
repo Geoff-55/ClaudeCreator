@@ -1777,9 +1777,9 @@ function drawItemIcon(id, cx, cy, size) {
     ctx.fillRect(ox, oy, ps * 8, ps * 8);
 
   } else if (id === 'glitch_shield') {
-    // Void-black shield with red glitch cracks and purple edge glow
-    const V = '#000000', D = '#0d0020', M = '#220040', R = '#cc0000', B = '#8800ff', L = '#ff0000';
-    glow('#8800ff', 12);
+    // Void-black shield with red glitch cracks and red edge glow
+    const V = '#000000', D = '#200000', M = '#300000', R = '#cc0000', B = '#cc0000', L = '#ff0000';
+    glow('#cc0000', 12);
     [[D,2,0],[D,3,0],[D,4,0],[D,5,0],
      [D,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[D,6,1],
      [D,0,2],[M,1,2],[V,2,2],[R,3,2],[V,4,2],[V,5,2],[M,6,2],[D,7,2],
@@ -1792,9 +1792,9 @@ function drawItemIcon(id, cx, cy, size) {
     noGlow();
 
   } else if (id === 'void_sword') {
-    // Dark blade with purple/void energy running along edge
-    const V = '#000000', D = '#0d0020', M = '#330066', B = '#6600cc', L = '#aa00ff', W2 = '#dd44ff';
-    glow('#aa00ff', 14);
+    // Dark blade with red/void energy running along edge
+    const V = '#000000', D = '#1a0000', M = '#550000', B = '#aa0000', L = '#ff2200', W2 = '#ff4422';
+    glow('#ff2200', 14);
     [[W2,7,0],
      [L,6,0],[L,7,1],
      [B,5,1],[B,6,2],
@@ -1823,8 +1823,8 @@ function drawItemIcon(id, cx, cy, size) {
 
   } else if (id === 'void_singularity') {
     // Black orb with swirling void energy
-    const V = '#000000', D = '#0a0018', M = '#1a0040', B = '#4400aa', L = '#8800ff', W2 = '#cc44ff';
-    glow('#8800ff', 14);
+    const V = '#000000', D = '#150000', M = '#2a0000', B = '#880000', L = '#cc0000', W2 = '#ff4422';
+    glow('#cc0000', 14);
     [[D,2,0],[D,3,0],[D,4,0],[D,5,0],
      [D,1,1],[M,2,1],[M,3,1],[M,4,1],[M,5,1],[D,6,1],
      [D,0,2],[M,1,2],[B,2,2],[V,3,2],[V,4,2],[B,5,2],[M,6,2],[D,7,2],
@@ -2609,8 +2609,8 @@ function handleInteract() {
       abyssEventDone   = true;
       // Portal opens in hell (player must travel there to use it)
       hellPortalActive = true;
-      hellPortalX = HELL_W / 2;
-      hellPortalY = HELL_H / 2;
+      hellPortalX = 120 + Math.random() * (HELL_W - 240);
+      hellPortalY = 120 + Math.random() * (HELL_H - 240);
       // Clear glitch instantly, brief red flash
       glitchScreenTimer = 0;
       redFlashTimer = 1.8;
@@ -2819,8 +2819,8 @@ function drawBg() {
 
 function drawBorder() {
   const bx = -camX, by = -camY;
-  const gc = caveLevel >= 4 ? '#6600cc' : caveLevel === 3 ? '#cc0000' : caveLevel === 2 ? '#8a3010' : inCave ? '#6a4820' : '#3a5a20';
-  const sc = caveLevel >= 4 ? '#8800ff' : caveLevel === 3 ? '#ff1a1a' : caveLevel === 2 ? '#c04820' : inCave ? '#8a6030' : '#4a6a28';
+  const gc = caveLevel >= 4 ? '#990000' : caveLevel === 3 ? '#cc0000' : caveLevel === 2 ? '#8a3010' : inCave ? '#6a4820' : '#3a5a20';
+  const sc = caveLevel >= 4 ? '#cc0000' : caveLevel === 3 ? '#ff1a1a' : caveLevel === 2 ? '#c04820' : inCave ? '#8a6030' : '#4a6a28';
   glow(gc, 18); ctx.strokeStyle = sc; ctx.lineWidth = 4;
   ctx.strokeRect(bx, by, curWorldW(), curWorldH()); noGlow();
 }
@@ -2935,11 +2935,6 @@ function drawAltarBase() {
   ctx.fillStyle = S3; ctx.fillRect(ax - 72, ay - 34, 144, 16);
   ctx.fillStyle = SH; ctx.fillRect(ax - 72, ay - 34, 144, 3);
 
-  // Lower pillar shafts (below the split at ay-50)
-  for (const ox of [-88, 78]) {
-    ctx.fillStyle = S2; ctx.fillRect(ax + ox, ay - 50, 12, 16);
-    ctx.fillStyle = S1; ctx.fillRect(ax + ox + 1, ay - 49, 3, 14);
-  }
 
   // Moss on base
   ctx.fillStyle = M;
@@ -2967,12 +2962,6 @@ function drawAltarTop() {
   ctx.fillStyle = SH; ctx.fillRect(ax - 9, ay - 102, 18, 4);
   ctx.fillStyle = S1; ctx.fillRect(ax - 7, ay - 99, 6, 20);
 
-  // Upper pillar capitals (above ay-50)
-  for (const ox of [-88, 78]) {
-    ctx.fillStyle = S2; ctx.fillRect(ax + ox, ay - 63, 12, 13);
-    ctx.fillStyle = SH; ctx.fillRect(ax + ox, ay - 64, 12, 5);
-    ctx.fillStyle = S1; ctx.fillRect(ax + ox + 1, ay - 62, 3, 10);
-  }
 
   // Moss patches on upper
   ctx.fillStyle = M;
@@ -3538,7 +3527,7 @@ function handleAttackClick(mx, my) {
       if (m.subtype === 'phantom') { spawnParticles(m.x, m.y, '#220000', 3); continue; }
       m.hp -= dmg;
       if (m.type === 'chicken') m.fleeTimer = 4;
-      spawnParticles(m.x, m.y, sword.id === 'void_sword' ? '#8800ff' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
+      spawnParticles(m.x, m.y, sword.id === 'void_sword' ? '#cc0000' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
       if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
     }
     // Also hit corrupt creatures
@@ -3549,7 +3538,7 @@ function handleAttackClick(mx, my) {
       const cdx = wx - c.x, cdy = wy - c.y;
       if (Math.sqrt(cdx*cdx + cdy*cdy) > 40) continue;
       c.hp -= dmg;
-      spawnParticles(c.x, c.y, '#aa00ff', 5);
+      spawnParticles(c.x, c.y, '#cc0000', 5);
       glitchScreenTimer = Math.max(glitchScreenTimer, 0.15);
       if (c.hp <= 0) { c.dead = true; c.hp = 0; score += 80; }
     }
@@ -4065,7 +4054,7 @@ function drawAttackRadius() {
   const sword   = equipSlots['weapon'];
   const hatchet = equipSlots['hatchet_slot'];
   const pickaxe = equipSlots['pickaxe_slot'];
-  if (sword   && (sword.id   === 'sword'   || sword.id   === 'bronze_sword'   || sword.id   === 'iron_sword'   || sword.id === 'void_sword'))   rangeCircle(SWORD_RANGE, sword.id === 'void_sword' ? '#8800ff' : sword.id   === 'iron_sword'   ? '#a0c0d8' : sword.id   === 'bronze_sword'   ? '#e08020' : '#ff6060');
+  if (sword   && (sword.id   === 'sword'   || sword.id   === 'bronze_sword'   || sword.id   === 'iron_sword'   || sword.id === 'void_sword'))   rangeCircle(SWORD_RANGE, sword.id === 'void_sword' ? '#cc0000' : sword.id   === 'iron_sword'   ? '#a0c0d8' : sword.id   === 'bronze_sword'   ? '#e08020' : '#ff6060');
   if (hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet' || hatchet.id === 'iron_hatchet')) rangeCircle(CHOP_RANGE,  hatchet.id === 'iron_hatchet' ? '#a0c0d8' : hatchet.id === 'bronze_hatchet' ? '#d07030' : '#90d040');
   if (pickaxe && (pickaxe.id === 'pickaxe' || pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe')) rangeCircle(MINE_RANGE,  pickaxe.id === 'iron_pickaxe' ? '#a0c0d8' : pickaxe.id === 'bronze_pickaxe' ? '#d07030' : '#b8b8b8');
   ctx.restore();
@@ -4415,7 +4404,7 @@ function updateCorruptCreatures(dt, now) {
       const dashR = 180 + Math.random() * 100;
       c.x = Math.max(30, Math.min(curWorldW()-30, px - Math.cos(angle)*dashR));
       c.y = Math.max(30, Math.min(curWorldH()-30, py - Math.sin(angle)*dashR));
-      spawnParticles(c.x, c.y, '#aa00ff', 5);
+      spawnParticles(c.x, c.y, '#cc0000', 5);
       glitchScreenTimer = Math.max(glitchScreenTimer, 0.18);
     }
     // Shoot glitch net
@@ -4437,7 +4426,7 @@ function updateCorruptCreatures(dt, now) {
       playerHp = Math.max(0, playerHp - 7);
       lastHitTime = now; lastZombieDmg = now;
       glitchScreenTimer = Math.max(glitchScreenTimer, 0.5);
-      spawnParticles(px, py, '#aa00ff', 8);
+      spawnParticles(px, py, '#cc0000', 8);
     }
   }
 }
@@ -4502,8 +4491,8 @@ function drawCorruptNets() {
     if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
     const r = 9;
     // Outer glitch net cage
-    glow('#aa00ff', 14);
-    ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 1.5;
+    glow('#cc0000', 14);
+    ctx.strokeStyle = '#ff2200'; ctx.lineWidth = 1.5;
     ctx.strokeRect(sx - r, sy - r, r*2, r*2);
     ctx.beginPath();
     ctx.moveTo(sx-r, sy-r); ctx.lineTo(sx+r, sy+r);
@@ -4511,7 +4500,7 @@ function drawCorruptNets() {
     ctx.stroke();
     // Inner glitch offset layer
     const go = Math.sin(gameNow * 24) * 2.5;
-    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#ff4422'; ctx.lineWidth = 1;
     ctx.strokeRect(sx - r + go, sy - r, r*2, r*2);
     noGlow();
   }
@@ -4519,23 +4508,33 @@ function drawCorruptNets() {
 
 // ===================== CORRUPT WORLD =====================
 function drawCorruptWorld() {
-  // Return portal at entry point
+  // Return portal at entry point — small void ellipse matching hell portal style
   const sx = Math.round(corruptEntryX - camX), sy = Math.round(corruptEntryY - camY);
   if (sx > -60 && sx < W+60 && sy > -60 && sy < H+60) {
-    const pulse = Math.sin(gameNow * 2.8) * 0.3 + 0.7;
-    glow('#6600cc', 20 * pulse);
-    ctx.strokeStyle = '#8800ff'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(sx, sy, 28, 38, 0, 0, Math.PI*2); ctx.stroke();
-    glow('#330066', 10);
-    ctx.strokeStyle = '#550099'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(sx, sy, 16, 22, 0, 0, Math.PI*2); ctx.stroke();
-    ctx.fillStyle = `rgba(20,0,40,${(0.4 * pulse).toFixed(2)})`;
-    ctx.beginPath(); ctx.ellipse(sx, sy, 16, 22, 0, 0, Math.PI*2); ctx.fill();
+    const RPW = 28, RPH = 38;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(sx, sy, RPW, RPH, 0, 0, Math.PI*2); ctx.clip();
+    ctx.fillStyle = '#000000'; ctx.fillRect(sx-RPW, sy-RPH, RPW*2, RPH*2);
+    for (let ring = 0; ring < 4; ring++) {
+      const frac = ring / 4;
+      const rw = RPW * (1 - frac * 0.55), rh = RPH * (1 - frac * 0.55);
+      const angle = gameNow * ((ring % 2 === 0 ? 1 : -1) * (0.6 + ring * 0.2)) + frac * Math.PI;
+      ctx.save(); ctx.translate(sx, sy); ctx.rotate(angle);
+      ctx.strokeStyle = '#cc0000'; ctx.globalAlpha = 0.2 + frac * 0.25;
+      ctx.lineWidth = 2 + (3 - ring) * 1.2;
+      glow('#cc0000', 10);
+      ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 1.4); ctx.stroke();
+      noGlow(); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    glow('#ff0000', 22); ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(sx, sy, RPW, RPH, 0, 0, Math.PI*2); ctx.stroke();
     noGlow();
     const dist = Math.sqrt((corruptEntryX-px)**2 + (corruptEntryY-py)**2);
     if (dist < 90) {
-      ctx.fillStyle = '#bb88ff'; ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
-      ctx.fillText('[E] return', sx, sy - 46);
+      ctx.fillStyle = '#ff8888'; ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
+      ctx.fillText('[E] return', sx, sy - RPH - 8);
       ctx.textAlign = 'left';
     }
   }
@@ -4547,39 +4546,17 @@ function drawHellPortal() {
   const sx = Math.round(hellPortalX - camX), sy = Math.round(hellPortalY - camY);
   if (sx < -120 || sx > W+120 || sy < -120 || sy > H+120) return;
   const t = gameNow;
-  const PW = 80, PH = 110; // portal half-width, half-height
+  const PW = 80, PH = 110;
   ctx.save();
 
-  // Outer dark stone arch — two pillars + lintel
-  ctx.fillStyle = '#1a0000';
-  ctx.fillRect(sx - PW - 14, sy - PH - 8, 14, PH*2 + 8); // left pillar
-  ctx.fillRect(sx + PW,      sy - PH - 8, 14, PH*2 + 8); // right pillar
-  ctx.fillRect(sx - PW - 14, sy - PH - 22, PW*2 + 28, 14); // lintel
-  // Pillar rune marks
-  ctx.fillStyle = '#550000';
-  for (let ry = 0; ry < 5; ry++) {
-    const rpy = sy - PH + 10 + ry * 36;
-    ctx.fillRect(sx - PW - 11, rpy, 8, 6);
-    ctx.fillRect(sx + PW + 3,  rpy, 8, 6);
-  }
-  // Capstones — glowing red
-  glow('#ff0000', 16);
-  ctx.fillStyle = '#cc1010';
-  ctx.fillRect(sx - PW - 14, sy - PH - 30, PW*2 + 28, 8);
-  noGlow();
-
-  // Portal interior — layered ellipses from back to front
-  // Deep void core
+  // Portal interior clipped to ellipse
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(sx, sy, PW, PH, 0, 0, Math.PI*2);
   ctx.clip();
-
-  // Black void background
   ctx.fillStyle = '#000000';
   ctx.fillRect(sx-PW, sy-PH, PW*2, PH*2);
-
-  // Swirling energy rings — drawn as rotating arcs
+  // Swirling energy rings
   for (let ring = 0; ring < 6; ring++) {
     const frac  = ring / 6;
     const rw    = PW * (1 - frac * 0.55);
@@ -4587,74 +4564,51 @@ function drawHellPortal() {
     const speed = (ring % 2 === 0 ? 1 : -1) * (0.6 + ring * 0.18);
     const angle = t * speed + frac * Math.PI;
     const alpha = 0.15 + frac * 0.22;
-    const hue   = ring < 3 ? '#ff0000' : '#8800aa';
     ctx.save();
-    ctx.translate(sx, sy);
-    ctx.rotate(angle);
-    ctx.strokeStyle = hue;
-    ctx.globalAlpha = alpha;
+    ctx.translate(sx, sy); ctx.rotate(angle);
+    ctx.strokeStyle = '#cc0000'; ctx.globalAlpha = alpha;
     ctx.lineWidth = 3 + (5 - ring) * 1.5;
-    glow(hue, 12);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 1.4);
-    ctx.stroke();
-    noGlow();
-    ctx.restore();
+    glow('#cc0000', 12);
+    ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 1.4); ctx.stroke();
+    noGlow(); ctx.restore();
   }
-
-  // Bright pulsing center core
+  // Pulsing center core
   const cPulse = Math.sin(t * 4.5) * 0.3 + 0.7;
   const cg = ctx.createRadialGradient(sx, sy, 0, sx, sy, PW * 0.45);
-  cg.addColorStop(0,   `rgba(120, 0, 180, ${(0.55 * cPulse).toFixed(2)})`);
-  cg.addColorStop(0.4, `rgba(180, 0, 60,  ${(0.30 * cPulse).toFixed(2)})`);
+  cg.addColorStop(0,   `rgba(220,0,0,${(0.55 * cPulse).toFixed(2)})`);
+  cg.addColorStop(0.4, `rgba(140,0,0,${(0.30 * cPulse).toFixed(2)})`);
   cg.addColorStop(1,   'rgba(0,0,0,0)');
   ctx.fillStyle = cg; ctx.globalAlpha = 1;
   ctx.fillRect(sx-PW, sy-PH, PW*2, PH*2);
-
-  // Vertical void tendrils flickering
+  // Tendrils
   for (let td = 0; td < 8; td++) {
     const tx2 = sx + (td - 3.5) * (PW * 0.26);
-    const flicker = Math.sin(t * (7 + td * 1.3) + td * 2.1) > 0.2;
-    if (!flicker) continue;
+    if (Math.sin(t * (7 + td * 1.3) + td * 2.1) <= 0.2) continue;
     const tlen = PH * (0.3 + Math.random() * 0.5);
     ctx.globalAlpha = 0.18 + Math.random() * 0.18;
-    ctx.strokeStyle = Math.random() < 0.5 ? '#ff2200' : '#aa00ff';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(tx2, sy - PH); ctx.lineTo(tx2, sy - PH + tlen); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(tx2, sy + PH); ctx.lineTo(tx2, sy + PH - tlen); ctx.stroke();
+    ctx.strokeStyle = '#ff2200'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(tx2, sy-PH); ctx.lineTo(tx2, sy-PH+tlen); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx2, sy+PH); ctx.lineTo(tx2, sy+PH-tlen); ctx.stroke();
   }
   ctx.globalAlpha = 1;
   ctx.restore(); // un-clip
 
-  // Portal rim glow
-  glow('#ff0000', 22);
-  ctx.strokeStyle = '#cc0000';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.ellipse(sx, sy, PW, PH, 0, 0, Math.PI*2);
-  ctx.stroke();
-  glow('#aa00ff', 14);
-  ctx.strokeStyle = '#8800cc';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.ellipse(sx, sy, PW + 4, PH + 4, 0, 0, Math.PI*2);
-  ctx.stroke();
+  // Rim glow — red only
+  glow('#ff0000', 28);
+  ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(sx, sy, PW, PH, 0, 0, Math.PI*2); ctx.stroke();
   noGlow();
 
   // Interact prompt
   const dist = Math.sqrt((hellPortalX-px)**2 + (hellPortalY-py)**2);
   if (dist < 160) {
-    // Check if player has abyss key
     const hasKey = inventorySlots.some(s => s?.id === 'abyss_key');
     ctx.globalAlpha = 0.95;
-    glow(hasKey ? '#aa00ff' : '#ff0000', 10);
-    ctx.fillStyle = hasKey ? '#cc88ff' : '#ff6666';
-    ctx.font = '700 10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(hasKey ? '[E] insert key' : '[E] ???', sx, sy - PH - 36);
-    noGlow();
-    ctx.textAlign = 'left';
-    ctx.globalAlpha = 1;
+    glow(hasKey ? '#ff0000' : '#ff0000', 10);
+    ctx.fillStyle = hasKey ? '#ff8888' : '#ff6666';
+    ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(hasKey ? '[E] insert key' : '[E] ???', sx, sy - PH - 14);
+    noGlow(); ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -4812,8 +4766,8 @@ function drawMap() {
     glow('#ff0000', 10);
     ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.ellipse(hpx, hpy, 6, 8, 0, 0, Math.PI*2); ctx.stroke();
-    glow('#aa00ff', 6);
-    ctx.strokeStyle = '#8800cc'; ctx.lineWidth = 1;
+    glow('#cc0000', 6);
+    ctx.strokeStyle = '#880000'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.ellipse(hpx, hpy, 4, 5, 0, 0, Math.PI*2); ctx.stroke();
     noGlow();
   }
@@ -4893,6 +4847,13 @@ function restartGame() {
   generateHellWorld();
   // Place a ??? entrance near spawn for the player to find
   voidEntrances.push({ x: WORLD_W / 2 + 120, y: WORLD_H / 2, fromLevel: 0 });
+  // Drop iron gear + void weapons on floor near spawn
+  const _sp = WORLD_W / 2, _sy = WORLD_H / 2;
+  const _drops = ['iron_sword','iron_hatchet','iron_pickaxe','iron_helmet','iron_chestplate','iron_pants','void_sword','glitch_shield'];
+  _drops.forEach((id, i) => {
+    const a = (i / _drops.length) * Math.PI * 2;
+    worldGroundItems.push({ type: id, x: _sp + Math.cos(a)*60, y: _sy + Math.sin(a)*60, pickedUp: false });
+  });
   // Shore rocks near lake
   for (const e of LAKE_CIRCLES) {
     const n = 3 + Math.floor(Math.random() * 4);
