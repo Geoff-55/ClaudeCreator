@@ -199,7 +199,6 @@ let hellPortalActive   = false;
 let hellPortalX        = 0;
 let hellPortalY        = 0;
 let glitchScreenTimer  = 0;
-let inCorruptWorld     = false;
 let corruptReturnX     = 0, corruptReturnY = 0; // hell position to return to
 let corruptEntryX      = 0, corruptEntryY  = 0; // spawn/exit point in corrupt world
 let corruptCreatures   = [];
@@ -209,8 +208,20 @@ let lastLavaDmgTime    = -999;
 
 const FLOWER_COLS = ['#ff4878','#ffcc20','#38d8ff','#ff6820','#b040ff','#40ff88','#ff9040','#d060ff'];
 
+function makeTreeSegs(rng) {
+  const numSegs = Math.ceil(TH / SEG_H);
+  const segs = []; let drift = 0;
+  for (let i = 0; i < numSegs; i++) {
+    drift += Math.round(rng() * 6 - 3);
+    drift = Math.max(-6, Math.min(6, drift));
+    segs.push(drift);
+  }
+  return segs;
+}
+
 function generateSurfaceWorld() {
   worldChunks.length = 0; worldGroundItems.length = 0; worldRocks.length = 0;
+  const cellW = Math.floor(CHUNK_W / 4), cellH = Math.floor(CHUNK_H / 3);
   for (let cy = 0; cy < CHUNKS_Y; cy++) {
     for (let cx = 0; cx < CHUNKS_X; cx++) {
       const rng = chunkRNG(cx, cy);
@@ -229,23 +240,14 @@ function generateSurfaceWorld() {
       }
 
       let tree = null;
-      const cellW = Math.floor(CHUNK_W / 4), cellH = Math.floor(CHUNK_H / 3);
       // Forest: always; clearing: never; normal: 42%
       const treeChance = isForestCenter ? 0 : isForest ? 1.0 : 0.42;
       if (rng() < treeChance) {
-        const numSegs = Math.ceil(TH / SEG_H);
-        const segs = [];
-        let drift = 0;
-        for (let i = 0; i < numSegs; i++) {
-          drift += Math.round(rng() * 6 - 3);
-          drift = Math.max(-6, Math.min(6, drift));
-          segs.push(drift);
-        }
         // Forest base tree in cell (0,0); normal tree anywhere
         tree = {
           x: isForest ? wx + 20 + Math.floor(rng() * (cellW - 40)) : wx + 60 + Math.floor(rng() * (CHUNK_W - 120)),
           y: isForest ? wy + 20 + Math.floor(rng() * (cellH - 40)) : wy + 50 + Math.floor(rng() * (CHUNK_H - 120)),
-          segs,
+          segs: makeTreeSegs(rng),
           variant: Math.floor(rng() * TREE_VARIANTS.length),
           chopped: false, chopHealth: undefined, chopsLeft: undefined,
         };
@@ -794,17 +796,17 @@ function exitHell(exitIdx) {
 
 function enterCorruptWorld() {
   corruptReturnX = px; corruptReturnY = py;
-  caveLevel = 4; inCave = true; inCorruptWorld = true;
+  caveLevel = 4; inCave = true;
   corruptEntryX = HELL_W / 2; corruptEntryY = HELL_H / 2;
   px = corruptEntryX; py = corruptEntryY;
   mobs.length = 0;
   corruptCreatures.length = 0; corruptNets.length = 0;
   for (let i = 0; i < 5; i++) spawnCorruptCreature();
-  lastCorruptSpawn = 0;
+  lastCorruptSpawn = gameNow;
 }
 
 function exitCorruptWorld() {
-  caveLevel = 3; inCave = true; inCorruptWorld = false;
+  caveLevel = 3; inCave = true;
   px = corruptReturnX; py = corruptReturnY;
   mobs.length = 0;
   corruptCreatures.length = 0; corruptNets.length = 0;
@@ -3423,15 +3425,16 @@ function handleAttackClick(mx, my) {
     }
     if (best) mineRock(best, power);
     // Walls: any pickaxe breaks in 1 hit, drops materials
-    let bestWall = null, bestWD = Infinity;
-    for (const w of walls) {
+    let bestWall = null, bestWallIdx = -1, bestWD = Infinity;
+    for (let wi = 0; wi < walls.length; wi++) {
+      const w = walls[wi];
       if (w.level !== caveLevel) continue;
       const dx = w.x - px, dy = w.y - py;
       const d = Math.sqrt(dx*dx + dy*dy);
-      if (d < MINE_RANGE && d < bestWD) { bestWD = d; bestWall = w; }
+      if (d < MINE_RANGE && d < bestWD) { bestWD = d; bestWall = w; bestWallIdx = wi; }
     }
     if (bestWall) {
-      walls.splice(walls.indexOf(bestWall), 1);
+      walls.splice(bestWallIdx, 1);
       const drop = bestWall.type === 'stone_wall' ? 'rock' : 'wood';
       curGround().push({ type: drop, x: bestWall.x + (Math.random()-0.5)*20, y: bestWall.y + (Math.random()-0.5)*20, pickedUp: false });
       spawnParticles(bestWall.x, bestWall.y, bestWall.type === 'stone_wall' ? '#888888' : '#8b4513', 5);
@@ -3841,6 +3844,19 @@ function drawTorches() {
 }
 
 // ===================== NIGHT OVERLAY =====================
+function drawLightSources(sources, radius, colStops, effectiveDark) {
+  const margin = radius + 40;
+  for (const f of sources) {
+    if (f.cave !== caveLevel) continue;
+    const fx = f.x - camX, fy = f.y - camY;
+    if (fx < -margin || fx > W + margin || fy < -margin || fy > H + margin) continue;
+    const g = lctx.createRadialGradient(fx, fy, 0, fx, fy, radius);
+    for (const [pos, color, alpha] of colStops)
+      g.addColorStop(pos, alpha > 0 ? `rgba(${color},${(alpha * effectiveDark).toFixed(3)})` : `rgba(${color},0)`);
+    lctx.fillStyle = g; lctx.fillRect(0, 0, W, H);
+  }
+}
+
 function drawNightOverlay() {
   const effectiveDark = inCave ? 1 : darkAlpha;
   if (effectiveDark <= 0.01) return;
@@ -3859,39 +3875,9 @@ function drawNightOverlay() {
   pg.addColorStop(0, `rgba(255,255,255,${(0.55 * effectiveDark).toFixed(3)})`);
   pg.addColorStop(1, 'rgba(255,255,255,0)');
   lctx.fillStyle = pg; lctx.fillRect(0, 0, W, H);
-  // Campfires
-  for (const f of campfires) {
-    if (f.cave !== caveLevel) continue;
-    const fx = f.x - camX, fy = f.y - camY;
-    if (fx < -220 || fx > W+220 || fy < -220 || fy > H+220) continue;
-    const fg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 180);
-    fg.addColorStop(0, `rgba(255,200,100,${(0.95 * effectiveDark).toFixed(3)})`);
-    fg.addColorStop(0.5, `rgba(255,160,60,${(0.55 * effectiveDark).toFixed(3)})`);
-    fg.addColorStop(1, 'rgba(255,100,20,0)');
-    lctx.fillStyle = fg; lctx.fillRect(0, 0, W, H);
-  }
-  // Torches
-  for (const f of torches) {
-    if (f.cave !== caveLevel) continue;
-    const fx = f.x - camX, fy = f.y - camY;
-    if (fx < -120 || fx > W+120 || fy < -120 || fy > H+120) continue;
-    const tg = lctx.createRadialGradient(fx, fy, 0, fx, fy, 100);
-    tg.addColorStop(0, `rgba(255,200,100,${(0.85 * effectiveDark).toFixed(3)})`);
-    tg.addColorStop(0.5, `rgba(255,150,50,${(0.4 * effectiveDark).toFixed(3)})`);
-    tg.addColorStop(1, 'rgba(255,100,20,0)');
-    lctx.fillStyle = tg; lctx.fillRect(0, 0, W, H);
-  }
-  // Furnaces
-  for (const f of furnaces) {
-    if (f.cave !== caveLevel) continue;
-    const fx = f.x - camX, fy = f.y - camY;
-    if (fx < -200 || fx > W+200 || fy < -200 || fy > H+200) continue;
-    const fg2 = lctx.createRadialGradient(fx, fy, 0, fx, fy, 160);
-    fg2.addColorStop(0, `rgba(255,160,40,${(0.92 * effectiveDark).toFixed(3)})`);
-    fg2.addColorStop(0.45, `rgba(255,100,20,${(0.5 * effectiveDark).toFixed(3)})`);
-    fg2.addColorStop(1, 'rgba(200,60,0,0)');
-    lctx.fillStyle = fg2; lctx.fillRect(0, 0, W, H);
-  }
+  drawLightSources(campfires, 180, [[0,'255,200,100',0.95],[0.5,'255,160,60',0.55],[1,'255,100,20',0]], effectiveDark);
+  drawLightSources(torches,   100, [[0,'255,200,100',0.85],[0.5,'255,150,50',0.4 ],[1,'255,100,20',0]], effectiveDark);
+  drawLightSources(furnaces,  160, [[0,'255,160,40', 0.92],[0.45,'255,100,20',0.5],[1,'200,60,0',  0]], effectiveDark);
   lctx.globalCompositeOperation = 'source-over';
   ctx.drawImage(lightCanvas, 0, 0);
 }
@@ -4234,7 +4220,8 @@ function spawnCorruptCreature() {
 function updateCorruptCreatures(dt, now) {
   if (caveLevel < 4) { corruptCreatures.length = 0; corruptNets.length = 0; return; }
   // Spawn more over time (max 8 alive)
-  if (now - lastCorruptSpawn > 9 && corruptCreatures.filter(c => !c.dead).length < 8) {
+  let aliveCorrupt = 0; for (const c of corruptCreatures) if (!c.dead) aliveCorrupt++;
+  if (now - lastCorruptSpawn > 9 && aliveCorrupt < 8) {
     lastCorruptSpawn = now;
     spawnCorruptCreature();
   }
@@ -4709,7 +4696,7 @@ function restartGame() {
   deadBushes.length = 0; bloodPiles.length = 0; lastBloodSpawn = -9999;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false;
-  inCorruptWorld = false; corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
+  corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
   corruptCreatures.length = 0; corruptNets.length = 0; lastCorruptSpawn = -999;
   hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
@@ -4780,16 +4767,8 @@ function updateSaplings() {
     const s = saplings[i];
     if (gameNow - s.plantedTime < CYCLE_LEN) continue;
     saplings.splice(i, 1);
-    const numSegs = Math.ceil(TH / SEG_H);
-    const segs = [];
-    let drift = 0;
-    for (let j = 0; j < numSegs; j++) {
-      drift += Math.round(Math.random() * 6 - 3);
-      drift = Math.max(-6, Math.min(6, drift));
-      segs.push(drift);
-    }
     worldChunks.push({ grass: [], tree: {
-      x: s.x, y: s.y, segs,
+      x: s.x, y: s.y, segs: makeTreeSegs(Math.random),
       variant: Math.floor(Math.random() * TREE_VARIANTS.length),
       chopped: false, chopHealth: undefined, chopsLeft: undefined,
     }});
