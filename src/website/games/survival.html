@@ -3457,6 +3457,7 @@ function handleAttackClick(mx, my) {
       if (Math.sqrt(cdx*cdx + cdy*cdy) > 36) continue;
       if (m.subtype === 'phantom') { spawnParticles(m.x, m.y, '#220000', 3); continue; }
       m.hp -= dmg;
+      if (m.type === 'chicken') m.fleeTimer = 4;
       spawnParticles(m.x, m.y, sword.id === 'void_sword' ? '#8800ff' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
       if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
     }
@@ -3684,9 +3685,13 @@ function updateMobs(dt, now) {
         }
       }
     } else {
-      const fleeRange = 120;
-      if (dist < fleeRange && dist > 0) {
-        m.vx = -(dx/dist)*70; m.vy = -(dy/dist)*70; m.dir = dx > 0 ? -1 : 1;
+      if (m.fleeTimer === undefined) m.fleeTimer = 0;
+      if (m.fleeTimer > 0) m.fleeTimer -= dt;
+      const scared = m.fleeTimer > 0;
+      const fleeRange = scared ? 9999 : 120;
+      const fleeSpd  = scared ? 110 : 70;
+      if ((scared || dist < fleeRange) && dist > 0) {
+        m.vx = -(dx/dist)*fleeSpd; m.vy = -(dy/dist)*fleeSpd; m.dir = dx > 0 ? -1 : 1;
       } else if (Math.floor(m.animTimer * 1.5) % 3 === 0) {
         const a = Math.random() * Math.PI * 2;
         m.vx = Math.cos(a)*28; m.vy = Math.sin(a)*28;
@@ -3704,9 +3709,15 @@ function updateMobs(dt, now) {
         if (m.flipTimer <= 0) m.flipped = false;
       }
     }
+    const prevX = m.x, prevY = m.y;
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.x = Math.max(30, Math.min(curWorldW()-30, m.x));
     m.y = Math.max(30, Math.min(curWorldH()-30, m.y));
+    // Water barrier — zombies and chickens can't enter the lake
+    if (caveLevel === 0 && isInLake(m.x, m.y)) {
+      m.x = prevX; m.y = prevY;
+      m.vx *= -0.5; m.vy *= -0.5;
+    }
     // Wall collision — all non-phantom mobs
     if (m.subtype !== 'phantom') {
       const half = GRID / 2, mr = MOB_COLL_R;
@@ -3841,6 +3852,13 @@ function drawMobs() {
       ctx.fillStyle = Y2;
       ctx.fillRect(ox+3*ps, oy+6*ps, ps, ps+lb); ctx.fillRect(ox+4*ps, oy+6*ps, ps, ps-lb);
       ctx.fillRect(ox+3*ps, oy+7*ps-lb, ps, ps); ctx.fillRect(ox+4*ps, oy+7*ps+lb, ps, ps);
+      // HP bar (show only when damaged)
+      if (m.hp < m.maxHp) {
+        const bw = 24, bh = 3, bx3 = -bw/2, by3 = ox - 4;
+        ctx.fillStyle = '#300'; ctx.fillRect(bx3, by3, bw, bh);
+        ctx.fillStyle = m.hp / m.maxHp > 0.5 ? '#50cc30' : '#cc5020';
+        ctx.fillRect(bx3, by3, bw * m.hp / m.maxHp, bh);
+      }
       ctx.restore();
     }
     ctx.globalAlpha = 1;
