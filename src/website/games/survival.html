@@ -3445,13 +3445,13 @@ function drawGroundItemBodies() {
 function drawPlayer() {
   const sx = Math.round(px - camX), sy = Math.round(py - camY);
   const PS = 3;
-  glow('#3888e8', 16);
+  glow('#7ab038', 16);
   for (let gy = Math.floor(-BODY_R/PS); gy < Math.ceil(BODY_R/PS); gy++) {
     for (let gx = Math.floor(-BODY_R/PS); gx < Math.ceil(BODY_R/PS); gx++) {
       const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
       const d = Math.sqrt(cx*cx + cy*cy);
       if (d > BODY_R) continue;
-      ctx.fillStyle = d > BODY_R - PS*1.8 ? '#3888e8' : '#081428';
+      ctx.fillStyle = d > BODY_R - PS*1.8 ? '#7ab038' : '#111a08';
       ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
     }
   }
@@ -4891,8 +4891,8 @@ function restartGame() {
   generateCaveWorld();
   generateCave2World();
   generateHellWorld();
-  // Starter gear
-  equipSlots['furniture'] = { id: 'void_entrance', count: 1 };
+  // Place a ??? entrance near spawn for the player to find
+  voidEntrances.push({ x: WORLD_W / 2 + 120, y: WORLD_H / 2, fromLevel: 0 });
   // Shore rocks near lake
   for (const e of LAKE_CIRCLES) {
     const n = 3 + Math.floor(Math.random() * 4);
@@ -5576,6 +5576,7 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
+restartGame();
 requestAnimationFrame(loop);
 </script>
 </body>
