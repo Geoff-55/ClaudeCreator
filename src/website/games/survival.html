@@ -96,6 +96,9 @@ const WORLD_W  = CHUNK_W * CHUNKS_X;
 const WORLD_H  = CHUNK_H * CHUNKS_Y;
 // Single forest: random location per game, away from spawn
 let FOREST_CX, FOREST_CY, FOREST_ALTAR_X, FOREST_ALTAR_Y;
+// Lake: opposite side of map from forest
+let LAKE_CIRCLES = []; // [{cx,cy,rx,ry}] in world coords
+
 function initForest() {
   const spawnCX = Math.floor((WORLD_W / 2) / CHUNK_W); // 4
   const spawnCY = Math.floor((WORLD_H / 2) / CHUNK_H); // 5
@@ -114,8 +117,26 @@ function initForest() {
   FOREST_CX = pick[0]; FOREST_CY = pick[1];
   FOREST_ALTAR_X = (FOREST_CX + 0.5) * CHUNK_W;
   FOREST_ALTAR_Y = (FOREST_CY + 0.5) * CHUNK_H;
+
+  // Lake: chunk opposite forest from spawn center, border-clamped
+  const lakeCX = Math.max(1, Math.min(CHUNKS_X - 2, 2 * spawnCX - FOREST_CX));
+  const lakeCY = Math.max(1, Math.min(CHUNKS_Y - 2, 2 * spawnCY - FOREST_CY));
+  const lcx = (lakeCX + 0.5) * CHUNK_W;
+  const lcy = (lakeCY + 0.5) * CHUNK_H;
+  LAKE_CIRCLES = [
+    { cx: lcx,                         cy: lcy,                         rx: 210, ry: 155 },
+    { cx: lcx + (Math.random()-0.5)*160, cy: lcy + (Math.random()-0.5)*120, rx: 130, ry: 100 },
+    { cx: lcx + (Math.random()-0.5)*180, cy: lcy + (Math.random()-0.5)*140, rx: 110, ry:  90 },
+  ];
 }
 function isForestChunk(cx, cy) { return (cx-FOREST_CX)**2 + (cy-FOREST_CY)**2 <= 5.5; }
+function isInLake(x, y) {
+  for (const e of LAKE_CIRCLES) {
+    const dx = (x - e.cx) / e.rx, dy = (y - e.cy) / e.ry;
+    if (dx*dx + dy*dy <= 1) return true;
+  }
+  return false;
+}
 
 function chunkRNG(cx, cy) {
   let s = (cx * 73856093 ^ cy * 19349663) >>> 0;
@@ -2589,13 +2610,16 @@ function updateMovement(dt) {
   if (staminaReady && stamina < STAM_MAX)
     stamina = Math.min(STAM_MAX, stamina + STAM_REGEN * dt);
 
+  const inWater = caveLevel === 0 && isInLake(px, py);
   if (moving) {
-    const speed = sprinting ? SPEED * SPRINT_MULT : SPEED;
+    const speed = (sprinting ? SPEED * SPRINT_MULT : SPEED) * (inWater ? 0.45 : 1);
     px += Math.cos(facingAngle) * speed * dt;
     py += Math.sin(facingAngle) * speed * dt;
     px = Math.max(BODY_R, Math.min(curWorldW() - BODY_R, px));
     py = Math.max(BODY_R, Math.min(curWorldH() - BODY_R, py));
   }
+  if (inWater && moving && Math.random() < 0.22)
+    spawnParticles(px + (Math.random()-0.5)*14, py + 8, Math.random() < 0.5 ? '#3a8cb8' : '#6ab8d8', 1);
 
   resolveTreeCollisions();
   resolveRockCollisions();
@@ -2707,6 +2731,41 @@ function drawGrass() {
       }
     }
   }
+}
+
+function drawLake() {
+  if (LAKE_CIRCLES.length === 0) return;
+  ctx.save();
+  // Shore/depth gradient per ellipse
+  for (const e of LAKE_CIRCLES) {
+    const sx = e.cx - camX, sy = e.cy - camY;
+    if (sx < -(e.rx+20) || sx > W+e.rx+20 || sy < -(e.ry+20) || sy > H+e.ry+20) continue;
+    // Dark deep center + slightly lighter rim
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(e.rx, e.ry));
+    grad.addColorStop(0,    '#0d2235');
+    grad.addColorStop(0.7,  '#122a40');
+    grad.addColorStop(1,    '#1a3d58');
+    ctx.beginPath(); ctx.ellipse(sx, sy, e.rx, e.ry, 0, 0, Math.PI*2);
+    ctx.fillStyle = grad; ctx.fill();
+  }
+  // Shore rim stroke
+  ctx.strokeStyle = '#1e4a6a'; ctx.lineWidth = 5;
+  for (const e of LAKE_CIRCLES) {
+    const sx = e.cx - camX, sy = e.cy - camY;
+    if (sx < -(e.rx+40) || sx > W+e.rx+40 || sy < -(e.ry+40) || sy > H+e.ry+40) continue;
+    ctx.beginPath(); ctx.ellipse(sx, sy, e.rx, e.ry, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // Subtle shimmer band
+  const shimAlpha = (Math.sin(gameNow * 1.1) * 0.03 + 0.07).toFixed(3);
+  ctx.fillStyle = `rgba(80,160,220,${shimAlpha})`;
+  for (const e of LAKE_CIRCLES) {
+    const sx = e.cx - camX, sy = e.cy - camY;
+    if (sx < -(e.rx+20) || sx > W+e.rx+20 || sy < -(e.ry+20) || sy > H+e.ry+20) continue;
+    ctx.beginPath(); ctx.ellipse(sx, sy, e.rx * 0.65, e.ry * 0.6, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawSurfaceGroundDetails() {
@@ -4592,6 +4651,22 @@ function drawMap() {
   ctx.strokeStyle = inCave ? '#3a2a10' : '#2a4a14'; ctx.lineWidth = 1;
   ctx.strokeRect(WX, WY, WW, WH);
 
+  // Lake on map (surface only)
+  if (caveLevel === 0) {
+    ctx.save();
+    ctx.fillStyle = '#122a40';
+    for (const e of LAKE_CIRCLES) {
+      const sx = WX + e.cx * scaleX, sy = WY + e.cy * scaleY;
+      ctx.beginPath(); ctx.ellipse(sx, sy, e.rx * scaleX, e.ry * scaleY, 0, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.strokeStyle = '#1e4060'; ctx.lineWidth = 0.8;
+    for (const e of LAKE_CIRCLES) {
+      const sx = WX + e.cx * scaleX, sy = WY + e.cy * scaleY;
+      ctx.beginPath(); ctx.ellipse(sx, sy, e.rx * scaleX, e.ry * scaleY, 0, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // Chunk grid lines (all levels)
   {
     const gcol = caveLevel === 3 ? '#2a0800' : caveLevel === 2 ? '#1a1008' : inCave ? '#14120a' : '#162810';
@@ -4706,6 +4781,21 @@ function restartGame() {
   generateCaveWorld();
   generateCave2World();
   generateHellWorld();
+  // Starter gear
+  equipSlots['weapon']       = { id: 'sword',   count: 1 };
+  equipSlots['hatchet_slot'] = { id: 'hatchet',  count: 1 };
+  equipSlots['pickaxe_slot'] = { id: 'pickaxe',  count: 1 };
+  inventorySlots[0] = { id: 'stick', count: 5 };
+  inventorySlots[1] = { id: 'rock',  count: 5 };
+  // Shore rocks near lake
+  for (const e of LAKE_CIRCLES) {
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const d = 1.08 + Math.random() * 0.25;
+      worldGroundItems.push({ type: 'rock', x: e.cx + Math.cos(angle)*e.rx*d, y: e.cy + Math.sin(angle)*e.ry*d, pickedUp: false });
+    }
+  }
 }
 
 function drawGameOver() {
@@ -5325,6 +5415,7 @@ function loop(ts) {
     updateCamera();
   }
   drawBg();
+  if (!inCave) drawLake();
   if (!inCave) drawSurfaceGroundDetails();
   if (!inCave) drawGrass();
   if (!inCave) drawSurfaceDetails();
