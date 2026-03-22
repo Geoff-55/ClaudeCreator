@@ -4891,12 +4891,20 @@ function restartGame() {
   generateCaveWorld();
   generateCave2World();
   generateHellWorld();
-  // Starter gear
-  equipSlots['weapon']       = { id: 'sword',   count: 1 };
-  equipSlots['hatchet_slot'] = { id: 'hatchet',  count: 1 };
-  equipSlots['pickaxe_slot'] = { id: 'pickaxe',  count: 1 };
-  inventorySlots[0] = { id: 'stick', count: 5 };
-  inventorySlots[1] = { id: 'rock',  count: 5 };
+  // Starter gear (iron testing loadout)
+  equipSlots['weapon']       = { id: 'iron_sword',      count: 1 };
+  equipSlots['hatchet_slot'] = { id: 'iron_hatchet',    count: 1 };
+  equipSlots['pickaxe_slot'] = { id: 'iron_pickaxe',    count: 1 };
+  equipSlots['helmet']       = { id: 'iron_helmet',     count: 1 };
+  equipSlots['chestplate']   = { id: 'iron_chestplate', count: 1 };
+  equipSlots['pants']        = { id: 'iron_pants',      count: 1 };
+  equipSlots['furniture']    = { id: 'void_entrance',   count: 3 };
+  inventorySlots[0] = { id: 'unknown',      count: 10 };
+  inventorySlots[1] = { id: 'iron_ingot',   count: 20 };
+  inventorySlots[2] = { id: 'stick',        count: 10 };
+  inventorySlots[3] = { id: 'rock',         count: 10 };
+  // Unlock tier flags for full recipe visibility
+  hasEnteredCave1 = true; hasEnteredCave2 = true; monolithBroken = true;
   // Shore rocks near lake
   for (const e of LAKE_CIRCLES) {
     const n = 3 + Math.floor(Math.random() * 4);
