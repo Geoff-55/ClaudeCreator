@@ -140,23 +140,55 @@ function isInLake(x, y) {
   }
   return false;
 }
+function isLakeShore(x, y, margin) {
+  // Within expanded lake but outside actual water
+  if (isInLake(x, y)) return false;
+  for (const e of LAKE_CIRCLES) {
+    const dx = (x - e.cx) / (e.rx + margin), dy = (y - e.cy) / (e.ry + margin);
+    if (dx*dx + dy*dy <= 1) return true;
+  }
+  return false;
+}
+// Fast per-tile hash for texture variation (no RNG state needed)
+function tileHash(x, y) {
+  let h = (((x * 1619) ^ (y * 31337)) + 1013904223) | 0;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  return ((h ^ (h >>> 16)) >>> 0) / 0x100000000;
+}
 function buildLakeTiles() {
   LAKE_TILES = [];
   if (LAKE_CIRCLES.length === 0) return;
+  const SHORE_PX = 20; // dirt border width in world units
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const e of LAKE_CIRCLES) {
-    minX = Math.min(minX, e.cx - e.rx); maxX = Math.max(maxX, e.cx + e.rx);
-    minY = Math.min(minY, e.cy - e.ry); maxY = Math.max(maxY, e.cy + e.ry);
+    minX = Math.min(minX, e.cx - e.rx - SHORE_PX); maxX = Math.max(maxX, e.cx + e.rx + SHORE_PX);
+    minY = Math.min(minY, e.cy - e.ry - SHORE_PX); maxY = Math.max(maxY, e.cy + e.ry + SHORE_PX);
   }
   const mc = LAKE_CIRCLES[0];
+  const WATER_DEEP  = ['#0c2132','#0d2235','#0e2438'];
+  const WATER_MID   = ['#102638','#112840','#122a42'];
+  const WATER_SHORE = ['#183650','#1a3a55','#1c3e5a'];
+  const DIRT        = ['#3a2510','#402c14','#4a3018','#362210','#442e16'];
+  // Shore tiles first (drawn under water)
+  for (let wy = Math.floor(minY/LAKE_PS)*LAKE_PS; wy < maxY; wy += LAKE_PS) {
+    for (let wx = Math.floor(minX/LAKE_PS)*LAKE_PS; wx < maxX; wx += LAKE_PS) {
+      const cx = wx + LAKE_PS/2, cy = wy + LAKE_PS/2;
+      if (!isLakeShore(cx, cy, SHORE_PX)) continue;
+      const h = tileHash(wx, wy);
+      LAKE_TILES.push({ x: wx, y: wy, col: DIRT[Math.floor(h * DIRT.length)] });
+    }
+  }
+  // Water tiles on top
   for (let wy = Math.floor(minY/LAKE_PS)*LAKE_PS; wy < maxY; wy += LAKE_PS) {
     for (let wx = Math.floor(minX/LAKE_PS)*LAKE_PS; wx < maxX; wx += LAKE_PS) {
       const cx = wx + LAKE_PS/2, cy = wy + LAKE_PS/2;
       if (!isInLake(cx, cy)) continue;
       const dx = (cx - mc.cx) / mc.rx, dy = (cy - mc.cy) / mc.ry;
       const d = Math.sqrt(dx*dx + dy*dy);
-      const col = d < 0.35 ? '#0d2235' : d < 0.65 ? '#112840' : '#1a3a55';
-      LAKE_TILES.push({ x: wx, y: wy, col });
+      const h = tileHash(wx, wy);
+      const palette = d < 0.35 ? WATER_DEEP : d < 0.65 ? WATER_MID : WATER_SHORE;
+      LAKE_TILES.push({ x: wx, y: wy, col: palette[Math.floor(h * palette.length)] });
     }
   }
 }
@@ -452,19 +484,48 @@ function generateSurfaceWorld() {
       if (dx*dx + dy*dy < 70*70) { worldRocks.splice(i, 1); break; }
     }
   }
-  // Post-process: clear everything inside the lake
+  // Post-process: clear everything inside the lake or on its dirt shore
+  const inOrNearLake = (x, y) => isInLake(x, y) || isLakeShore(x, y, 20);
   for (const chunk of worldChunks) {
-    if (chunk.grass)       chunk.grass       = chunk.grass.filter(g => !isInLake(g.x, g.y));
-    if (chunk.flowers)     chunk.flowers     = chunk.flowers.filter(f => !isInLake(f.x, f.y));
+    if (chunk.grass)       chunk.grass       = chunk.grass.filter(g => !inOrNearLake(g.x, g.y));
+    if (chunk.flowers)     chunk.flowers     = chunk.flowers.filter(f => !inOrNearLake(f.x, f.y));
     if (chunk.soilPatches) chunk.soilPatches = chunk.soilPatches.filter(p => !isInLake(p.x, p.y));
-    if (chunk.flowerPatch) chunk.flowerPatch = chunk.flowerPatch.filter(f => !isInLake(f.x, f.y));
-    if (chunk.tree && isInLake(chunk.tree.x, chunk.tree.y)) chunk.tree = null;
-    if (chunk.extraTrees)  chunk.extraTrees  = chunk.extraTrees.filter(t => !isInLake(t.x, t.y));
+    if (chunk.flowerPatch) chunk.flowerPatch = chunk.flowerPatch.filter(f => !inOrNearLake(f.x, f.y));
+    if (chunk.tree && inOrNearLake(chunk.tree.x, chunk.tree.y)) chunk.tree = null;
+    if (chunk.extraTrees)  chunk.extraTrees  = chunk.extraTrees.filter(t => !inOrNearLake(t.x, t.y));
   }
   for (let i = worldGroundItems.length - 1; i >= 0; i--)
     if (isInLake(worldGroundItems[i].x, worldGroundItems[i].y)) worldGroundItems.splice(i, 1);
   for (let i = worldRocks.length - 1; i >= 0; i--)
     if (isInLake(worldRocks[i].x, worldRocks[i].y)) worldRocks.splice(i, 1);
+  // Add trees and rock nodes scattered around the lake shore
+  const lakeChunkOf = (tx, ty) => {
+    const ci = Math.floor(ty/CHUNK_H) * CHUNKS_X + Math.floor(tx/CHUNK_W);
+    return (ci >= 0 && ci < worldChunks.length) ? worldChunks[ci] : null;
+  };
+  for (const e of LAKE_CIRCLES) {
+    const numTrees = 4 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < numTrees; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const d = 1.12 + Math.random() * 0.4;
+      const tx = e.cx + Math.cos(angle) * e.rx * d;
+      const ty = e.cy + Math.sin(angle) * e.ry * d;
+      if (isInLake(tx, ty) || tx < 60 || tx > WORLD_W-60 || ty < 60 || ty > WORLD_H-60) continue;
+      const chunk = lakeChunkOf(tx, ty);
+      if (!chunk) continue;
+      if (!chunk.extraTrees) chunk.extraTrees = [];
+      chunk.extraTrees.push({ x: tx, y: ty, segs: makeTreeSegs(Math.random), variant: Math.floor(Math.random()*TREE_VARIANTS.length), chopped: false });
+    }
+    const numRocks = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < numRocks; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const d = 1.08 + Math.random() * 0.45;
+      const rx = e.cx + Math.cos(angle) * e.rx * d;
+      const ry = e.cy + Math.sin(angle) * e.ry * d;
+      if (isInLake(rx, ry) || rx < 60 || rx > WORLD_W-60 || ry < 60 || ry > WORLD_H-60) continue;
+      worldRocks.push({ x: rx, y: ry, mined: false, mineHealth: undefined, hitsLeft: undefined });
+    }
+  }
 }
 initForest();
 generateSurfaceWorld();
