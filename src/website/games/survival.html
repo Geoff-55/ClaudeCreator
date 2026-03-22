@@ -98,6 +98,8 @@ const WORLD_H  = CHUNK_H * CHUNKS_Y;
 let FOREST_CX, FOREST_CY, FOREST_ALTAR_X, FOREST_ALTAR_Y;
 // Lake: opposite side of map from forest
 let LAKE_CIRCLES = []; // [{cx,cy,rx,ry}] in world coords
+const LAKE_PS = 8;     // pixel block size
+let LAKE_TILES = [];   // [{x,y,col}] pre-computed world-space tiles
 
 function initForest() {
   const spawnCX = Math.floor((WORLD_W / 2) / CHUNK_W); // 4
@@ -124,10 +126,11 @@ function initForest() {
   const lcx = (lakeCX + 0.5) * CHUNK_W;
   const lcy = (lakeCY + 0.5) * CHUNK_H;
   LAKE_CIRCLES = [
-    { cx: lcx,                         cy: lcy,                         rx: 210, ry: 155 },
+    { cx: lcx,                           cy: lcy,                           rx: 210, ry: 155 },
     { cx: lcx + (Math.random()-0.5)*160, cy: lcy + (Math.random()-0.5)*120, rx: 130, ry: 100 },
     { cx: lcx + (Math.random()-0.5)*180, cy: lcy + (Math.random()-0.5)*140, rx: 110, ry:  90 },
   ];
+  buildLakeTiles();
 }
 function isForestChunk(cx, cy) { return (cx-FOREST_CX)**2 + (cy-FOREST_CY)**2 <= 5.5; }
 function isInLake(x, y) {
@@ -136,6 +139,26 @@ function isInLake(x, y) {
     if (dx*dx + dy*dy <= 1) return true;
   }
   return false;
+}
+function buildLakeTiles() {
+  LAKE_TILES = [];
+  if (LAKE_CIRCLES.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const e of LAKE_CIRCLES) {
+    minX = Math.min(minX, e.cx - e.rx); maxX = Math.max(maxX, e.cx + e.rx);
+    minY = Math.min(minY, e.cy - e.ry); maxY = Math.max(maxY, e.cy + e.ry);
+  }
+  const mc = LAKE_CIRCLES[0];
+  for (let wy = Math.floor(minY/LAKE_PS)*LAKE_PS; wy < maxY; wy += LAKE_PS) {
+    for (let wx = Math.floor(minX/LAKE_PS)*LAKE_PS; wx < maxX; wx += LAKE_PS) {
+      const cx = wx + LAKE_PS/2, cy = wy + LAKE_PS/2;
+      if (!isInLake(cx, cy)) continue;
+      const dx = (cx - mc.cx) / mc.rx, dy = (cy - mc.cy) / mc.ry;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      const col = d < 0.35 ? '#0d2235' : d < 0.65 ? '#112840' : '#1a3a55';
+      LAKE_TILES.push({ x: wx, y: wy, col });
+    }
+  }
 }
 
 function chunkRNG(cx, cy) {
@@ -429,6 +452,19 @@ function generateSurfaceWorld() {
       if (dx*dx + dy*dy < 70*70) { worldRocks.splice(i, 1); break; }
     }
   }
+  // Post-process: clear everything inside the lake
+  for (const chunk of worldChunks) {
+    if (chunk.grass)       chunk.grass       = chunk.grass.filter(g => !isInLake(g.x, g.y));
+    if (chunk.flowers)     chunk.flowers     = chunk.flowers.filter(f => !isInLake(f.x, f.y));
+    if (chunk.soilPatches) chunk.soilPatches = chunk.soilPatches.filter(p => !isInLake(p.x, p.y));
+    if (chunk.flowerPatch) chunk.flowerPatch = chunk.flowerPatch.filter(f => !isInLake(f.x, f.y));
+    if (chunk.tree && isInLake(chunk.tree.x, chunk.tree.y)) chunk.tree = null;
+    if (chunk.extraTrees)  chunk.extraTrees  = chunk.extraTrees.filter(t => !isInLake(t.x, t.y));
+  }
+  for (let i = worldGroundItems.length - 1; i >= 0; i--)
+    if (isInLake(worldGroundItems[i].x, worldGroundItems[i].y)) worldGroundItems.splice(i, 1);
+  for (let i = worldRocks.length - 1; i >= 0; i--)
+    if (isInLake(worldRocks[i].x, worldRocks[i].y)) worldRocks.splice(i, 1);
 }
 initForest();
 generateSurfaceWorld();
@@ -2734,38 +2770,14 @@ function drawGrass() {
 }
 
 function drawLake() {
-  if (LAKE_CIRCLES.length === 0) return;
-  ctx.save();
-  // Shore/depth gradient per ellipse
-  for (const e of LAKE_CIRCLES) {
-    const sx = e.cx - camX, sy = e.cy - camY;
-    if (sx < -(e.rx+20) || sx > W+e.rx+20 || sy < -(e.ry+20) || sy > H+e.ry+20) continue;
-    // Dark deep center + slightly lighter rim
-    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(e.rx, e.ry));
-    grad.addColorStop(0,    '#0d2235');
-    grad.addColorStop(0.7,  '#122a40');
-    grad.addColorStop(1,    '#1a3d58');
-    ctx.beginPath(); ctx.ellipse(sx, sy, e.rx, e.ry, 0, 0, Math.PI*2);
-    ctx.fillStyle = grad; ctx.fill();
+  if (LAKE_TILES.length === 0) return;
+  let lastCol = null;
+  for (const t of LAKE_TILES) {
+    const sx = t.x - camX, sy = t.y - camY;
+    if (sx > W || sy > H || sx + LAKE_PS < 0 || sy + LAKE_PS < 0) continue;
+    if (t.col !== lastCol) { ctx.fillStyle = t.col; lastCol = t.col; }
+    ctx.fillRect(sx, sy, LAKE_PS, LAKE_PS);
   }
-  // Shore rim stroke
-  ctx.strokeStyle = '#1e4a6a'; ctx.lineWidth = 5;
-  for (const e of LAKE_CIRCLES) {
-    const sx = e.cx - camX, sy = e.cy - camY;
-    if (sx < -(e.rx+40) || sx > W+e.rx+40 || sy < -(e.ry+40) || sy > H+e.ry+40) continue;
-    ctx.beginPath(); ctx.ellipse(sx, sy, e.rx, e.ry, 0, 0, Math.PI*2);
-    ctx.stroke();
-  }
-  // Subtle shimmer band
-  const shimAlpha = (Math.sin(gameNow * 1.1) * 0.03 + 0.07).toFixed(3);
-  ctx.fillStyle = `rgba(80,160,220,${shimAlpha})`;
-  for (const e of LAKE_CIRCLES) {
-    const sx = e.cx - camX, sy = e.cy - camY;
-    if (sx < -(e.rx+20) || sx > W+e.rx+20 || sy < -(e.ry+20) || sy > H+e.ry+20) continue;
-    ctx.beginPath(); ctx.ellipse(sx, sy, e.rx * 0.65, e.ry * 0.6, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  ctx.restore();
 }
 
 function drawSurfaceGroundDetails() {
