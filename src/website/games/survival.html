@@ -3327,6 +3327,17 @@ function drawTreeBases() {
       const clampTop = Math.max(segTopY, splitY);
       drawTrunkSeg(sx, clampTop, segBotY - clampTop, t.segs[i]);
     }
+    // Tiny grass tufts at trunk base
+    const tv = TREE_VARIANTS[t.variant || 0];
+    const drift = t.segs[t.segs.length - 1] || 0;
+    const bx = sx + drift, by = trunkBotY;
+    ctx.fillStyle = tv.c3;
+    ctx.fillRect(bx - 7, by - 2, 2, 3);
+    ctx.fillRect(bx + 5, by - 2, 2, 3);
+    ctx.fillStyle = tv.c4;
+    ctx.fillRect(bx - 4, by - 3, 2, 4);
+    ctx.fillRect(bx + 2, by - 3, 2, 4);
+    ctx.fillRect(bx - 1, by - 2, 2, 3);
   }
 }
 
@@ -4884,7 +4895,8 @@ function restartGame() {
     for (let i = 0; i < n; i++) {
       const angle = Math.random() * Math.PI * 2;
       const d = 1.08 + Math.random() * 0.25;
-      worldGroundItems.push({ type: 'rock', x: e.cx + Math.cos(angle)*e.rx*d, y: e.cy + Math.sin(angle)*e.ry*d, pickedUp: false });
+      const rx = e.cx + Math.cos(angle)*e.rx*d, ry = e.cy + Math.sin(angle)*e.ry*d;
+      if (!isInLake(rx, ry)) worldGroundItems.push({ type: 'rock', x: rx, y: ry, pickedUp: false });
     }
   }
 }
@@ -5520,9 +5532,10 @@ function loop(ts) {
   if (caveLevel === 3) drawHellDetails();
   drawWalls();
   drawGroundItemBodies();
+  drawRockBases();
+  drawRockTops();
   drawAltarBase();
   if (!inCave) drawTreeBases();
-  drawRockBases();
   drawMonoliths();
   drawCampfires();
   drawTorches();
@@ -5542,7 +5555,6 @@ function loop(ts) {
   drawAltarTop();
   drawAbyssCorrupt();
   if (!inCave) drawTreeTops();
-  drawRockTops();
   drawParticles();
   drawAttackRadius();
   drawCampfirePreview();
