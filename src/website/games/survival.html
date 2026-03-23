@@ -1093,7 +1093,7 @@ canvas.addEventListener('click', e => {
   if (_dragMoved) { _dragMoved = false; return; } // was a drag, already handled
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
-  if (inventoryOpen) { handleInventoryClick(mx, my); return; }
+  if (inventoryOpen) { handleInventoryClick(mx, my, e.shiftKey); return; }
   handleAttackClick(mx, my);
 });
 
@@ -1380,9 +1380,22 @@ function getSlotAtPos(mx, my) {
   return null;
 }
 
-function handleInventoryClick(mx, my) {
+function shiftEquip(slot) {
+  const item = getSlotItem(slot);
+  if (!item) return;
+  const slotName = ITEM_SLOT[item.id];
+  if (!slotName) return; // not equippable, do nothing
+  const displaced = equipSlots[slotName];
+  equipSlots[slotName] = item;
+  setSlotItem(slot, displaced || null);
+}
+
+function handleInventoryClick(mx, my, shiftKey) {
   const slot = getSlotAtPos(mx, my);
-  if (slot) { handleSlotInteract(slot); return; }
+  if (slot) {
+    if (shiftKey && slot.type === 'inv') { shiftEquip(slot); heldSlot = null; return; }
+    handleSlotInteract(slot); return;
+  }
   // Craft buttons (account for scroll, only hit if inside clip area)
   const _vis = getVisibleRecipes();
   for (let ri = 0; ri < _vis.length; ri++) {
@@ -1392,7 +1405,8 @@ function handleInventoryClick(mx, my) {
     const btnY = ry + RECIPE_H - 22;
     if (mx >= btnX && mx < btnX + 48 && my >= btnY && my < btnY + 18 &&
         my >= CRAFT_TOP && my < CRAFT_TOP + GRID_H) {
-      if (canCraft(_vis[ri])) craft(_vis[ri]);
+      const times = shiftKey ? 10 : 1;
+      for (let t = 0; t < times; t++) { if (!canCraft(_vis[ri])) break; craft(_vis[ri]); }
       heldSlot = null; return;
     }
   }
