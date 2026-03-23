@@ -178,6 +178,10 @@ function initGoblinCamps() {
     return new Set(idx.slice(0,2));
   }
 
+  // ---- TRINKET ASSIGNMENT (1 per camp, shuffled) ----
+  const _TRINKETS = ['bone_necklace','gold_charm','hermes_boots','dragon_cloak','anklet_earth','steel_shoulders']
+    .sort(() => Math.random()-0.5);
+
   // ---- SURFACE CAMPS (3) ----
   const spawnCX = Math.floor((WORLD_W/2)/CHUNK_W), spawnCY = Math.floor((WORLD_H/2)/CHUNK_H);
   const cands = [];
@@ -218,6 +222,7 @@ function initGoblinCamps() {
       _s0[2] = { id: 'cooked_chicken', count: 1 };
       _s0[3] = { id: 'feather',        count: 1+Math.floor(Math.random()*3) };
       if (_scrollSurface.has(_pi) && i === 0) _s0[4] = { id: 'altar_scroll', count: 1 };
+      if (i === 0) _s0[5] = { id: _TRINKETS[_pi], count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 0, slots: _s0 });
     }
     goblinCamps.push({
@@ -264,6 +269,7 @@ function initGoblinCamps() {
       _s1[2] = { id: 'feather',      count: 2+Math.floor(Math.random()*3) };
       _s1[3] = { id: 'coal',         count: 2+Math.floor(Math.random()*3) };
       if (_scrollC1.has(_pi) && i === 0) _s1[4] = { id: 'altar_scroll', count: 1 };
+      if (i === 0) _s1[5] = { id: _TRINKETS[3 + _pi], count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 1, slots: _s1 });
     }
     goblinCamps.push({
@@ -912,6 +918,26 @@ generateCave2World();
 const HELL_CHUNKS_X = 12, HELL_CHUNKS_Y = 16;
 const HELL_W = CHUNK_W * HELL_CHUNKS_X;
 const HELL_H = CHUNK_H * HELL_CHUNKS_Y;
+const VOID_CX = Math.round(HELL_W / 2);
+const VOID_PATH = (function() {
+  const c = VOID_CX;
+  return [
+    {x:c-60,  y:4000, w:120, h:120},
+    {x:c-60,  y:3760, w:120, h:260},
+    {x:c-290, y:3650, w:350, h:130},
+    {x:c-290, y:3430, w:120, h:240},
+    {x:c-290, y:3310, w:360, h:140},
+    {x:c+10,  y:3070, w:140, h:270},
+    {x:c-220, y:2900, w:500, h:210},
+    {x:c-400, y:2840, w:800, h:80},
+    {x:c-330, y:2770, w:660, h:80},
+    {x:c-260, y:2700, w:520, h:80},
+    {x:c-190, y:2630, w:380, h:80},
+    {x:c-120, y:2560, w:240, h:80},
+    {x:c-50,  y:2490, w:100, h:80},
+  ];
+})();
+const VOID_ALTAR_X = VOID_CX, VOID_ALTAR_Y = 2530;
 const hellRocks       = [];
 const hellGroundItems = [];
 const hellDetails     = [];
@@ -1178,6 +1204,9 @@ const EQUIP_SLOT_DEFS = [
   { name: 'hatchet_slot', label: 'HATCHET', col: 1 },
   { name: 'pickaxe_slot', label: 'PICKAXE', col: 1 },
   { name: 'furniture',    label: 'PLACE',   col: 1 },
+  { name: 'trinket1',     label: 'TRINKET', col: 1 },
+  { name: 'trinket2',     label: 'TRINKET', col: 1 },
+  { name: 'trinket3',     label: 'TRINKET', col: 1 },
 ];
 const EQUIP_SLOT_POS = {};
 const equipSlots = {};
@@ -1214,6 +1243,9 @@ const ITEM_NAMES = {
   cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
   abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall', stone_wall: 'Stone Wall', chest: 'Chest',
   altar_scroll: 'Altar Scroll',
+  bone_necklace: 'Bone Necklace', gold_charm: 'Gold Charm Bracelet',
+  hermes_boots: 'Hermes Boots', dragon_cloak: 'Dragon Scale Cloak',
+  anklet_earth: 'Anklet of Earth', steel_shoulders: 'Steel Shoulders',
 };
 
 function getSlotItem(slot) {
@@ -1515,6 +1547,8 @@ const ITEM_SLOT = {
   bone_armor: 'chestplate', bone_shield: 'shield', glitch_shield: 'shield',
   void_sword: 'weapon',
   raw_chicken: 'food', cooked_chicken: 'food',
+  bone_necklace: 'trinket', gold_charm: 'trinket', hermes_boots: 'trinket',
+  dragon_cloak: 'trinket', anklet_earth: 'trinket', steel_shoulders: 'trinket',
 };
 
 function canPlaceInSlot(item, slot) {
@@ -1522,6 +1556,7 @@ function canPlaceInSlot(item, slot) {
   if (slot.type === 'inv' || slot.type === 'chest') return true;
   const required = ITEM_SLOT[item.id];
   if (!required) return false;
+  if (required === 'trinket') return slot.name.startsWith('trinket');
   return required === slot.name;
 }
 
@@ -1600,10 +1635,72 @@ function shiftEquip(slot) {
   }
   const slotName = ITEM_SLOT[item.id];
   if (!slotName) return;
+  if (slotName === 'trinket') {
+    for (const ts of ['trinket1','trinket2','trinket3']) {
+      if (!equipSlots[ts]) { equipSlots[ts] = item; setSlotItem(slot, null); return; }
+    }
+    return;
+  }
   const displaced = equipSlots[slotName];
   equipSlots[slotName] = item;
   setSlotItem(slot, displaced || null);
 }
+
+function getTrinketBonuses() {
+  let damageMult=1, critBonus=0, speedMult=1, maxHpBonus=0, toolDmgMult=1, defBonus=0;
+  for (const n of ['trinket1','trinket2','trinket3']) {
+    const t = equipSlots[n]; if (!t) continue;
+    if (t.id==='bone_necklace')    damageMult  += 0.20;
+    if (t.id==='gold_charm')       critBonus   += 15;
+    if (t.id==='hermes_boots')     speedMult   += 0.20;
+    if (t.id==='dragon_cloak')     maxHpBonus  += 15;
+    if (t.id==='anklet_earth')     toolDmgMult += 0.25;
+    if (t.id==='steel_shoulders')  defBonus    += 15;
+  }
+  return { damageMult, critBonus, speedMult, maxHpBonus, toolDmgMult, defBonus };
+}
+function getMaxPlayerHp() { return 75 + getTrinketBonuses().maxHpBonus; }
+
+const damageNumbers = [];
+function spawnDmgNum(x, y, val, isCrit) {
+  damageNumbers.push({ wx: x, wy: y - 30, val, isCrit, timer: 0 });
+}
+function updateDamageNumbers(dt) {
+  for (let i = damageNumbers.length-1; i>=0; i--) {
+    const d = damageNumbers[i]; d.timer += dt; d.wy -= 36*dt;
+    if (d.timer > 1.4) damageNumbers.splice(i, 1);
+  }
+}
+function drawDamageNumbers() {
+  for (const d of damageNumbers) {
+    const sx=Math.round(d.wx-camX), sy=Math.round(d.wy-camY);
+    if (sx<-60||sx>W+60||sy<-30||sy>H+30) continue;
+    ctx.save(); ctx.globalAlpha = Math.max(0, 1 - d.timer/1.4);
+    if (d.isCrit) {
+      glow('#ffaa00',10); ctx.fillStyle='#ffee44'; ctx.font='700 15px monospace';
+      ctx.textAlign='center'; ctx.fillText(d.val+'!', sx, sy); noGlow();
+    } else {
+      ctx.fillStyle='#ff6060'; ctx.font='600 11px monospace';
+      ctx.textAlign='center'; ctx.fillText(d.val, sx, sy);
+    }
+    ctx.restore();
+  }
+  ctx.textAlign='left';
+}
+function inVoidPath(x, y) {
+  for (const r of VOID_PATH)
+    if (x>=r.x+BODY_R && x<=r.x+r.w-BODY_R && y>=r.y+BODY_R && y<=r.y+r.h-BODY_R) return true;
+  return false;
+}
+function enforceVoidPathCollision(prevX, prevY) {
+  if (caveLevel !== 4) return;
+  if (!inVoidPath(px, py)) {
+    if (inVoidPath(prevX, py)) { px = prevX; }
+    else if (inVoidPath(px, prevY)) { py = prevY; }
+    else { px = prevX; py = prevY; }
+  }
+}
+let _altarGuardianLastDmg = -999;
 
 function handleInventoryClick(mx, my, shiftKey) {
   const slot = getSlotAtPos(mx, my);
@@ -2167,6 +2264,61 @@ function drawItemIcon(id, cx, cy, size) {
      [E,0,6],[P,1,6],[P,2,6],[P,3,6],[P,4,6],[P,5,6],[P,6,6],[E,7,6],
      [E,1,7],[P,2,7],[P,3,7],[P,4,7],[P,5,7],[E,6,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'bone_necklace') {
+    const B='#c8b89a',Bd='#8a7060',Gd='#d4a030',Gr='#ffe080';
+    [[B,3,0],[Gd,4,0],[B,5,0],[B,2,1],[B,6,1],[Gd,4,1],[B,1,2],[B,7,2],
+     [B,1,3],[B,7,3],[B,0,4],[B,8,4],[Bd,1,5],[Bd,7,5],[B,2,5],[B,6,5],
+     [B,3,6],[B,5,6],[Gr,4,6],[B,3,7],[B,5,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'gold_charm') {
+    const G='#e8b830',Gd='#c08820',Gh='#fff080',Sl='#c0c0c0';
+    [[Sl,1,1],[Sl,2,1],[Sl,3,1],[Sl,4,1],[Sl,5,1],[Sl,6,1],
+     [Sl,0,2],[Sl,7,2],[G,2,2],[G,3,2],[G,4,2],[G,5,2],
+     [Sl,0,3],[Sl,7,3],[G,1,3],[Gh,3,3],[Gh,4,3],[G,6,3],
+     [Sl,0,4],[Sl,7,4],[G,1,4],[G,2,4],[Gd,3,4],[Gd,4,4],[G,5,4],[G,6,4],
+     [Sl,1,5],[Sl,2,5],[G,3,5],[G,4,5],[Sl,5,5],[Sl,6,5],
+     [G,3,6],[G,4,6],[G,3,7],[G,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'hermes_boots') {
+    const B='#8080e0',Bd='#5050a0',Wh='#ffffff',Gd='#e0c040';
+    [[B,2,0],[B,3,0],[B,4,0],[B,5,0],[Gd,6,0],[Gd,7,0],
+     [B,1,1],[Bd,2,1],[Bd,3,1],[Bd,4,1],[Bd,5,1],[Gd,6,1],[Gd,7,1],
+     [B,1,2],[Bd,2,2],[Wh,3,2],[Wh,4,2],[Bd,5,2],[B,6,2],
+     [B,1,3],[B,2,3],[B,3,3],[B,4,3],[B,5,3],[B,6,3],
+     [Bd,1,4],[Bd,2,4],[Bd,3,4],[Bd,4,4],[Bd,5,4],[Bd,6,4],
+     [B,1,5],[B,2,5],[B,5,5],[B,6,5],
+     [Bd,0,6],[Bd,1,6],[Bd,2,6],[Bd,5,6],[Bd,6,6],[Bd,7,6],
+     [Bd,0,7],[Bd,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'dragon_cloak') {
+    const R='#c03020',Rd='#801808',Rh='#ff6040',Sc='#60c060',Sd='#208020';
+    [[Rd,3,0],[Rd,4,0],[R,2,1],[Rh,3,1],[Rh,4,1],[R,5,1],
+     [R,1,2],[Rh,2,2],[Sc,3,2],[Sc,4,2],[Rh,5,2],[R,6,2],
+     [R,0,3],[R,1,3],[Sd,2,3],[Sc,3,3],[Sc,4,3],[Sd,5,3],[R,6,3],[R,7,3],
+     [R,0,4],[Rd,1,4],[Sd,2,4],[Sc,3,4],[Sc,4,4],[Sd,5,4],[Rd,6,4],[R,7,4],
+     [Rd,1,5],[Rd,2,5],[Rd,3,5],[Rd,4,5],[Rd,5,5],[Rd,6,5],
+     [Rd,2,6],[Rh,3,6],[Rh,4,6],[Rd,5,6],
+     [Rd,3,7],[Rd,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'anklet_earth') {
+    const Br='#a06838',Bd='#7a4820',Gn='#50a030',Gd='#308010',St='#888888';
+    [[St,1,1],[St,2,1],[St,3,1],[St,4,1],[St,5,1],[St,6,1],
+     [St,0,2],[Br,1,2],[Br,2,2],[Br,3,2],[Br,4,2],[Br,5,2],[Br,6,2],[St,7,2],
+     [St,0,3],[Bd,1,3],[Gn,2,3],[Gd,3,3],[Gn,4,3],[Gd,5,3],[Bd,6,3],[St,7,3],
+     [St,0,4],[Br,1,4],[Gn,2,4],[Gd,3,4],[Gn,4,4],[Gd,5,4],[Br,6,4],[St,7,4],
+     [St,1,5],[Br,2,5],[Br,3,5],[Br,4,5],[Br,5,5],[St,6,5],
+     [Gn,3,6],[Gd,4,6],[Gn,3,7],[Gd,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'steel_shoulders') {
+    const St='#a0b0c0',Sd='#607080',Sh='#d0e0f0',Rv='#c03020';
+    [[Sd,1,0],[Sd,6,0],[St,2,0],[St,5,0],
+     [Sd,0,1],[Sh,1,1],[St,2,1],[St,5,1],[Sh,6,1],[Sd,7,1],
+     [Sd,0,2],[St,1,2],[Sh,2,2],[Rv,3,2],[Rv,4,2],[Sh,5,2],[St,6,2],[Sd,7,2],
+     [Sd,0,3],[St,1,3],[St,2,3],[St,3,3],[St,4,3],[St,5,3],[St,6,3],[Sd,7,3],
+     [Sd,1,4],[Sd,2,4],[Sd,3,4],[Sd,4,4],[Sd,5,4],[Sd,6,4],
+     [St,2,5],[St,3,5],[St,4,5],[St,5,5],
+     [St,3,6],[Sh,4,6],[St,3,7],[St,4,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
   }
 }
 
@@ -2346,7 +2498,8 @@ function drawInventory() {
   const chestDef      = equipSlots['chestplate']?.id === 'iron_chestplate' ? 20 : equipSlots['chestplate']?.id === 'bone_armor' ? 10 : 0;
   const pantsDef      = equipSlots['pants']?.id === 'iron_pants' ? 10 : equipSlots['pants']?.id === 'feather_pants' ? 5 : 0;
   const shieldDef     = equipSlots['shield']?.id === 'glitch_shield' ? 20 : equipSlots['shield']?.id === 'bone_shield' ? 10 : 0;
-  const totalArmor    = helmetDef + chestDef + pantsDef + shieldDef;
+  const { defBonus } = getTrinketBonuses();
+  const totalArmor    = helmetDef + chestDef + pantsDef + shieldDef + defBonus;
   ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
   ctx.fillStyle = '#a855f7';
   ctx.fillText('EQUIP', EQUIP_LEFT, INV_Y + INV_PAD + 10);
@@ -2359,14 +2512,16 @@ function drawInventory() {
     const item = equipSlots[def.name];
     const isH  = slotsEqual(heldSlot, slot);
     const isActive = item && ['weapon','hatchet_slot','pickaxe_slot','furniture'].includes(def.name);
+    const isTrinket = def.name.startsWith('trinket');
 
     ctx.fillStyle = isH ? '#1e0e32' : '#0d0a1e';
     ctx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
 
-    if (isH)       { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
+    if (isH)         { glow('#c084fc', 8); ctx.strokeStyle = '#c084fc'; }
+    else if (isTrinket && item) { glow('#c0a030', 6); ctx.strokeStyle = '#a08020'; }
     else if (isActive) { glow('#c09030', 6); ctx.strokeStyle = '#8a6020'; }
-    else if (item) { ctx.strokeStyle = '#3a2060'; }
-    else           { ctx.strokeStyle = '#1a0e30'; }
+    else if (item)   { ctx.strokeStyle = '#3a2060'; }
+    else             { ctx.strokeStyle = isTrinket ? '#3a2a10' : '#1a0e30'; }
     ctx.lineWidth = isH ? 1.5 : 1;
     ctx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE);
     noGlow();
@@ -2377,7 +2532,7 @@ function drawInventory() {
       ctx.globalAlpha = 1;
     }
 
-    ctx.fillStyle = item ? '#7a5a9a' : '#3a2a50';
+    ctx.fillStyle = item ? (isTrinket ? '#c0a030' : '#7a5a9a') : (isTrinket ? '#5a4810' : '#3a2a50');
     ctx.font = '500 8px monospace';
     ctx.fillText(def.label, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 3);
 
@@ -2389,6 +2544,18 @@ function drawInventory() {
       glow('#60c0ff', 6);
       ctx.fillStyle = '#80d8ff';
       ctx.fillText(`-${av}%`, sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 13);
+      noGlow();
+    }
+    // Trinket bonus label
+    const TRINKET_FX = {
+      bone_necklace:'+20%dmg', gold_charm:'+15%crit', hermes_boots:'+20%spd',
+      dragon_cloak:'+20%hp', anklet_earth:'+25%tool', steel_shoulders:'+15%def'
+    };
+    if (isTrinket && item && TRINKET_FX[item.id]) {
+      ctx.font = '600 8px monospace';
+      glow('#c0a030', 6);
+      ctx.fillStyle = '#ffd060';
+      ctx.fillText(TRINKET_FX[item.id], sx + SLOT_SIZE + 5, sy + SLOT_SIZE/2 + 13);
       noGlow();
     }
   }
@@ -3016,11 +3183,11 @@ function handleEat() {
   const food = equipSlots['food'];
   if (!food) return;
   if (food.id === 'cooked_chicken') {
-    playerHp = Math.min(75, playerHp + 40);
+    playerHp = Math.min(getMaxPlayerHp(), playerHp + 40);
     stamina = Math.min(STAM_MAX, stamina + STAM_MAX * 0.5);
     spawnParticles(px, py, '#e8b870', 8);
   } else if (food.id === 'raw_chicken') {
-    playerHp = Math.min(75, playerHp + 8);
+    playerHp = Math.min(getMaxPlayerHp(), playerHp + 8);
     spawnParticles(px, py, '#c05848', 4);
   }
   food.count--;
@@ -3044,8 +3211,10 @@ function updateMovement(dt) {
     stamina = Math.min(STAM_MAX, stamina + STAM_REGEN * dt);
 
   const inWater = caveLevel === 0 && isInLake(px, py);
+  const _prevPx = px, _prevPy = py;
   if (moving) {
-    const speed = (sprinting ? SPEED * SPRINT_MULT : SPEED) * (inWater ? 0.45 : 1);
+    const { speedMult: _sm } = getTrinketBonuses();
+    const speed = (sprinting ? SPEED * SPRINT_MULT : SPEED) * _sm * (inWater ? 0.45 : 1);
     px += Math.cos(facingAngle) * speed * dt;
     py += Math.sin(facingAngle) * speed * dt;
     px = Math.max(BODY_R, Math.min(curWorldW() - BODY_R, px));
@@ -3054,6 +3223,7 @@ function updateMovement(dt) {
   if (inWater && moving && Math.random() < 0.22)
     spawnParticles(px + (Math.random()-0.5)*14, py + 8, Math.random() < 0.5 ? '#3a8cb8' : '#6ab8d8', 1);
 
+  enforceVoidPathCollision(_prevPx, _prevPy);
   resolveTreeCollisions();
   resolveRockCollisions();
   resolveStagCollisions();
@@ -3900,8 +4070,11 @@ function handleAttackClick(mx, my) {
   const wx = mx + camX, wy = my + camY;
 
   if (sword && (sword.id === 'sword' || sword.id === 'bronze_sword' || sword.id === 'iron_sword' || sword.id === 'void_sword')) {
-    const dmg = sword.id === 'void_sword' ? 55 : sword.id === 'iron_sword' ? 20 : sword.id === 'bronze_sword' ? 8 : 3;
+    const baseDmg = sword.id === 'void_sword' ? 55 : sword.id === 'iron_sword' ? 20 : sword.id === 'bronze_sword' ? 8 : 3;
     const hitCol = sword.id === 'void_sword' ? '#cc0000' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020';
+    const { damageMult, critBonus } = getTrinketBonuses();
+    const isCrit = Math.random() * 100 < (15 + critBonus);
+    const dmg = Math.max(1, Math.round(baseDmg * damageMult * (isCrit ? 1.5 : 1)));
     // Find single closest target to click point
     let bestMob = null, bestMobD = Infinity;
     for (const m of mobs) {
@@ -3928,6 +4101,7 @@ function handleAttackClick(mx, my) {
       if (bestMob.subtype === 'phantom') { spawnParticles(bestMob.x, bestMob.y, '#220000', 3); }
       else {
         bestMob.hp -= dmg;
+        spawnDmgNum(bestMob.x, bestMob.y, dmg, isCrit);
         if (bestMob.type === 'chicken') bestMob.fleeTimer = 4;
         if (bestMob.type === 'goblin') bestMob.alerted = true;
         spawnParticles(bestMob.x, bestMob.y, hitCol, 4);
@@ -3935,12 +4109,14 @@ function handleAttackClick(mx, my) {
       }
     } else if (bestCorrupt) {
       bestCorrupt.hp -= dmg;
+      spawnDmgNum(bestCorrupt.x, bestCorrupt.y, dmg, isCrit);
       spawnParticles(bestCorrupt.x, bestCorrupt.y, '#cc0000', 5);
       if (bestCorrupt.hp <= 0) { bestCorrupt.dead = true; bestCorrupt.hp = 0; score += 80; }
     }
   }
   if (!inCave && hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet' || hatchet.id === 'iron_hatchet')) {
-    const power = hatchet.id === 'iron_hatchet' ? 3 : hatchet.id === 'bronze_hatchet' ? 2 : 1;
+    const { toolDmgMult: _hTdm } = getTrinketBonuses();
+    const power = Math.round((hatchet.id === 'iron_hatchet' ? 3 : hatchet.id === 'bronze_hatchet' ? 2 : 1) * _hTdm);
     let best = null, bestD = Infinity;
     for (const t of allTrees()) {
       const dx = t.x - px, dy = (t.y + CRY*CBS + TH*0.6) - py;
@@ -3950,7 +4126,8 @@ function handleAttackClick(mx, my) {
     if (best) chopTree(best, power);
   }
   if (pickaxe && (pickaxe.id === 'pickaxe' || pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe')) {
-    const power = pickaxe.id === 'iron_pickaxe' ? 3 : pickaxe.id === 'bronze_pickaxe' ? 2 : 1;
+    const { toolDmgMult: _pkTdm } = getTrinketBonuses();
+    const power = Math.round((pickaxe.id === 'iron_pickaxe' ? 3 : pickaxe.id === 'bronze_pickaxe' ? 2 : 1) * _pkTdm);
     const isBronzePlus = pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe';
     // Find single closest minable target (rock, wall, or monolith) to player
     let bestTarget = null, bestType = null, bestWallIdx = -1, bestD = Infinity;
@@ -4087,11 +4264,34 @@ function spawnMob(type, cap) {
   });
 }
 
+function spawnSurfaceMiner() {
+  if (mobs.filter(m => !m.dead && m.subtype === 'miner').length >= 4) return;
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  if      (edge === 0) { x = camX + Math.random() * W; y = camY - 80; }
+  else if (edge === 1) { x = camX + Math.random() * W; y = camY + H + 80; }
+  else if (edge === 2) { x = camX - 80;                y = camY + Math.random() * H; }
+  else                 { x = camX + W + 80;            y = camY + Math.random() * H; }
+  x = Math.max(50, Math.min(curWorldW() - 50, x));
+  y = Math.max(50, Math.min(curWorldH() - 50, y));
+  mobs.push({
+    type: 'zombie', subtype: 'miner', x, y,
+    hp: 30, maxHp: 30,
+    vx: 0, vy: 0, dir: 1, drawScale: 1, animTimer: 0,
+    dead: false, deathTimer: 0,
+    lungeTimer: 1 + Math.random() * 1.5, lungeDuration: 0,
+    arrowTimer: 0, alerted: false, idleTimer: 0, idleVx: 0, idleVy: 0,
+  });
+}
+
 function updateMobs(dt, now) {
   if (caveLevel >= 4) { mobs.length = 0; return; } // no mobs in corrupt world
   if (!inCave && now - lastMobSpawn > 3.5) {
     lastMobSpawn = now;
-    if (darkAlpha > 0.6) spawnMob('zombie', 12);
+    if (darkAlpha > 0.6) {
+      if (hasEnteredCave2 && Math.random() < 0.3) spawnSurfaceMiner();
+      else spawnMob('zombie', 12);
+    }
   }
   if (!inCave && darkAlpha < 0.4 && now - lastChickenSpawn > 2.5) {
     lastChickenSpawn = now;
@@ -4160,7 +4360,7 @@ function updateMobs(dt, now) {
         }
         if (dist > 0) m.dir = (m.vx > 0 ? 1 : -1);
         if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > cd) {
-          let defPct = 0;
+          let defPct = getTrinketBonuses().defBonus;
           if (equipSlots['helmet']?.id === 'iron_helmet')         defPct += 10;
           else if (equipSlots['helmet']?.id === 'feather_hat')    defPct += 5;
           if (equipSlots['shield']?.id === 'bone_shield')         defPct += 10;
@@ -4176,7 +4376,7 @@ function updateMobs(dt, now) {
       }
     } else if (m.type === 'goblin') {
       const _defPct = () => {
-        let d = 0;
+        let d = getTrinketBonuses().defBonus;
         if (equipSlots['helmet']?.id==='iron_helmet') d+=10; else if (equipSlots['helmet']?.id==='feather_hat') d+=5;
         if (equipSlots['shield']?.id==='bone_shield') d+=10;
         if (equipSlots['chestplate']?.id==='iron_chestplate') d+=20; else if (equipSlots['chestplate']?.id==='bone_armor') d+=10;
@@ -5183,7 +5383,118 @@ function drawCorruptCreatures() {
 }
 
 // ===================== CORRUPT WORLD =====================
+function _drawVoidPath() {
+  const PS = 4; // pixel size for neon path tiles
+  ctx.save();
+  for (const r of VOID_PATH) {
+    const rx = Math.round(r.x - camX), ry = Math.round(r.y - camY);
+    if (rx + r.w < 0 || rx > W || ry + r.h < 0 || ry > H) continue;
+    // Black path base
+    ctx.fillStyle = '#080008';
+    ctx.fillRect(rx, ry, r.w, r.h);
+    // Red neon pixel border lines
+    glow('#cc0000', 6);
+    ctx.strokeStyle = '#990000'; ctx.lineWidth = PS;
+    ctx.strokeRect(rx + PS/2, ry + PS/2, r.w - PS, r.h - PS);
+    noGlow();
+    // Subtle inner grid dots
+    ctx.fillStyle = 'rgba(120,0,0,0.18)';
+    for (let gx = rx + 16; gx < rx + r.w - 8; gx += 24)
+      for (let gy = ry + 16; gy < ry + r.h - 8; gy += 24)
+        ctx.fillRect(gx, gy, 2, 2);
+  }
+  ctx.restore();
+}
+
+function _drawVoidTemple() {
+  const PS = 4;
+  const c = VOID_CX;
+  // Step definitions: y, halfW (matches VOID_PATH step segments)
+  const steps = [
+    { y: 2840, hw: 400 }, // step 0
+    { y: 2770, hw: 330 }, // step 1
+    { y: 2700, hw: 260 }, // step 2
+    { y: 2630, hw: 190 }, // step 3
+    { y: 2560, hw: 120 }, // step 4
+    { y: 2490, hw:  50 }, // step 5 (altar)
+  ];
+  ctx.save();
+  for (let si = 0; si < steps.length; si++) {
+    const { y, hw } = steps[si];
+    const rx = Math.round(c - hw - camX), ry = Math.round(y - camY);
+    const sw = hw * 2, sh = 80;
+    if (rx + sw < 0 || rx > W || ry + sh < 0 || ry > H) continue;
+    // Black step base
+    ctx.fillStyle = '#050005';
+    ctx.fillRect(rx, ry, sw, sh);
+    // Red neon outline
+    const gIntensity = si === 5 ? 18 : 10;
+    glow('#cc0000', gIntensity);
+    ctx.strokeStyle = si === 5 ? '#ff2020' : '#880000';
+    ctx.lineWidth = PS;
+    ctx.strokeRect(rx + PS/2, ry + PS/2, sw - PS, sh - PS);
+    noGlow();
+    // Horizontal rune lines across each step
+    const lineY = ry + sh / 2;
+    glow('#440000', 4);
+    ctx.strokeStyle = 'rgba(180,0,0,0.35)'; ctx.lineWidth = 2;
+    for (let lx = rx + 12; lx < rx + sw - 12; lx += 20) {
+      ctx.beginPath(); ctx.moveTo(lx, lineY - 3); ctx.lineTo(lx + 12, lineY - 3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lx + 4, lineY + 3); ctx.lineTo(lx + 8, lineY + 3); ctx.stroke();
+    }
+    noGlow();
+  }
+  ctx.restore();
+}
+
+function _drawAltarGuardian(now) {
+  const ax = Math.round(VOID_ALTAR_X - camX), ay = Math.round(VOID_ALTAR_Y - camY);
+  if (ax < -80 || ax > W + 80 || ay < -80 || ay > H + 80) return;
+  const pulse = Math.sin(now * 3) * 0.12 + 0.88;
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  // Body — dark shape with red glow
+  glow('#cc0000', 16);
+  ctx.fillStyle = '#0a0005';
+  // Legs
+  ctx.fillRect(ax - 12, ay + 12, 10, 22);
+  ctx.fillRect(ax + 2,  ay + 12, 10, 22);
+  // Torso
+  ctx.fillRect(ax - 16, ay - 16, 32, 30);
+  // Head
+  ctx.fillRect(ax - 10, ay - 32, 20, 18);
+  // Arms
+  ctx.fillRect(ax - 26, ay - 14, 12, 8);
+  ctx.fillRect(ax + 14, ay - 14, 12, 8);
+  noGlow();
+  // Red eyes
+  glow('#ff0000', 10);
+  ctx.fillStyle = '#ff3030';
+  ctx.fillRect(ax - 7, ay - 26, 4, 4);
+  ctx.fillRect(ax + 3,  ay - 26, 4, 4);
+  noGlow();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  // Contact damage
+  const gdx = px - VOID_ALTAR_X, gdy = py - VOID_ALTAR_Y;
+  if (gdx*gdx + gdy*gdy < 60*60 && now - _altarGuardianLastDmg > 1.2) {
+    _altarGuardianLastDmg = now;
+    let _agDef = getTrinketBonuses().defBonus;
+    if (equipSlots['helmet']?.id === 'iron_helmet') _agDef += 10; else if (equipSlots['helmet']?.id === 'feather_hat') _agDef += 5;
+    if (equipSlots['shield']?.id === 'bone_shield') _agDef += 10;
+    if (equipSlots['chestplate']?.id === 'iron_chestplate') _agDef += 20; else if (equipSlots['chestplate']?.id === 'bone_armor') _agDef += 10;
+    if (equipSlots['pants']?.id === 'iron_pants') _agDef += 10; else if (equipSlots['pants']?.id === 'feather_pants') _agDef += 5;
+    playerHp = Math.max(0, playerHp - Math.max(1, Math.round(18 * (1 - _agDef / 100))));
+    lastHitTime = now;
+    spawnParticles(px, py, '#cc0000', 6);
+    checkGameOver();
+  }
+}
+
 function drawCorruptWorld() {
+  _drawVoidPath();
+  _drawVoidTemple();
+  _drawAltarGuardian(gameNow);
   // Return portal at entry point — full-size void ellipse matching hell portal
   const sx = Math.round(corruptEntryX - camX), sy = Math.round(corruptEntryY - camY);
   if (sx > -120 && sx < W+120 && sy > -120 && sy < H+120) {
@@ -5499,7 +5810,7 @@ function checkGameOver() {
 }
 
 function restartGame() {
-  playerHp = 75; score = 0; gameOver = false; lastHitTime = -999;
+  playerHp = getMaxPlayerHp(); score = 0; gameOver = false; lastHitTime = -999;
   mobs.length = 0; campfires.length = 0; craftingStations.length = 0; walls.length = 0;
   mineEntrances.length = 0; mineEntrancesT2.length = 0; furnaces.length = 0; torches.length = 0; saplings.length = 0;
   inCave = false; caveLevel = 0; mineExits.length = 0; cave2Exits.length = 0; hellExits.length = 0; voidEntrances.length = 0; lavaDrips.length = 0;
@@ -5521,6 +5832,7 @@ function restartGame() {
   corruptCreatures.length = 0; corruptNets.length = 0; lastCorruptSpawn = -999;
   hellPortalActive = false; hellPortalX = 0; hellPortalY = 0;
   glitchScreenTimer = 0; lastLavaDmgTime = -999; _invHoverSlot = null; _invHoverTime = 0;
+  _altarGuardianLastDmg = -999; damageNumbers.length = 0;
   particles.length = 0; leaves.length = 0; lastPickupTime = -999;
   initForest();
   initGoblinCamps();
@@ -5572,46 +5884,135 @@ function drawGameOver() {
   ctx.restore();
 }
 
+const _menuStars = Array.from({length: 120}, () => ({
+  x: Math.random() * 880, y: Math.random() * 220,
+  r: Math.random() * 1.5 + 0.4,
+  twinkle: Math.random() * Math.PI * 2,
+}));
+
 function drawMainMenu() {
-  ctx.fillStyle = '#050410';
-  ctx.fillRect(0, 0, W, H);
-  ctx.save(); ctx.textAlign = 'center';
-  // Scanlines
-  ctx.globalAlpha = 0.04;
-  ctx.fillStyle = '#000000';
-  for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
-  ctx.globalAlpha = 1;
-  // Title
   const t = gameNow || 0;
-  const pulse = Math.sin(t * 1.2) * 0.08 + 0.92;
-  glow('#a855f7', 40);
-  ctx.fillStyle = `rgba(168,85,247,${pulse})`;
-  ctx.font = '700 80px monospace';
-  ctx.fillText('SURVIVAL', W/2, H/2 - 80);
-  noGlow();
-  // Subtitle
-  ctx.fillStyle = '#3a2060';
-  ctx.font = '400 13px monospace';
-  ctx.fillText('mine · craft · survive', W/2, H/2 - 44);
-  // Divider
-  ctx.globalAlpha = 0.2;
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(W/2 - 100, H/2 - 28); ctx.lineTo(W/2 + 100, H/2 - 28); ctx.stroke();
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  // --- Night sky gradient ---
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0,   '#03010a');
+  sky.addColorStop(0.45,'#0a0318');
+  sky.addColorStop(1,   '#0e0208');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // --- Stars ---
+  for (const s of _menuStars) {
+    const alpha = (Math.sin(t * 1.2 + s.twinkle) * 0.3 + 0.7);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+  }
   ctx.globalAlpha = 1;
-  // Play button
-  const bx = W/2 - 100, by = H/2 - 12, bw = 200, bh = 52;
-  ctx.fillStyle = '#0e0825'; ctx.fillRect(bx, by, bw, bh);
-  const glowPulse = Math.sin(t * 2) * 4 + 14;
-  glow('#a855f7', glowPulse);
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2;
+
+  // --- Blood moon ---
+  const moonX = W * 0.75, moonY = 90;
+  const moonR = 48;
+  const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR);
+  moonGrad.addColorStop(0,   'rgba(200,30,10,0.95)');
+  moonGrad.addColorStop(0.6, 'rgba(140,10,5,0.85)');
+  moonGrad.addColorStop(1,   'rgba(80,0,0,0)');
+  glow('#cc1010', 28);
+  ctx.fillStyle = moonGrad;
+  ctx.beginPath(); ctx.arc(moonX, moonY, moonR, 0, Math.PI*2); ctx.fill();
+  noGlow();
+
+  // --- Tree silhouettes (ground line ~70% down) ---
+  const groundY = H * 0.70;
+  ctx.fillStyle = '#0a0005';
+  // Draw several trees as simple black silhouettes
+  const _trees = [
+    {x:50, h:130, w:28}, {x:100,h:100,w:22}, {x:160,h:150,w:32}, {x:230,h:110,w:26},
+    {x:680,h:140,w:30}, {x:740,h:105,w:22}, {x:800,h:135,w:28}, {x:850,h:95,w:20},
+  ];
+  for (const tr of _trees) {
+    // Trunk
+    ctx.fillRect(tr.x - 4, groundY - tr.h * 0.28, 8, tr.h * 0.32);
+    // Canopy (oval)
+    ctx.beginPath();
+    ctx.ellipse(tr.x, groundY - tr.h * 0.55, tr.w * 0.6, tr.h * 0.52, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(tr.x, groundY - tr.h * 0.35, tr.w * 0.5, tr.h * 0.28, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // Ground strip
+  ctx.fillRect(0, groundY, W, H - groundY);
+
+  // --- Campfire (center-left) ---
+  const cfx = W * 0.36, cfy = groundY + 2;
+  const flicker = Math.sin(t * 8) * 3;
+  glow('#ff6000', 22);
+  ctx.fillStyle = '#ff8000';
+  ctx.beginPath(); ctx.ellipse(cfx, cfy - 14 + flicker, 7, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath(); ctx.ellipse(cfx, cfy - 8 + flicker * 0.5, 4, 8, 0, 0, Math.PI*2); ctx.fill();
+  noGlow();
+  ctx.fillStyle = '#1a0a00';
+  ctx.fillRect(cfx - 10, cfy - 2, 20, 5);
+
+  // --- Zombie silhouette ---
+  const zx = W * 0.58, zy = groundY;
+  ctx.fillStyle = '#120008';
+  ctx.fillRect(zx - 8, zy - 44, 16, 24); // torso
+  ctx.fillRect(zx - 5, zy - 20, 10, 20); // legs
+  ctx.fillRect(zx - 7, zy - 52, 14, 10); // head
+  ctx.fillRect(zx - 20, zy - 42, 12, 6); // left arm (raised)
+  ctx.fillRect(zx + 8,  zy - 38, 12, 6); // right arm
+  glow('#cc0000', 6);
+  ctx.fillStyle = '#cc2020';
+  ctx.fillRect(zx - 4, zy - 49, 3, 3); // eyes
+  ctx.fillRect(zx + 1, zy - 49, 3, 3);
+  noGlow();
+
+  // --- SURVIVAL title ---
+  const pulse = Math.sin(t * 1.5) * 0.06 + 0.94;
+  glow('#cc0000', 36 * pulse);
+  ctx.font = '700 72px monospace';
+  ctx.fillStyle = `rgba(200,20,20,${pulse})`;
+  ctx.fillText('SURVIVAL', W/2, H * 0.38);
+  noGlow();
+  // Drip effect (pixel blood drips below title)
+  glow('#880000', 8);
+  ctx.fillStyle = '#aa1010';
+  const dripOffsets = [-120, -60, 0, 55, 115];
+  for (let i = 0; i < dripOffsets.length; i++) {
+    const dx = W/2 + dripOffsets[i];
+    const dripLen = 8 + Math.sin(t * 2.3 + i) * 5;
+    ctx.fillRect(dx - 2, H * 0.38 + 6, 4, dripLen);
+    ctx.beginPath(); ctx.arc(dx, H * 0.38 + 6 + dripLen + 4, 4, 0, Math.PI*2); ctx.fill();
+  }
+  noGlow();
+
+  // Subtitle
+  ctx.fillStyle = 'rgba(120,40,40,0.7)';
+  ctx.font = '400 12px monospace';
+  ctx.fillText('mine · craft · survive', W/2, H * 0.44);
+
+  // --- Play button ---
+  const bx = W/2 - 100, by = H * 0.50, bw = 200, bh = 52;
+  ctx.fillStyle = '#180008';
+  ctx.fillRect(bx, by, bw, bh);
+  const glowPulse = Math.sin(t * 2.5) * 5 + 16;
+  glow('#cc0000', glowPulse);
+  ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 2;
   ctx.strokeRect(bx, by, bw, bh);
   noGlow();
-  ctx.fillStyle = '#f0e8ff'; ctx.font = '700 22px monospace';
+  ctx.fillStyle = '#ffdddd'; ctx.font = '700 22px monospace';
   ctx.fillText('PLAY', W/2, by + 35);
-  // Footer
-  ctx.fillStyle = '#2a1840';
+
+  // --- Footer ---
+  ctx.fillStyle = '#3a1020';
   ctx.font = '400 10px monospace';
-  ctx.fillText('WASD · Mouse · E · Shift', W/2, H - 28);
+  ctx.fillText('WASD · Mouse · E · Shift', W/2, H - 22);
+
   ctx.restore();
 }
 
@@ -5634,12 +6035,13 @@ function initGameOverClick() {
 // ===================== PLAYER HP =====================
 function drawPlayerHp() {
   const BAR_W = 80, BAR_H = 6, bx = 14, by = H - 36;
+  const _mhp = getMaxPlayerHp();
   ctx.fillStyle = '#2a0808'; ctx.fillRect(bx, by, BAR_W, BAR_H);
-  const fill = (playerHp / 75) * BAR_W;
+  const fill = (playerHp / _mhp) * BAR_W;
   const col = playerHp > 37 ? '#4aaa28' : playerHp > 18 ? '#e87820' : '#cc2020';
   if (fill > 0) { glow(col, 5); ctx.fillStyle = col; ctx.fillRect(bx, by, fill, BAR_H); noGlow(); }
   ctx.strokeStyle = '#3a1010'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, BAR_W, BAR_H);
-  ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText('HP', bx + BAR_W + 4, by + 5);
+  ctx.fillStyle = '#a06060'; ctx.font = '500 7px monospace'; ctx.fillText(`${Math.ceil(playerHp)}/${_mhp}`, bx + BAR_W + 4, by + 5);
 }
 
 // ===================== SAPLINGS =====================
@@ -5735,8 +6137,9 @@ function drawSaplings() {
 
 // ===================== REGEN + RESPAWN =====================
 function updatePlayerRegen(dt, now) {
-  if (playerHp < 75 && now - lastHitTime > 15)
-    playerHp = Math.min(75, playerHp + 1.2 * dt);
+  const _mhp = getMaxPlayerHp();
+  if (playerHp < _mhp && now - lastHitTime > 15)
+    playerHp = Math.min(_mhp, playerHp + 1.2 * dt);
 }
 
 function updateRespawns(dt) {
@@ -6194,6 +6597,7 @@ function loop(ts) {
     updateMobs(dt, now);
     if (caveLevel >= 4) updateCorruptCreatures(dt, now);
     updatePlayerRegen(dt, now);
+    updateDamageNumbers(dt);
     updateRespawns(dt);
     if (!inCave) updateSaplings();
     if (caveLevel === 0) updateSurfaceRockRespawn();
@@ -6275,6 +6679,7 @@ function loop(ts) {
   drawAbyssCorrupt();
   if (!inCave) drawTreeTops();
   drawParticles();
+  drawDamageNumbers();
   drawAttackRadius();
   drawCampfirePreview();
   drawTargetIndicators();
