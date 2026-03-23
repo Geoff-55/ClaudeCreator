@@ -178,7 +178,9 @@ function initGoblinCamps() {
   const pair = pairs.length ? pairs[Math.floor(Math.random()*pairs.length)]
     : [[WORLD_W*0.25, WORLD_H*0.25],[WORLD_W*0.75, WORLD_H*0.75]];
 
-  for (const [cx, cy] of pair) {
+  const _scrollSurfaceCamp = Math.floor(Math.random() * pair.length); // one of the two gets the scroll
+  for (let _pi = 0; _pi < pair.length; _pi++) {
+    const [cx, cy] = pair[_pi];
     const numTents = 2 + Math.floor(Math.random()*2);
     const tents = [];
     for (let i = 0; i < numTents; i++) {
@@ -198,6 +200,7 @@ function initGoblinCamps() {
       _s0[1] = { id: 'bronze_ingot',   count: 1+Math.floor(Math.random()*3) };
       _s0[2] = { id: 'cooked_chicken', count: 1 };
       _s0[3] = { id: 'feather',        count: 1+Math.floor(Math.random()*3) };
+      if (_pi === _scrollSurfaceCamp && i === 0) _s0[4] = { id: 'altar_scroll', count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 0, slots: _s0 });
     }
     goblinCamps.push({
@@ -225,7 +228,9 @@ function initGoblinCamps() {
   const c1Pair = c1Pairs.length ? c1Pairs[Math.floor(Math.random()*c1Pairs.length)]
     : [[CAVE_W*0.25, CAVE_H*0.25],[CAVE_W*0.75, CAVE_H*0.75]];
 
-  for (const [cx, cy] of c1Pair) {
+  const _scrollC1Camp = Math.floor(Math.random() * c1Pair.length);
+  for (let _pi = 0; _pi < c1Pair.length; _pi++) {
+    const [cx, cy] = c1Pair[_pi];
     const numTents = 1 + Math.floor(Math.random()*2);
     const tents = [];
     for (let i = 0; i < numTents; i++) {
@@ -245,6 +250,7 @@ function initGoblinCamps() {
       _s1[1] = { id: 'bronze_ingot', count: 2+Math.floor(Math.random()*4) };
       _s1[2] = { id: 'feather',      count: 2+Math.floor(Math.random()*3) };
       _s1[3] = { id: 'coal',         count: 2+Math.floor(Math.random()*3) };
+      if (_pi === _scrollC1Camp && i === 0) _s1[4] = { id: 'altar_scroll', count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 1, slots: _s1 });
     }
     goblinCamps.push({
@@ -1195,6 +1201,7 @@ const ITEM_NAMES = {
   copper: 'Copper', raw_chicken: 'Raw Chicken', unknown: 'Unknown',
   cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
   abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall', stone_wall: 'Stone Wall', chest: 'Chest',
+  altar_scroll: 'Altar Scroll',
 };
 
 function getSlotItem(slot) {
@@ -2136,6 +2143,18 @@ function drawItemIcon(id, cx, cy, size) {
      [D,0,6],[L,1,6],[H,2,6],[L,3,6],[L,4,6],[H,5,6],[L,6,6],[D,7,6],
      [D,0,7],[D,1,7],[D,2,7],[D,3,7],[D,4,7],[D,5,7],[D,6,7],[D,7,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'altar_scroll') {
+    // Rolled parchment scroll with red wax seal
+    const P = '#d4b878', Pd = '#a88840', E = '#8a6c30', R = '#cc2020', Rh = '#ff4040';
+    [[E,1,0],[P,2,0],[P,3,0],[P,4,0],[P,5,0],[E,6,0],
+     [E,0,1],[P,1,1],[P,2,1],[P,3,1],[P,4,1],[P,5,1],[P,6,1],[E,7,1],
+     [E,0,2],[P,1,2],[Pd,2,2],[Pd,3,2],[Pd,4,2],[Pd,5,2],[P,6,2],[E,7,2],
+     [E,0,3],[P,1,3],[Pd,2,3],[R,3,3],[R,4,3],[Pd,5,3],[P,6,3],[E,7,3],
+     [E,0,4],[P,1,4],[Pd,2,4],[R,3,4],[Rh,4,4],[Pd,5,4],[P,6,4],[E,7,4],
+     [E,0,5],[P,1,5],[Pd,2,5],[Pd,3,5],[Pd,4,5],[Pd,5,5],[P,6,5],[E,7,5],
+     [E,0,6],[P,1,6],[P,2,6],[P,3,6],[P,4,6],[P,5,6],[P,6,6],[E,7,6],
+     [E,1,7],[P,2,7],[P,3,7],[P,4,7],[P,5,7],[E,6,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
   }
 }
 
@@ -3029,10 +3048,13 @@ function updateMovement(dt) {
   resolvePortalCollisions();
   resolveWallCollisions();
   resolveAltarCollision();
-  // Check if player is near altar (reveals it on map)
-  if (!inCave && !altarSeen) {
-    const _adx = px - FOREST_ALTAR_X, _ady = py - FOREST_ALTAR_Y;
-    if (_adx*_adx + _ady*_ady < 350*350) altarSeen = true;
+  // Check if player is near altar OR has altar scroll (reveals it on map)
+  if (!altarSeen) {
+    if (!inCave) {
+      const _adx = px - FOREST_ALTAR_X, _ady = py - FOREST_ALTAR_Y;
+      if (_adx*_adx + _ady*_ady < 350*350) altarSeen = true;
+    }
+    if (!altarSeen && inventorySlots.some(s => s && s.id === 'altar_scroll')) altarSeen = true;
   }
   // Check if player is near lake (reveals it on map)
   if (!inCave && !lakeSeen) {
