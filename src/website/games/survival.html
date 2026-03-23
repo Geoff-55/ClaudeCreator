@@ -194,16 +194,67 @@ function initGoblinCamps() {
     for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
       const a = Math.random()*Math.PI*2, r = 35+Math.random()*30;
       goblinChests.push({
-        x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, open: false,
+        x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, open: false, level: 0,
         items: [
           { id: 'bone',         count: 2+Math.floor(Math.random()*4) },
           { id: 'bronze_ingot', count: 1+Math.floor(Math.random()*3) },
           { id: 'cooked_chicken', count: 1 },
+          { id: 'feather',      count: 1+Math.floor(Math.random()*3) },
         ],
       });
     }
     goblinCamps.push({
-      x: cx, y: cy,
+      x: cx, y: cy, level: 0,
+      campfire: { x: cx+(Math.random()-0.5)*18, y: cy+(Math.random()-0.5)*18 },
+      tents, logs,
+      discovered: false, lastDaySpawned: 0,
+    });
+  }
+
+  // Cave 1 camps — 2 camps using cave world coordinates
+  const c1SpawnCX = Math.floor((CAVE_W/2)/CHUNK_W), c1SpawnCY = Math.floor((CAVE_H/2)/CHUNK_H);
+  const c1Cands = [];
+  for (let att = 0; att < 400 && c1Cands.length < 8; att++) {
+    const ccx = 1 + Math.floor(Math.random()*(CAVE_CHUNKS_X-2));
+    const ccy = 1 + Math.floor(Math.random()*(CAVE_CHUNKS_Y-2));
+    if ((ccx-c1SpawnCX)**2+(ccy-c1SpawnCY)**2 < 9) continue;
+    c1Cands.push([(ccx+0.5)*CHUNK_W, (ccy+0.5)*CHUNK_H]);
+  }
+  let c1Pairs = [];
+  for (let i = 0; i < c1Cands.length; i++)
+    for (let j = i+1; j < c1Cands.length; j++)
+      if ((c1Cands[i][0]-c1Cands[j][0])**2+(c1Cands[i][1]-c1Cands[j][1])**2 >= (CHUNK_W*3)**2)
+        c1Pairs.push([c1Cands[i], c1Cands[j]]);
+  const c1Pair = c1Pairs.length ? c1Pairs[Math.floor(Math.random()*c1Pairs.length)]
+    : [[CAVE_W*0.25, CAVE_H*0.25],[CAVE_W*0.75, CAVE_H*0.75]];
+
+  for (const [cx, cy] of c1Pair) {
+    const numTents = 1 + Math.floor(Math.random()*2);
+    const tents = [];
+    for (let i = 0; i < numTents; i++) {
+      const a = (i/numTents)*Math.PI*2 + Math.random()*0.8;
+      const r = 45 + Math.random()*30;
+      tents.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, dir: Math.random()<0.5?1:-1 });
+    }
+    const logs = [];
+    for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
+      const a = Math.random()*Math.PI*2, r = 24+Math.random()*20;
+      logs.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r });
+    }
+    for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
+      const a = Math.random()*Math.PI*2, r = 30+Math.random()*28;
+      goblinChests.push({
+        x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, open: false, level: 1,
+        items: [
+          { id: 'bone',         count: 3+Math.floor(Math.random()*4) },
+          { id: 'bronze_ingot', count: 2+Math.floor(Math.random()*4) },
+          { id: 'feather',      count: 2+Math.floor(Math.random()*3) },
+          { id: 'coal',         count: 2+Math.floor(Math.random()*3) },
+        ],
+      });
+    }
+    goblinCamps.push({
+      x: cx, y: cy, level: 1,
       campfire: { x: cx+(Math.random()-0.5)*18, y: cy+(Math.random()-0.5)*18 },
       tents, logs,
       discovered: false, lastDaySpawned: 0,
@@ -563,6 +614,36 @@ function generateSurfaceWorld() {
       }
 
       worldChunks.push({ grass, tree, flowers, soilPatches, flowerPatch, extraTrees });
+    }
+  }
+
+  // Dense tree patches — 3-5 clusters of 6-8 trees, very occasional, non-forest non-lake
+  {
+    const numClusters = 3 + Math.floor(Math.random() * 3);
+    let placed = 0;
+    for (let att = 0; att < 300 && placed < numClusters; att++) {
+      const ccx = 1 + Math.floor(Math.random() * (CHUNKS_X - 2));
+      const ccy = 1 + Math.floor(Math.random() * (CHUNKS_Y - 2));
+      if (isForestChunk(ccx, ccy)) continue;
+      const cx2 = (ccx + 0.5) * CHUNK_W, cy2 = (ccy + 0.5) * CHUNK_H;
+      if (isInLake(cx2, cy2) || isLakeShore(cx2, cy2, 80)) continue;
+      // Spread trees within ~80px radius of cluster center
+      const chunk = worldChunks[ccy * CHUNKS_X + ccx];
+      if (!chunk) continue;
+      const numT = 6 + Math.floor(Math.random() * 3);
+      const rng2 = chunkRNG(ccx + 999, ccy + 999);
+      for (let i = 0; i < numT; i++) {
+        const a2 = rng2() * Math.PI * 2, r2 = 20 + rng2() * 80;
+        chunk.extraTrees.push({
+          x: cx2 + Math.cos(a2) * r2,
+          y: cy2 + Math.sin(a2) * r2,
+          segs: makeTreeSegs(rng2),
+          variant: Math.floor(rng2() * TREE_VARIANTS.length),
+          scale: 0.9 + rng2() * 0.18,
+          chopped: false, chopHealth: undefined, chopsLeft: undefined,
+        });
+      }
+      placed++;
     }
   }
   // Post-process: remove rocks that overlap any tree trunk
@@ -1116,7 +1197,7 @@ const ITEM_NAMES = {
   feather: 'Feather', rough_bronze: 'Rough Bronze', iron_ore: 'Iron Ore',
   copper: 'Copper', raw_chicken: 'Raw Chicken', unknown: 'Unknown',
   cursed_soul: 'Cursed Soul', glitch_ore: 'Glitch Ore',
-  abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall', stone_wall: 'Stone Wall',
+  abyss_key: 'Abyss Key', wood: 'Wood', wood_wall: 'Wood Wall', stone_wall: 'Stone Wall', chest: 'Chest',
 };
 
 function getSlotItem(slot) {
@@ -1205,6 +1286,10 @@ const RECIPES = [
     id: 'stone_wall', name: 'Stone Wall',
     ingredients: [{ id: 'rock', count: 2 }],
     yield: 4,
+  },
+  {
+    id: 'chest', name: 'Chest',
+    ingredients: [{ id: 'wood', count: 5 }],
   },
   {
     id: 'sword', name: 'Sword',
@@ -1405,7 +1490,7 @@ const ITEM_SLOT = {
   hatchet: 'hatchet_slot', bronze_hatchet: 'hatchet_slot', iron_hatchet: 'hatchet_slot',
   pickaxe: 'pickaxe_slot', bronze_pickaxe: 'pickaxe_slot', iron_pickaxe: 'pickaxe_slot',
   campfire: 'furniture', crafting_station: 'furniture', mine_entrance: 'furniture', mine_entrance_t2: 'furniture', void_entrance: 'furniture',
-  furnace: 'furniture', sapling: 'furniture', torch: 'furniture', wood_wall: 'furniture', stone_wall: 'furniture',
+  furnace: 'furniture', sapling: 'furniture', torch: 'furniture', wood_wall: 'furniture', stone_wall: 'furniture', chest: 'furniture',
   feather_hat: 'helmet', feather_pants: 'pants',
   iron_helmet: 'helmet', iron_pants: 'pants', iron_chestplate: 'chestplate',
   bone_armor: 'chestplate', bone_shield: 'shield', glitch_shield: 'shield',
@@ -2011,6 +2096,18 @@ function drawItemIcon(id, cx, cy, size) {
      [M,0,5],[H,1,5],[B,2,5],[H,3,5],[H,4,5],[B,5,5],[H,6,5],[M,7,5],
      [D,0,6],[D,1,6],[D,2,6],[D,3,6],[D,4,6],[D,5,6],[D,6,6],[D,7,6],
      [M,0,7],[L,1,7],[H,2,7],[B,3,7],[B,4,7],[H,5,7],[L,6,7],[M,7,7],
+    ].forEach(([c,x,y]) => dot(c,x,y));
+  } else if (id === 'chest') {
+    // Brown chest with gold latch
+    const D = '#1a0a02', W = '#3d1f08', L = '#5c2f12', H = '#7a3f18', G = '#c09040', T = '#4a2810';
+    [[D,0,0],[D,1,0],[D,2,0],[D,3,0],[D,4,0],[D,5,0],[D,6,0],[D,7,0],
+     [D,0,1],[W,1,1],[L,2,1],[H,3,1],[H,4,1],[L,5,1],[W,6,1],[D,7,1],
+     [D,0,2],[T,1,2],[L,2,2],[H,3,2],[H,4,2],[L,5,2],[T,6,2],[D,7,2],
+     [D,0,3],[D,1,3],[D,2,3],[G,3,3],[G,4,3],[D,5,3],[D,6,3],[D,7,3],
+     [D,0,4],[W,1,4],[W,2,4],[G,3,4],[G,4,4],[W,5,4],[W,6,4],[D,7,4],
+     [D,0,5],[W,1,5],[L,2,5],[W,3,5],[W,4,5],[L,5,5],[W,6,5],[D,7,5],
+     [D,0,6],[L,1,6],[H,2,6],[L,3,6],[L,4,6],[H,5,6],[L,6,6],[D,7,6],
+     [D,0,7],[D,1,7],[D,2,7],[D,3,7],[D,4,7],[D,5,7],[D,6,7],[D,7,7],
     ].forEach(([c,x,y]) => dot(c,x,y));
   }
 }
@@ -2694,7 +2791,7 @@ function handleInteract() {
   }
   // Place items from furniture slot
   const weapon = equipSlots['furniture'];
-  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall', 'stone_wall'].includes(weapon.id)) {
+  if (weapon && ['campfire', 'crafting_station', 'mine_entrance', 'mine_entrance_t2', 'void_entrance', 'furnace', 'sapling', 'torch', 'wood_wall', 'stone_wall', 'chest'].includes(weapon.id)) {
     const { gx, gy } = getPlacementPos();
     if (weapon.id === 'wood_wall' || weapon.id === 'stone_wall') {
       if (!isGridOccupied(gx, gy))
@@ -2704,6 +2801,7 @@ function handleInteract() {
     else if (weapon.id === 'furnace') { if (!isGridOccupied(gx, gy)) furnaces.push({ x: gx, y: gy, cave: caveLevel }); }
     else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: gx, y: gy, plantedTime: gameNow }); }
     else if (weapon.id === 'torch') { if (!isGridOccupied(gx, gy)) torches.push({ x: gx, y: gy, cave: caveLevel, redTimer: 0 }); }
+    else if (weapon.id === 'chest') goblinChests.push({ x: gx, y: gy, open: false, level: caveLevel, items: [] });
     else if (weapon.id === 'mine_entrance' && !inCave) mineEntrances.push({ x: gx, y: gy });
     else if (weapon.id === 'mine_entrance_t2' && !inCave) mineEntrancesT2.push({ x: gx, y: gy });
     else if (weapon.id === 'void_entrance') voidEntrances.push({ x: gx, y: gy, fromLevel: caveLevel });
@@ -2766,17 +2864,19 @@ function handleInteract() {
       return;
     }
   }
-  // Goblin chest interaction (surface only)
-  if (caveLevel === 0) {
-    for (const chest of goblinChests) {
+  // Goblin/placed chest interaction
+  for (const chest of goblinChests) {
+    if ((chest.level || 0) !== caveLevel) continue;
+    {
       if (chest.open) continue;
       const dx = chest.x - px, dy = chest.y - py;
       if (Math.sqrt(dx*dx + dy*dy) < 55) {
         chest.open = true;
+        const _cg = curGround();
         for (const it of chest.items) {
           for (let n = 0; n < (it.count || 1); n++) {
             const a = Math.random() * Math.PI * 2, r = 20 + Math.random() * 28;
-            worldGroundItems.push({ type: it.id, x: chest.x + Math.cos(a)*r, y: chest.y + Math.sin(a)*r, pickedUp: false });
+            _cg.push({ type: it.id, x: chest.x + Math.cos(a)*r, y: chest.y + Math.sin(a)*r, pickedUp: false });
           }
         }
         spawnParticles(chest.x, chest.y, '#c8a060', 8);
@@ -3236,8 +3336,7 @@ function drawWalls() {
     if (w.level !== caveLevel) continue;
     const sx = Math.round(w.x - camX), sy = Math.round(w.y - camY);
     if (sx < -half-4 || sx > W+half+4 || sy < -half-4 || sy > H+half+4) continue;
-    // 1px inset so grid lines remain visible at cell borders
-    const wx0 = sx - half + 1, wy0 = sy - half + 1, ws = GRID - 2;
+    const wx0 = sx - half, wy0 = sy - half, ws = GRID;
     if (w.type === 'stone_wall') {
       ctx.fillStyle = '#4a4a4a';
       ctx.fillRect(wx0, wy0, ws, ws);
@@ -3859,7 +3958,9 @@ function spawnMob(type, cap) {
   y = Math.max(50, Math.min(curWorldH() - 50, y));
   let subtype = 'normal', hp = 10;
   if (type === 'goblin') {
-    if (hasEnteredCave1 && Math.random() < 0.28) { subtype = 'archer'; hp = 6; }
+    const gr = Math.random();
+    if (caveLevel === 2 && gr < 0.30) { subtype = 'brute'; hp = 35; }
+    else if (hasEnteredCave1 && gr < 0.28) { subtype = 'archer'; hp = 6; }
     else { hp = 8; }
   } else if (type === 'zombie') {
     if (caveLevel === 3) {
@@ -4418,7 +4519,7 @@ function drawCraftingStations() {
 
 // ===================== GOBLIN CAMPS =====================
 function updateGoblinArrows(dt, now) {
-  if (inCave) { goblinArrows.length = 0; return; }
+  if (caveLevel > 1) { goblinArrows.length = 0; return; }
   for (let i = goblinArrows.length - 1; i >= 0; i--) {
     const a = goblinArrows[i];
     a.x += a.vx * dt; a.y += a.vy * dt;
@@ -4440,16 +4541,18 @@ function updateGoblinArrows(dt, now) {
 }
 
 function updateCampSpawning() {
-  if (inCave || gameState !== 'playing') return;
+  if (gameState !== 'playing') return;
   const day = getCurrentDay();
   for (const camp of goblinCamps) {
+    if ((camp.level || 0) !== caveLevel) continue;
     if (camp.lastDaySpawned >= day) continue;
     camp.lastDaySpawned = day;
+    const ww = curWorldW(), wh = curWorldH();
     const num = 3 + Math.floor(Math.random()*2);
     for (let i = 0; i < num; i++) {
       const a = Math.random()*Math.PI*2, r = 40+Math.random()*55;
-      const gx = Math.max(50,Math.min(WORLD_W-50, camp.x+Math.cos(a)*r));
-      const gy = Math.max(50,Math.min(WORLD_H-50, camp.y+Math.sin(a)*r));
+      const gx = Math.max(50,Math.min(ww-50, camp.x+Math.cos(a)*r));
+      const gy = Math.max(50,Math.min(wh-50, camp.y+Math.sin(a)*r));
       const sub = Math.random()<0.3 ? 'archer' : 'normal';
       mobs.push({ type:'goblin', subtype:sub, x:gx, y:gy, hp:sub==='archer'?6:8, maxHp:sub==='archer'?6:8,
         vx:0, vy:0, dir:1, drawScale:1, animTimer:Math.random()*6,
@@ -4457,8 +4560,8 @@ function updateCampSpawning() {
         arrowTimer:2+Math.random()*2 });
     }
     const ba = Math.random()*Math.PI*2;
-    const bx2 = Math.max(50,Math.min(WORLD_W-50,camp.x+Math.cos(ba)*35));
-    const by2 = Math.max(50,Math.min(WORLD_H-50,camp.y+Math.sin(ba)*35));
+    const bx2 = Math.max(50,Math.min(ww-50,camp.x+Math.cos(ba)*35));
+    const by2 = Math.max(50,Math.min(wh-50,camp.y+Math.sin(ba)*35));
     mobs.push({ type:'goblin', subtype:'brute', x:bx2, y:by2, hp:35, maxHp:35,
       vx:0, vy:0, dir:1, drawScale:1, animTimer:Math.random()*6,
       dead:false, deathTimer:0, lungeTimer:0, lungeDuration:0, arrowTimer:0 });
@@ -4529,8 +4632,8 @@ function _drawChest(sx, sy, open) {
 }
 
 function drawGoblinCamps() {
-  if (inCave) return;
   for (const camp of goblinCamps) {
+    if ((camp.level || 0) !== caveLevel) continue;
     for (const t of camp.tents) {
       const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
       if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
@@ -4545,6 +4648,7 @@ function drawGoblinCamps() {
     if (cfsx >= -40 && cfsx <= W+40 && cfsy >= -40 && cfsy <= H+40) _drawBoneCampfire(cfsx, cfsy);
   }
   for (const chest of goblinChests) {
+    if ((chest.level || 0) !== caveLevel) continue;
     const sx = Math.round(chest.x - camX), sy = Math.round(chest.y - camY);
     if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
     _drawChest(sx, sy, chest.open);
@@ -4556,7 +4660,7 @@ function drawGoblinCamps() {
 }
 
 function drawGoblinArrows() {
-  if (inCave || goblinArrows.length === 0) return;
+  if (caveLevel > 1 || goblinArrows.length === 0) return;
   ctx.fillStyle = '#a07830';
   for (const a of goblinArrows) {
     const sx = Math.round(a.x - camX), sy = Math.round(a.y - camY);
@@ -5187,8 +5291,8 @@ function drawMap() {
     ctx.restore();
   }
 
-  // Goblin camp icons (surface only, once discovered)
-  if (caveLevel === 0) {
+  // Goblin camp icons (surface + cave1, once discovered)
+  if (caveLevel === 0 || caveLevel === 1) {
     for (const camp of goblinCamps) {
       if (!camp.discovered) continue;
       const cx2 = WX + camp.x * scaleX, cy2 = WY + camp.y * scaleY;
@@ -5969,12 +6073,10 @@ function loop(ts) {
     updateGoblinArrows(dt, now);
     updateCampSpawning();
     // Camp discovery: mark camp seen when player approaches
-    if (caveLevel === 0) {
-      for (const camp of goblinCamps) {
-        if (!camp.discovered) {
-          const dx = camp.x - px, dy = camp.y - py;
-          if (dx*dx + dy*dy < 220*220) camp.discovered = true;
-        }
+    for (const camp of goblinCamps) {
+      if (!camp.discovered && (camp.level || 0) === caveLevel) {
+        const dx = camp.x - px, dy = camp.y - py;
+        if (dx*dx + dy*dy < 220*220) camp.discovered = true;
       }
     }
     updateLavaDrips(dt);
@@ -6003,7 +6105,7 @@ function loop(ts) {
   drawAltarBase();
   if (!inCave) drawTreeBases();
   drawMonoliths();
-  if (!inCave) drawGoblinCamps();
+  if (caveLevel === 0 || caveLevel === 1) drawGoblinCamps();
   drawCampfires();
   drawTorches();
   drawCraftingStations();
@@ -6020,7 +6122,7 @@ function loop(ts) {
   drawPlayer();
   if (caveLevel === 1 || caveLevel === 2) drawStalagmites();
   drawMobs();
-  if (!inCave) drawGoblinArrows();
+  if (caveLevel <= 1) drawGoblinArrows();
   drawAltarTop();
   drawAbyssCorrupt();
   if (!inCave) drawTreeTops();
