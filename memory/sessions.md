@@ -1,5 +1,34 @@
 # Session History
 
+## Session 12 -- 2026-03-23
+
+Survival game (survival.html) — layering, fuel, and UI polish:
+
+**Cave Y-sort:**
+  - `drawCaveYSorted()` combines rocks + stalagmites into a single Y-sorted draw pass for cave1/cave2
+  - Helper functions `_drawRockBase`, `_drawRockTop`, `_drawStagAt` used by combined function
+  - Fixes stalagmites incorrectly overlaying ores/rocks based on screen position
+  - Surface and hell (caveLevel 0/3) still use original separate draw paths
+
+**Fuel priority:**
+  - Coal now consumed before sticks in all smelting recipes (cooked chicken, bronze ingot, iron ingot)
+  - Sticks only used if no coal available
+
+**Lake on map:**
+  - Confirmed already correctly gated by `lakeSeen` flag — no change needed
+
+**Other (from earlier in session, carried over):**
+  - 10 monoliths per level (30 total across surface/floor1/floor2)
+  - 8 goblin camps total (4 surface + 4 cave1); altar scroll guaranteed in every camp
+  - Item stacking bug fixed: items with `count: undefined` now normalized via `normalizeItem()`
+  - Item count shown in PLACE/FOOD equip slots (torches, saplings, chicken, etc.)
+  - Y-sorted draw order for player + mobs (top to bottom)
+  - Corrupt Pendant trinket: magma zombie 15% drop, immunity to glitch effects and lava damage
+  - More lava patches in hell (2–4 per chunk)
+  - Damage indicator above player when taking damage (white "-N" floating numbers)
+  - Green pixelated main menu (horror theming hidden behind "Start Setup" toggle)
+  - Start Setup button on menu re-enables 3 mine entrances + starting gear circle
+
 ## Session 11 -- 2026-03-22
 
 Survival game (survival.html) — trinkets, crits, void temple, main menu:

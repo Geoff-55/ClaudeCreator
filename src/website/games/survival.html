@@ -1397,13 +1397,13 @@ const RECIPES = [
   {
     id: 'cooked_chicken', name: 'Cooked Chicken',
     ingredients: [{ id: 'raw_chicken', count: 1 }],
-    fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
+    fuelOptions: [[{ id: 'coal', count: 1 }], [{ id: 'stick', count: 2 }]],
     requiresFurnace: true,
   },
   {
     id: 'bronze_ingot', name: 'Bronze Ingot',
     ingredients: [{ id: 'rough_bronze', count: 2 }],
-    fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
+    fuelOptions: [[{ id: 'coal', count: 1 }], [{ id: 'stick', count: 2 }]],
     requiresFurnace: true, tier: 'bronze',
   },
   {
@@ -1424,7 +1424,7 @@ const RECIPES = [
   {
     id: 'iron_ingot', name: 'Iron Ingot',
     ingredients: [{ id: 'iron_ore', count: 2 }],
-    fuelOptions: [[{ id: 'stick', count: 2 }], [{ id: 'coal', count: 1 }]],
+    fuelOptions: [[{ id: 'coal', count: 1 }], [{ id: 'stick', count: 2 }]],
     requiresFurnace: true, tier: 'iron',
   },
   {
@@ -3926,22 +3926,77 @@ function drawTreeBases() {
   }
 }
 
-function drawRockBases() {
+function _drawRockBase(rock) {
   const PS = 5;
+  const sc = rock.scale || 1; const rr = ROCK_R * sc;
+  const sx = Math.round(rock.x - camX) + 4, sy = Math.round(rock.y - camY) + Math.round(rr * 0.58);
+  if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
+  ctx.fillStyle = caveLevel === 3 ? '#1a0000' : inCave ? '#100e08' : '#1c3a0c';
+  const rx = rr * 0.92, ry = rr * 0.28;
+  for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
+    for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
+      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+      if ((cx/rx)**2 + (cy/ry)**2 > 1) continue;
+      ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+    }
+  }
+}
+function _drawRockTop(rock) {
+  const PS = 5;
+  const sc = rock.scale || 1; const rr = ROCK_R * sc;
+  const sx = Math.round(rock.x - camX), sy = Math.round(rock.y - camY);
+  if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
+  const isBronzeRock = rock.type === 'bronze';
+  const isCoalRock   = rock.type === 'coal';
+  const isIronRock   = rock.type === 'iron';
+  const isGlitchRock = rock.type === 'glitch_ore';
+  const [cD,cM,cH,cL] = isBronzeRock
+    ? ['#3a2010','#6a3818','#a05828','#c87840']
+    : isCoalRock
+    ? ['#141210','#201e1a','#2c2820','#383428']
+    : isIronRock
+    ? ['#281810','#4a3020','#7a5035','#b07848']
+    : isGlitchRock
+    ? ['#0d0000','#220000','#550000','#cc0000']
+    : inCave
+    ? ['#2a2820','#3c3830','#504c42','#6a6458']
+    : ['#363636','#4c4c4c','#646464','#7e7e7e'];
+  const rx = rr, ry = rr * 0.72;
+  glow(isGlitchRock ? '#ff0000' : '#181818', isGlitchRock ? 14 : 10);
+  for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
+    for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
+      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
+      const nd = (cx/rx)**2 + (cy/ry)**2;
+      if (nd > 1) continue;
+      const nr = Math.sqrt(nd);
+      let c = nr > 0.78 ? cD : (cx < -rx*0.05 && cy < -ry*0.05 && nr < 0.55) ? cH : cM;
+      if (cx < -rx*0.18 && cy < -ry*0.18 && nr < 0.38) c = cL;
+      ctx.fillStyle = c;
+      ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
+    }
+  }
+  noGlow();
+}
+function _drawStagAt(d) {
+  const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
+  if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) return;
+  for (let i = 0; i < d.h; i++) {
+    const frac = i / d.h;
+    const w = Math.max(1, Math.round(14 * (1 - frac)));
+    const col = caveLevel === 1
+      ? (frac < 0.25 ? '#1e1c16' : frac < 0.65 ? '#2c2820' : '#3a3530')
+      : (frac < 0.25 ? '#221410' : frac < 0.65 ? '#362016' : '#4a2e1c');
+    ctx.fillStyle = col;
+    ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
+    const hlCol = caveLevel === 1 ? '#46423c' : '#5e3c26';
+    if (w >= 5) { ctx.fillStyle = hlCol; ctx.fillRect(sx - Math.floor(w/2), sy - i, 1, 1); }
+  }
+}
+
+function drawRockBases() {
   for (const rock of [...curRocks()].sort((a,b) => a.y - b.y)) {
     if (rock.mined) continue;
-    const sc = rock.scale || 1; const rr = ROCK_R * sc;
-    const sx = Math.round(rock.x - camX) + 4, sy = Math.round(rock.y - camY) + Math.round(rr * 0.58);
-    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
-    ctx.fillStyle = caveLevel === 3 ? '#1a0000' : inCave ? '#100e08' : '#1c3a0c';
-    const rx = rr * 0.92, ry = rr * 0.28;
-    for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
-      for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
-        const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
-        if ((cx/rx)**2 + (cy/ry)**2 > 1) continue;
-        ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
-      }
-    }
+    _drawRockBase(rock);
   }
 }
 
@@ -3977,42 +4032,27 @@ function drawTreeTops() {
 }
 
 function drawRockTops() {
-  const PS = 5;
   for (const rock of [...curRocks()].sort((a,b) => a.y - b.y)) {
     if (rock.mined) continue;
-    const sc = rock.scale || 1; const rr = ROCK_R * sc;
-    const sx = Math.round(rock.x - camX), sy = Math.round(rock.y - camY);
-    if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) continue;
-    const isBronzeRock = rock.type === 'bronze';
-    const isCoalRock   = rock.type === 'coal';
-    const isIronRock   = rock.type === 'iron';
-    const isGlitchRock = rock.type === 'glitch_ore';
-    const [cD,cM,cH,cL] = isBronzeRock
-      ? ['#3a2010','#6a3818','#a05828','#c87840']
-      : isCoalRock
-      ? ['#141210','#201e1a','#2c2820','#383428']
-      : isIronRock
-      ? ['#281810','#4a3020','#7a5035','#b07848']
-      : isGlitchRock
-      ? ['#0d0000','#220000','#550000','#cc0000']
-      : inCave
-      ? ['#2a2820','#3c3830','#504c42','#6a6458']
-      : ['#363636','#4c4c4c','#646464','#7e7e7e'];
-    const rx = rr, ry = rr * 0.72;
-    glow(isGlitchRock ? '#ff0000' : '#181818', isGlitchRock ? 14 : 10);
-    for (let gy = Math.floor(-ry/PS); gy < Math.ceil(ry/PS); gy++) {
-      for (let gx = Math.floor(-rx/PS); gx < Math.ceil(rx/PS); gx++) {
-        const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
-        const nd = (cx/rx)**2 + (cy/ry)**2;
-        if (nd > 1) continue;
-        const nr = Math.sqrt(nd);
-        let c = nr > 0.78 ? cD : (cx < -rx*0.05 && cy < -ry*0.05 && nr < 0.55) ? cH : cM;
-        if (cx < -rx*0.18 && cy < -ry*0.18 && nr < 0.38) c = cL;
-        ctx.fillStyle = c;
-        ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
-      }
+    _drawRockTop(rock);
+  }
+}
+
+function drawCaveYSorted() {
+  const entries = [];
+  for (const rock of curRocks()) {
+    if (!rock.mined) entries.push({ k: 'rock', obj: rock, y: rock.y });
+  }
+  const details = caveLevel === 1 ? cave1Details : caveLevel === 2 ? cave2Details : null;
+  if (details) {
+    for (const d of details) {
+      if (d.type === 'stag') entries.push({ k: 'stag', obj: d, y: d.y });
     }
-    noGlow();
+  }
+  entries.sort((a, b) => a.y - b.y);
+  for (const e of entries) {
+    if (e.k === 'rock') { _drawRockBase(e.obj); _drawRockTop(e.obj); }
+    else _drawStagAt(e.obj);
   }
 }
 
@@ -6728,8 +6768,8 @@ function loop(ts) {
   if (caveLevel === 3) drawHellDetails();
   drawWalls();
   drawGroundItemBodies();
-  drawRockBases();
-  drawRockTops();
+  if (inCave && caveLevel < 3) drawCaveYSorted();
+  else { drawRockBases(); drawRockTops(); }
   drawAltarBase();
   if (!inCave) drawTreeBases();
   drawMonoliths();
@@ -6747,7 +6787,6 @@ function loop(ts) {
   if (caveLevel >= 4) drawCorruptWorld();
   if (caveLevel >= 4) drawCorruptCreatures();
   drawShadowFigures();
-  if (caveLevel === 1 || caveLevel === 2) drawStalagmites();
   // Y-sorted: mobs above player drawn first, then player, then mobs at/below
   drawMobs(py);
   drawPlayer();
