@@ -120,16 +120,38 @@ function initForest() {
   FOREST_ALTAR_X = (FOREST_CX + 0.5) * CHUNK_W;
   FOREST_ALTAR_Y = (FOREST_CY + 0.5) * CHUNK_H;
 
-  // Lake: chunk opposite forest from spawn center, border-clamped
-  const lakeCX = Math.max(1, Math.min(CHUNKS_X - 2, 2 * spawnCX - FOREST_CX));
-  const lakeCY = Math.max(1, Math.min(CHUNKS_Y - 2, 2 * spawnCY - FOREST_CY));
-  const lcx = (lakeCX + 0.5) * CHUNK_W;
-  const lcy = (lakeCY + 0.5) * CHUNK_H;
-  LAKE_CIRCLES = [
-    { cx: lcx,                           cy: lcy,                           rx: 210, ry: 155 },
-    { cx: lcx + (Math.random()-0.5)*160, cy: lcy + (Math.random()-0.5)*120, rx: 130, ry: 100 },
-    { cx: lcx + (Math.random()-0.5)*180, cy: lcy + (Math.random()-0.5)*140, rx: 110, ry:  90 },
-  ];
+  // Two lakes: random non-forest chunks, not too close to spawn or each other
+  const lakeCands = [];
+  for (let x = 1; x <= CHUNKS_X - 2; x++) {
+    for (let y = 1; y <= CHUNKS_Y - 2; y++) {
+      const dSpawn2 = (x - spawnCX) ** 2 + (y - spawnCY) ** 2;
+      if (dSpawn2 < 4) continue; // too close to spawn
+      if (isForestChunk(x, y)) continue; // skip forest
+      lakeCands.push([x, y]);
+    }
+  }
+  // Shuffle
+  for (let i = lakeCands.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [lakeCands[i], lakeCands[j]] = [lakeCands[j], lakeCands[i]];
+  }
+  // Pick first two that are at least 3 chunks apart from each other
+  let lake1 = null, lake2 = null;
+  for (const c of lakeCands) {
+    if (!lake1) { lake1 = c; continue; }
+    if ((c[0]-lake1[0])**2 + (c[1]-lake1[1])**2 >= 9) { lake2 = c; break; }
+  }
+  if (!lake2) lake2 = lakeCands[1] || lakeCands[0]; // fallback
+  LAKE_CIRCLES = [];
+  for (const lc of [lake1, lake2]) {
+    const lcx = (lc[0] + 0.5) * CHUNK_W;
+    const lcy = (lc[1] + 0.5) * CHUNK_H;
+    LAKE_CIRCLES.push(
+      { cx: lcx,                           cy: lcy,                           rx: 210, ry: 155 },
+      { cx: lcx + (Math.random()-0.5)*160, cy: lcy + (Math.random()-0.5)*120, rx: 130, ry: 100 },
+      { cx: lcx + (Math.random()-0.5)*180, cy: lcy + (Math.random()-0.5)*140, rx: 110, ry:  90 }
+    );
+  }
   buildLakeTiles();
 }
 function isForestChunk(cx, cy) { return (cx-FOREST_CX)**2 + (cy-FOREST_CY)**2 <= 5.5; }
@@ -165,7 +187,6 @@ function buildLakeTiles() {
     minX = Math.min(minX, e.cx - e.rx - SHORE_PX); maxX = Math.max(maxX, e.cx + e.rx + SHORE_PX);
     minY = Math.min(minY, e.cy - e.ry - SHORE_PX); maxY = Math.max(maxY, e.cy + e.ry + SHORE_PX);
   }
-  const mc = LAKE_CIRCLES[0];
   const WATER_DEEP  = ['#0c2132','#0d2235','#0e2438'];
   const WATER_MID   = ['#102638','#112840','#122a42'];
   const WATER_SHORE = ['#183650','#1a3a55','#1c3e5a'];
@@ -184,7 +205,14 @@ function buildLakeTiles() {
     for (let wx = Math.floor(minX/LAKE_PS)*LAKE_PS; wx < maxX; wx += LAKE_PS) {
       const cx = wx + LAKE_PS/2, cy = wy + LAKE_PS/2;
       if (!isInLake(cx, cy)) continue;
-      const dx = (cx - mc.cx) / mc.rx, dy = (cy - mc.cy) / mc.ry;
+      // Use nearest ellipse center for depth coloring
+      let bestD = Infinity, bestE = LAKE_CIRCLES[0];
+      for (const e of LAKE_CIRCLES) {
+        const ddx = (cx - e.cx) / e.rx, ddy = (cy - e.cy) / e.ry;
+        const dd = ddx*ddx + ddy*ddy;
+        if (dd < bestD) { bestD = dd; bestE = e; }
+      }
+      const dx = (cx - bestE.cx) / bestE.rx, dy = (cy - bestE.cy) / bestE.ry;
       const d = Math.sqrt(dx*dx + dy*dy);
       const h = tileHash(wx, wy);
       const palette = d < 0.35 ? WATER_DEEP : d < 0.65 ? WATER_MID : WATER_SHORE;
@@ -3766,10 +3794,14 @@ function updateMobs(dt, now) {
     lastChickenSpawn = now;
     spawnMob('chicken', 6);
   }
-  // Goblins: day surface (after cave1), always cave1/cave2
-  if (!inCave && hasEnteredCave1 && darkAlpha < 0.4 && now - lastGoblinSpawn > 8) {
-    lastGoblinSpawn = now;
-    spawnMob('goblin', 4);
+  // Goblins: day surface (reduced rate after cave1, full rate after cave2), always cave1/cave2
+  if (!inCave && hasEnteredCave1 && darkAlpha < 0.4) {
+    const goblinInterval = hasEnteredCave2 ? 8 : 16;
+    const goblinCap      = hasEnteredCave2 ? 4 : 2;
+    if (now - lastGoblinSpawn > goblinInterval) {
+      lastGoblinSpawn = now;
+      spawnMob('goblin', goblinCap);
+    }
   }
   if ((caveLevel === 1 || caveLevel === 2) && now - lastGoblinSpawn > 20) {
     lastGoblinSpawn = now;
@@ -3845,7 +3877,7 @@ function updateMobs(dt, now) {
       m.lungeDuration -= dt;
       if (m.lungeDuration > 0) {
         // Mid-lunge: keep velocity
-      } else if (m.lungeTimer <= 0 && dist < 300 && dist > 0) {
+      } else if (m.lungeTimer <= 0 && dist < 150 && dist > 0) {
         // Launch lunge
         m.lungeTimer = 1.5 + Math.random() * 1.5;
         m.lungeDuration = 0.28;
@@ -4019,7 +4051,7 @@ function drawMobs() {
       ctx.fillStyle = '#2a4010';
       ctx.fillRect(-6, 3 + gb, 4, 7); ctx.fillRect(2, 3 + gb, 4, 7);
       // Body
-      ctx.fillStyle = lunging ? '#5a7828' : '#3a5018';
+      ctx.fillStyle = '#3a5018';
       ctx.fillRect(-7, -16 + gb, 14, 20);
       // Arms
       ctx.fillStyle = '#3a5018';
