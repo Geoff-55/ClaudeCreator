@@ -962,6 +962,7 @@ const mobs = [];
 let lastMobSpawn = -999;
 let lastCaveMobSpawn = -999;
 let lastChickenSpawn = -999;
+let lastGoblinSpawn  = -999;
 let playerHp = 75;
 let lastZombieDmg = 0;
 let lastHitTime = -999;
@@ -1382,6 +1383,16 @@ function getSlotAtPos(mx, my) {
 
 function shiftEquip(slot) {
   const item = getSlotItem(slot);
+  if (slot.type === 'equip') {
+    // Move equipped item to first free inventory slot
+    if (!item) return;
+    const free = inventorySlots.indexOf(null);
+    if (free === -1) return; // no room
+    inventorySlots[free] = item;
+    equipSlots[slot.name] = null;
+    return;
+  }
+  // inv slot → find matching equip slot
   if (!item) return;
   const slotName = ITEM_SLOT[item.id];
   if (!slotName) return; // not equippable, do nothing
@@ -1393,7 +1404,7 @@ function shiftEquip(slot) {
 function handleInventoryClick(mx, my, shiftKey) {
   const slot = getSlotAtPos(mx, my);
   if (slot) {
-    if (shiftKey && slot.type === 'inv') { shiftEquip(slot); heldSlot = null; return; }
+    if (shiftKey) { shiftEquip(slot); heldSlot = null; return; }
     handleSlotInteract(slot); return;
   }
   // Craft buttons (account for scroll, only hit if inside clip area)
@@ -3654,7 +3665,12 @@ function handleAttackClick(mx, my) {
 }
 
 function killMob(m) {
-  if (m.type === 'chicken') {
+  if (m.type === 'goblin') {
+    score += 40;
+    if (Math.random() < 0.5) curGround().push({ type: 'rock', x: m.x + (Math.random()-0.5)*16, y: m.y + (Math.random()-0.5)*16, pickedUp: false });
+    if (Math.random() < 0.3) curGround().push({ type: 'bone', x: m.x + (Math.random()-0.5)*16, y: m.y + (Math.random()-0.5)*16, pickedUp: false });
+    spawnParticles(m.x, m.y, '#4a6820', 6);
+  } else if (m.type === 'chicken') {
     score += 25;
     worldGroundItems.push({ type: 'raw_chicken', x: m.x + (Math.random()-0.5)*20, y: m.y + (Math.random()-0.5)*20, pickedUp: false });
     const feathers = Math.floor(Math.random() * 3); // 0, 1, or 2
@@ -3716,7 +3732,8 @@ function spawnMob(type, cap) {
   x = Math.max(50, Math.min(curWorldW() - 50, x));
   y = Math.max(50, Math.min(curWorldH() - 50, y));
   let subtype = 'normal', hp = 10;
-  if (type === 'zombie') {
+  if (type === 'goblin') { hp = 8; }
+  else if (type === 'zombie') {
     if (caveLevel === 3) {
       subtype = 'magma'; hp = 45;
     } else if (caveLevel === 2) {
@@ -3735,6 +3752,7 @@ function spawnMob(type, cap) {
     hp, maxHp: hp,
     vx: 0, vy: 0, dir: 1, drawScale: 1, animTimer: 0,
     dead: false, deathTimer: 0,
+    lungeTimer: 1 + Math.random() * 1.5, lungeDuration: 0,
   });
 }
 
@@ -3748,6 +3766,15 @@ function updateMobs(dt, now) {
     lastChickenSpawn = now;
     spawnMob('chicken', 6);
   }
+  // Goblins: day surface (after cave1), always cave1/cave2
+  if (!inCave && hasEnteredCave1 && darkAlpha < 0.4 && now - lastGoblinSpawn > 8) {
+    lastGoblinSpawn = now;
+    spawnMob('goblin', 4);
+  }
+  if ((caveLevel === 1 || caveLevel === 2) && now - lastGoblinSpawn > 20) {
+    lastGoblinSpawn = now;
+    spawnMob('goblin', caveLevel === 1 ? 3 : 2);
+  }
   if (inCave && now - lastCaveMobSpawn > 18) {
     lastCaveMobSpawn = now;
     spawnMob('zombie', caveLevel === 3 ? 7 : 5);
@@ -3756,6 +3783,7 @@ function updateMobs(dt, now) {
     const m = mobs[i];
     if (m.dead) { m.deathTimer += dt; if (m.deathTimer > 1) mobs.splice(i, 1); continue; }
     if (!inCave && m.type === 'zombie' && darkAlpha < 0.3) { m.dead = true; continue; }
+    if (!inCave && m.type === 'goblin' && darkAlpha > 0.6) { m.dead = true; continue; }
     if (m.type === 'chicken' && darkAlpha > 0.7) { m.dead = true; continue; }
     m.animTimer += dt;
     const dx = px - m.x, dy = py - m.y;
@@ -3811,6 +3839,34 @@ function updateMobs(dt, now) {
           lastZombieDmg = now; lastHitTime = now;
           spawnParticles(px, py, '#cc2020', 3);
         }
+      }
+    } else if (m.type === 'goblin') {
+      m.lungeTimer -= dt;
+      m.lungeDuration -= dt;
+      if (m.lungeDuration > 0) {
+        // Mid-lunge: keep velocity
+      } else if (m.lungeTimer <= 0 && dist < 300 && dist > 0) {
+        // Launch lunge
+        m.lungeTimer = 1.5 + Math.random() * 1.5;
+        m.lungeDuration = 0.28;
+        m.vx = (dx/dist) * 230; m.vy = (dy/dist) * 230;
+      } else if (dist > 0) {
+        m.vx = (dx/dist) * 70; m.vy = (dy/dist) * 70;
+      }
+      m.dir = m.vx >= 0 ? 1 : -1;
+      if (dist < BODY_R + MOB_COLL_R && now - lastZombieDmg > 0.55) {
+        let defPct = 0;
+        if (equipSlots['helmet']?.id === 'iron_helmet')         defPct += 10;
+        else if (equipSlots['helmet']?.id === 'feather_hat')    defPct += 5;
+        if (equipSlots['shield']?.id === 'bone_shield')         defPct += 10;
+        if (equipSlots['chestplate']?.id === 'iron_chestplate') defPct += 20;
+        else if (equipSlots['chestplate']?.id === 'bone_armor') defPct += 10;
+        if (equipSlots['pants']?.id === 'iron_pants')           defPct += 10;
+        else if (equipSlots['pants']?.id === 'feather_pants')   defPct += 5;
+        const reduced = Math.max(1, Math.round(6 * (1 - defPct / 100)));
+        playerHp = Math.max(0, playerHp - reduced);
+        lastZombieDmg = now; lastHitTime = now;
+        spawnParticles(px, py, '#cc2020', 3);
       }
     } else {
       if (m.fleeTimer === undefined) m.fleeTimer = 0;
@@ -3952,6 +4008,49 @@ function drawMobs() {
           ctx.fillStyle = '#a03020'; ctx.fillRect(bx2, by2, bw * m.hp/m.maxHp, 3);
         }
       }
+    } else if (m.type === 'goblin') {
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale(m.dir, 1);
+      const gb = Math.round(bob * 0.8);
+      const aw = Math.sin(m.animTimer * 7) * 3;
+      const lunging = m.lungeDuration > 0;
+      // Legs
+      ctx.fillStyle = '#2a4010';
+      ctx.fillRect(-6, 3 + gb, 4, 7); ctx.fillRect(2, 3 + gb, 4, 7);
+      // Body
+      ctx.fillStyle = lunging ? '#5a7828' : '#3a5018';
+      ctx.fillRect(-7, -16 + gb, 14, 20);
+      // Arms
+      ctx.fillStyle = '#3a5018';
+      ctx.fillRect(-12, -13 + gb + aw, 5, 9);  // left arm
+      ctx.fillRect(7,   -11 + gb - aw, 5, 9);  // right arm (dagger hand)
+      // Dagger in right hand
+      ctx.fillStyle = '#c0c0c0';
+      ctx.fillRect(11, -9 + gb - aw, 2, 9);    // blade
+      ctx.fillStyle = '#6a4020';
+      ctx.fillRect(10, -11 + gb - aw, 4, 3);   // handle
+      // Head (slightly hunched forward)
+      ctx.fillStyle = '#4a6820';
+      ctx.fillRect(-5, -27 + gb, 12, 12);
+      // Ears (pointy)
+      ctx.fillRect(-5, -30 + gb, 2, 4);
+      ctx.fillRect(5,  -30 + gb, 2, 4);
+      // Eyes
+      glow('#ff9900', 5);
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillRect(-1, -23 + gb, 3, 3);
+      ctx.fillRect(4,  -23 + gb, 3, 3);
+      noGlow();
+      // HP bar
+      if (m.hp < m.maxHp) {
+        ctx.scale(m.dir, 1); // undo flip for bar
+        const bw = 24, bh = 3, bx4 = -bw/2, by4 = -34 + gb;
+        ctx.fillStyle = '#300'; ctx.fillRect(bx4, by4, bw, bh);
+        ctx.fillStyle = m.hp/m.maxHp > 0.5 ? '#50cc30' : '#cc5020';
+        ctx.fillRect(bx4, by4, bw * m.hp/m.maxHp, bh);
+      }
+      ctx.restore();
     } else {
       // Pixel art chicken — drawn facing right, flipped via drawScale
       const ps = 3;
@@ -4817,7 +4916,7 @@ function restartGame() {
   px = WORLD_W / 2; py = WORLD_H / 2;
   heldSlot = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
   cycleTime = 0; darkAlpha = 0; respawnTimer = 0; gameTime = 0;
-  lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999;
+  lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999; lastGoblinSpawn = -999;
   shadowSightings.length = 0; lastShadowAppear = -9999;
   _shadowStillTime = 0; _shadowPx = px; _shadowPy = py;
   butterflies.length = 0; butterflyDay = 0;
@@ -4835,8 +4934,10 @@ function restartGame() {
   generateCaveWorld();
   generateCave2World();
   generateHellWorld();
-  // Place a ??? entrance near spawn for the player to find
-  voidEntrances.push({ x: WORLD_W / 2 + 120, y: WORLD_H / 2, fromLevel: 0 });
+  // Place starting entrances near spawn
+  mineEntrances.push({ x: WORLD_W / 2 - 120, y: WORLD_H / 2 });
+  mineEntrancesT2.push({ x: WORLD_W / 2,      y: WORLD_H / 2 });
+  voidEntrances.push({  x: WORLD_W / 2 + 120, y: WORLD_H / 2, fromLevel: 0 });
   // Drop iron gear + void weapons on floor near spawn
   const _sp = WORLD_W / 2, _sy = WORLD_H / 2;
   const _drops = ['iron_sword','iron_hatchet','iron_pickaxe','iron_helmet','iron_chestplate','iron_pants','void_sword','glitch_shield'];
