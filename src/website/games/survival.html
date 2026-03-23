@@ -69,7 +69,7 @@ const DIAG_GRACE = 50;
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (['w','a','s','d'].includes(k)) e.preventDefault();
-  if (k === 'i') { inventoryOpen = !inventoryOpen; mapOpen = false; _invHoverSlot = null; _invHoverTime = 0; return; }
+  if (k === 'i') { inventoryOpen = !inventoryOpen; mapOpen = false; _invHoverSlot = null; _invHoverTime = 0; if (!inventoryOpen) activeChest = null; return; }
   if (k === 'm') { mapOpen = !mapOpen; inventoryOpen = false; return; }
   if (k === 'e') { justPressed.add('e'); keys['e'] = true; return; }
   if (k === 'f') { justPressed.add('f'); return; }
@@ -193,15 +193,12 @@ function initGoblinCamps() {
     }
     for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
       const a = Math.random()*Math.PI*2, r = 35+Math.random()*30;
-      goblinChests.push({
-        x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, open: false, level: 0,
-        items: [
-          { id: 'bone',         count: 2+Math.floor(Math.random()*4) },
-          { id: 'bronze_ingot', count: 1+Math.floor(Math.random()*3) },
-          { id: 'cooked_chicken', count: 1 },
-          { id: 'feather',      count: 1+Math.floor(Math.random()*3) },
-        ],
-      });
+      const _s0 = new Array(12).fill(null);
+      _s0[0] = { id: 'bone',           count: 2+Math.floor(Math.random()*4) };
+      _s0[1] = { id: 'bronze_ingot',   count: 1+Math.floor(Math.random()*3) };
+      _s0[2] = { id: 'cooked_chicken', count: 1 };
+      _s0[3] = { id: 'feather',        count: 1+Math.floor(Math.random()*3) };
+      goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 0, slots: _s0 });
     }
     goblinCamps.push({
       x: cx, y: cy, level: 0,
@@ -243,15 +240,12 @@ function initGoblinCamps() {
     }
     for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
       const a = Math.random()*Math.PI*2, r = 30+Math.random()*28;
-      goblinChests.push({
-        x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, open: false, level: 1,
-        items: [
-          { id: 'bone',         count: 3+Math.floor(Math.random()*4) },
-          { id: 'bronze_ingot', count: 2+Math.floor(Math.random()*4) },
-          { id: 'feather',      count: 2+Math.floor(Math.random()*3) },
-          { id: 'coal',         count: 2+Math.floor(Math.random()*3) },
-        ],
-      });
+      const _s1 = new Array(12).fill(null);
+      _s1[0] = { id: 'bone',         count: 3+Math.floor(Math.random()*4) };
+      _s1[1] = { id: 'bronze_ingot', count: 2+Math.floor(Math.random()*4) };
+      _s1[2] = { id: 'feather',      count: 2+Math.floor(Math.random()*3) };
+      _s1[3] = { id: 'coal',         count: 2+Math.floor(Math.random()*3) };
+      goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 1, slots: _s1 });
     }
     goblinCamps.push({
       x: cx, y: cy, level: 1,
@@ -1127,6 +1121,8 @@ function trunkRect(t) {
 
 // ===================== INVENTORY + CRAFTING + EQUIP =====================
 let inventoryOpen = false;
+const CHEST_COLS = 3, CHEST_ROWS = 4;
+const CHEST_SLOT_SIZE = 44, CHEST_SLOT_GAP = 4;
 const INV_COLS  = 4, INV_ROWS = 6;
 const SLOT_SIZE = 52, SLOT_GAP = 6;
 const INV_PAD   = 22;
@@ -1185,7 +1181,8 @@ for (const d of EQUIP_SLOT_DEFS) equipSlots[d.name] = null;
   }
 })();
 
-let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | null
+let heldSlot = null; // { type:'inv', idx:N } | { type:'equip', name:'...' } | { type:'chest', idx:N } | null
+let activeChest = null; // currently open chest object reference
 let mapOpen = false;
 let mouseX = W / 2, mouseY = H / 2;
 let craftScrollY = 0;
@@ -1202,14 +1199,17 @@ const ITEM_NAMES = {
 
 function getSlotItem(slot) {
   if (!slot) return null;
+  if (slot.type === 'chest') return activeChest ? activeChest.slots[slot.idx] : null;
   return slot.type === 'inv' ? inventorySlots[slot.idx] : equipSlots[slot.name];
 }
 function setSlotItem(slot, item) {
+  if (slot.type === 'chest') { if (activeChest) activeChest.slots[slot.idx] = item; return; }
   if (slot.type === 'inv') inventorySlots[slot.idx] = item;
   else equipSlots[slot.name] = item;
 }
 function slotsEqual(a, b) {
   if (!a || !b || a.type !== b.type) return false;
+  if (a.type === 'chest') return a.idx === b.idx;
   return a.type === 'inv' ? a.idx === b.idx : a.name === b.name;
 }
 
@@ -1255,7 +1255,7 @@ canvas.addEventListener('click', e => {
 
 canvas.addEventListener('wheel', e => {
   if (!inventoryOpen) return;
-  if (mouseX >= CRAFT_LEFT && mouseX < CRAFT_LEFT + CRAFT_W) {
+  if (!activeChest && mouseX >= CRAFT_LEFT && mouseX < CRAFT_LEFT + CRAFT_W) {
     const totalH = getVisibleRecipes().length * (RECIPE_H + 8) - 8;
     const maxScroll = Math.max(0, totalH - GRID_H);
     craftScrollY = Math.max(0, Math.min(maxScroll, craftScrollY + e.deltaY * 0.5));
@@ -1500,9 +1500,9 @@ const ITEM_SLOT = {
 
 function canPlaceInSlot(item, slot) {
   if (!item) return true;
-  if (slot.type === 'inv') return true; // anything goes in inventory
+  if (slot.type === 'inv' || slot.type === 'chest') return true;
   const required = ITEM_SLOT[item.id];
-  if (!required) return false; // non-equippable items can't go in equip slots
+  if (!required) return false;
   return required === slot.name;
 }
 
@@ -1524,6 +1524,17 @@ function handleSlotInteract(slot) {
 }
 
 function getSlotAtPos(mx, my) {
+  // Chest storage slots (left panel when chest open)
+  if (activeChest) {
+    for (let row = 0; row < CHEST_ROWS; row++) {
+      for (let col = 0; col < CHEST_COLS; col++) {
+        const sx = CRAFT_LEFT + col * (CHEST_SLOT_SIZE + CHEST_SLOT_GAP);
+        const sy = CRAFT_TOP  + row * (CHEST_SLOT_SIZE + CHEST_SLOT_GAP);
+        if (mx >= sx && mx < sx + CHEST_SLOT_SIZE && my >= sy && my < sy + CHEST_SLOT_SIZE)
+          return { type: 'chest', idx: row * CHEST_COLS + col };
+      }
+    }
+  }
   for (let row = 0; row < INV_ROWS; row++) {
     for (let col = 0; col < INV_COLS; col++) {
       const sx = GRID_LEFT + col * (SLOT_SIZE + SLOT_GAP);
@@ -1542,19 +1553,34 @@ function getSlotAtPos(mx, my) {
 
 function shiftEquip(slot) {
   const item = getSlotItem(slot);
-  if (slot.type === 'equip') {
-    // Move equipped item to first free inventory slot
+  if (slot.type === 'chest') {
     if (!item) return;
     const free = inventorySlots.indexOf(null);
-    if (free === -1) return; // no room
+    if (free === -1) return;
+    inventorySlots[free] = item;
+    setSlotItem(slot, null);
+    return;
+  }
+  if (slot.type === 'equip') {
+    if (!item) return;
+    const free = inventorySlots.indexOf(null);
+    if (free === -1) return;
     inventorySlots[free] = item;
     equipSlots[slot.name] = null;
     return;
   }
-  // inv slot → find matching equip slot
+  // inv slot
   if (!item) return;
+  if (activeChest) {
+    // shift-click inv item → move to chest
+    const free = activeChest.slots.indexOf(null);
+    if (free === -1) return;
+    activeChest.slots[free] = item;
+    setSlotItem(slot, null);
+    return;
+  }
   const slotName = ITEM_SLOT[item.id];
-  if (!slotName) return; // not equippable, do nothing
+  if (!slotName) return;
   const displaced = equipSlots[slotName];
   equipSlots[slotName] = item;
   setSlotItem(slot, displaced || null);
@@ -1566,7 +1592,8 @@ function handleInventoryClick(mx, my, shiftKey) {
     if (shiftKey) { shiftEquip(slot); heldSlot = null; return; }
     handleSlotInteract(slot); return;
   }
-  // Craft buttons (account for scroll, only hit if inside clip area)
+  // Craft buttons (account for scroll, only hit if inside clip area, not when chest open)
+  if (activeChest) { heldSlot = null; return; }
   const _vis = getVisibleRecipes();
   for (let ri = 0; ri < _vis.length; ri++) {
     const ry   = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
@@ -2132,86 +2159,119 @@ function drawInventory() {
     ctx.beginPath(); ctx.moveTo(dx, INV_Y + 12); ctx.lineTo(dx, INV_Y + INV_H - 12); ctx.stroke();
   }
 
-  // ---- CRAFTING PANEL ----
-  ctx.fillStyle = '#a855f7';
-  ctx.font = '600 10px monospace';
-  ctx.letterSpacing = '0.12em';
-  ctx.fillText('CRAFTING', CRAFT_LEFT, INV_Y + INV_PAD + 10);
-  ctx.letterSpacing = '0';
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(CRAFT_LEFT, CRAFT_TOP, CRAFT_W, GRID_H);
-  ctx.clip();
-
-  const visRecipes = getVisibleRecipes();
-  for (let ri = 0; ri < visRecipes.length; ri++) {
-    const recipe   = visRecipes[ri];
-    const ok       = canCraft(recipe);
-    const ry       = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
-    if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
-    const isMono   = recipe.tier === 'monolith' || recipe.tier === 'hell';
-
-    ctx.fillStyle   = isMono ? (ok ? '#1c1200' : '#180404') : (ok ? '#0e1c08' : '#0d0a1c');
-    ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
-    ctx.strokeStyle = isMono ? (ok ? '#4a3800' : '#4a0808') : (ok ? '#2e5818' : '#1e1240');
-    ctx.lineWidth = 1;
-    ctx.strokeRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
-
-    drawItemIcon(recipe.id, CRAFT_LEFT + 16, ry + 22, 22);
-
-    ctx.fillStyle = isMono ? (ok ? '#ffdd40' : '#882020') : (ok ? '#96d048' : '#5a4870');
-    ctx.font = '700 10px monospace';
-    const nameLabel = recipe.yield > 1 ? `${recipe.name.toUpperCase()} x${recipe.yield}` : recipe.name.toUpperCase();
-    ctx.fillText(nameLabel, CRAFT_LEFT + 32, ry + 16);
-    if (recipe.requiresStation && !nearCraftingStation()) {
-      ctx.fillStyle = '#a06030'; ctx.font = '500 7px monospace';
-      ctx.fillText('req. station', CRAFT_LEFT + 32, ry + 26);
+  // ---- LEFT PANEL: STORAGE or CRAFTING ----
+  if (activeChest) {
+    // STORAGE panel
+    ctx.fillStyle = '#c09040';
+    ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
+    ctx.fillText('STORAGE', CRAFT_LEFT, INV_Y + INV_PAD + 10);
+    ctx.letterSpacing = '0';
+    for (let row = 0; row < CHEST_ROWS; row++) {
+      for (let col = 0; col < CHEST_COLS; col++) {
+        const idx = row * CHEST_COLS + col;
+        const sx = CRAFT_LEFT + col * (CHEST_SLOT_SIZE + CHEST_SLOT_GAP);
+        const sy = CRAFT_TOP  + row * (CHEST_SLOT_SIZE + CHEST_SLOT_GAP);
+        const item = activeChest.slots[idx];
+        const slot = { type: 'chest', idx };
+        const isH = slotsEqual(heldSlot, slot);
+        ctx.fillStyle = '#0c0908'; ctx.fillRect(sx, sy, CHEST_SLOT_SIZE, CHEST_SLOT_SIZE);
+        ctx.strokeStyle = isH ? '#c09040' : '#4a3018'; ctx.lineWidth = 1;
+        ctx.strokeRect(sx, sy, CHEST_SLOT_SIZE, CHEST_SLOT_SIZE);
+        if (item && !isH) {
+          drawItemIcon(item.id, sx + CHEST_SLOT_SIZE/2, sy + CHEST_SLOT_SIZE/2, 24);
+          if (item.count > 1) {
+            ctx.fillStyle = '#e8e0c0'; ctx.font = '600 8px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(item.count, sx + CHEST_SLOT_SIZE - 3, sy + CHEST_SLOT_SIZE - 3);
+            ctx.textAlign = 'left';
+          }
+        }
+        if (slotsEqual(_invHoverSlot, slot) && !isH) {
+          ctx.fillStyle = 'rgba(192,160,64,0.14)'; ctx.fillRect(sx, sy, CHEST_SLOT_SIZE, CHEST_SLOT_SIZE);
+        }
+      }
     }
-    if (recipe.requiresFurnace && !nearFurnace()) {
-      ctx.fillStyle = '#c05820'; ctx.font = '500 7px monospace';
-      ctx.fillText('req. furnace', CRAFT_LEFT + 32, ry + 26);
+  } else {
+    // CRAFTING panel
+    ctx.fillStyle = '#a855f7';
+    ctx.font = '600 10px monospace'; ctx.letterSpacing = '0.12em';
+    ctx.fillText('CRAFTING', CRAFT_LEFT, INV_Y + INV_PAD + 10);
+    ctx.letterSpacing = '0';
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(CRAFT_LEFT, CRAFT_TOP, CRAFT_W, GRID_H);
+    ctx.clip();
+
+    const visRecipes = getVisibleRecipes();
+    for (let ri = 0; ri < visRecipes.length; ri++) {
+      const recipe   = visRecipes[ri];
+      const ok       = canCraft(recipe);
+      const ry       = CRAFT_TOP + ri * (RECIPE_H + 8) - craftScrollY;
+      if (ry + RECIPE_H < CRAFT_TOP || ry > CRAFT_TOP + GRID_H) continue;
+      const isMono   = recipe.tier === 'monolith' || recipe.tier === 'hell';
+
+      ctx.fillStyle   = isMono ? (ok ? '#1c1200' : '#180404') : (ok ? '#0e1c08' : '#0d0a1c');
+      ctx.fillRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
+      ctx.strokeStyle = isMono ? (ok ? '#4a3800' : '#4a0808') : (ok ? '#2e5818' : '#1e1240');
+      ctx.lineWidth = 1;
+      ctx.strokeRect(CRAFT_LEFT, ry, CRAFT_W, RECIPE_H);
+
+      drawItemIcon(recipe.id, CRAFT_LEFT + 16, ry + 22, 22);
+
+      ctx.fillStyle = isMono ? (ok ? '#ffdd40' : '#882020') : (ok ? '#96d048' : '#5a4870');
+      ctx.font = '700 10px monospace';
+      const nameLabel = recipe.yield > 1 ? `${recipe.name.toUpperCase()} x${recipe.yield}` : recipe.name.toUpperCase();
+      ctx.fillText(nameLabel, CRAFT_LEFT + 32, ry + 16);
+      if (recipe.requiresStation && !nearCraftingStation()) {
+        ctx.fillStyle = '#a06030'; ctx.font = '500 7px monospace';
+        ctx.fillText('req. station', CRAFT_LEFT + 32, ry + 26);
+      }
+      if (recipe.requiresFurnace && !nearFurnace()) {
+        ctx.fillStyle = '#c05820'; ctx.font = '500 7px monospace';
+        ctx.fillText('req. furnace', CRAFT_LEFT + 32, ry + 26);
+      }
+
+      for (let ii = 0; ii < recipe.ingredients.length; ii++) {
+        const ing = recipe.ingredients[ii];
+        const iy  = ry + 30 + ii * 14;
+        drawItemIcon(ing.id, CRAFT_LEFT + 38, iy, 11);
+        ctx.fillStyle = isMono ? (ok ? '#c8a830' : '#663030') : (ok ? '#7a9a50' : '#4a3a60');
+        ctx.font = '500 8px monospace';
+        ctx.fillText(`${ing.count}x ${ing.id}`, CRAFT_LEFT + 46, iy + 4);
+      }
+      if (recipe.fuelOptions) {
+        const iy = ry + 30 + recipe.ingredients.length * 14;
+        const fuelStr = recipe.fuelOptions.map(f => f.map(i => `${i.count}x ${i.id}`).join('+')).join(' or ');
+        ctx.fillStyle = isMono ? (ok ? '#c8a830' : '#663030') : (ok ? '#7a9a50' : '#4a3a60');
+        ctx.font = '500 7px monospace';
+        ctx.fillText(fuelStr, CRAFT_LEFT + 30, iy + 4);
+      }
+
+      const btnX = CRAFT_LEFT + CRAFT_W - 50, btnY = ry + RECIPE_H - 22;
+      ctx.fillStyle = isMono ? (ok ? '#2a2000' : '#280808') : (ok ? '#162e0a' : '#120e22');
+      ctx.fillRect(btnX, btnY, 48, 18);
+      const btnGlow = isMono ? (ok ? '#ffdd40' : '#880000') : (ok ? '#5aaa28' : '#2a1a4a');
+      if (ok) { glow(btnGlow, 6); ctx.strokeStyle = btnGlow; }
+      else      ctx.strokeStyle = btnGlow;
+      ctx.lineWidth = 1; ctx.strokeRect(btnX, btnY, 48, 18); noGlow();
+      ctx.fillStyle = isMono ? (ok ? '#ffdd40' : '#882020') : (ok ? '#90d040' : '#3a2a58');
+      ctx.font = '700 8px monospace'; ctx.letterSpacing = '0.1em';
+      ctx.textAlign = 'center';
+      ctx.fillText('CRAFT', btnX + 24, btnY + 12);
+      ctx.textAlign = 'left'; ctx.letterSpacing = '0';
     }
 
-    for (let ii = 0; ii < recipe.ingredients.length; ii++) {
-      const ing = recipe.ingredients[ii];
-      const iy  = ry + 30 + ii * 14;
-      drawItemIcon(ing.id, CRAFT_LEFT + 38, iy, 11);
-      ctx.fillStyle = isMono ? (ok ? '#c8a830' : '#663030') : (ok ? '#7a9a50' : '#4a3a60');
-      ctx.font = '500 8px monospace';
-      ctx.fillText(`${ing.count}x ${ing.id}`, CRAFT_LEFT + 46, iy + 4);
+    // Scroll indicator
+    const totalCraftH = visRecipes.length * (RECIPE_H + 8) - 8;
+    if (totalCraftH > GRID_H) {
+      const trackH = GRID_H, thumbH = Math.max(20, (GRID_H / totalCraftH) * trackH);
+      const thumbY = CRAFT_TOP + (craftScrollY / (totalCraftH - GRID_H)) * (trackH - thumbH);
+      ctx.fillStyle = '#1a0a30'; ctx.fillRect(CRAFT_LEFT + CRAFT_W - 5, CRAFT_TOP, 4, trackH);
+      ctx.fillStyle = '#5a3a80'; ctx.fillRect(CRAFT_LEFT + CRAFT_W - 5, thumbY, 4, thumbH);
     }
-    if (recipe.fuelOptions) {
-      const iy = ry + 30 + recipe.ingredients.length * 14;
-      const fuelStr = recipe.fuelOptions.map(f => f.map(i => `${i.count}x ${i.id}`).join('+')).join(' or ');
-      ctx.fillStyle = isMono ? (ok ? '#c8a830' : '#663030') : (ok ? '#7a9a50' : '#4a3a60');
-      ctx.font = '500 7px monospace';
-      ctx.fillText(fuelStr, CRAFT_LEFT + 30, iy + 4);
-    }
-
-    const btnX = CRAFT_LEFT + CRAFT_W - 50, btnY = ry + RECIPE_H - 22;
-    ctx.fillStyle = isMono ? (ok ? '#2a2000' : '#280808') : (ok ? '#162e0a' : '#120e22');
-    ctx.fillRect(btnX, btnY, 48, 18);
-    const btnGlow = isMono ? (ok ? '#ffdd40' : '#880000') : (ok ? '#5aaa28' : '#2a1a4a');
-    if (ok) { glow(btnGlow, 6); ctx.strokeStyle = btnGlow; }
-    else      ctx.strokeStyle = btnGlow;
-    ctx.lineWidth = 1; ctx.strokeRect(btnX, btnY, 48, 18); noGlow();
-    ctx.fillStyle = isMono ? (ok ? '#ffdd40' : '#882020') : (ok ? '#90d040' : '#3a2a58');
-    ctx.font = '700 8px monospace'; ctx.letterSpacing = '0.1em';
-    ctx.textAlign = 'center';
-    ctx.fillText('CRAFT', btnX + 24, btnY + 12);
-    ctx.textAlign = 'left'; ctx.letterSpacing = '0';
+    ctx.restore();
   }
-
-  // Scroll indicator
-  const totalCraftH = visRecipes.length * (RECIPE_H + 8) - 8;
-  if (totalCraftH > GRID_H) {
-    const trackH = GRID_H, thumbH = Math.max(20, (GRID_H / totalCraftH) * trackH);
-    const thumbY = CRAFT_TOP + (craftScrollY / (totalCraftH - GRID_H)) * (trackH - thumbH);
-    ctx.fillStyle = '#1a0a30'; ctx.fillRect(CRAFT_LEFT + CRAFT_W - 5, CRAFT_TOP, 4, trackH);
-    ctx.fillStyle = '#5a3a80'; ctx.fillRect(CRAFT_LEFT + CRAFT_W - 5, thumbY, 4, thumbH);
-  }
-  ctx.restore();
 
   // ---- INVENTORY GRID ----
   ctx.fillStyle = '#a855f7';
@@ -2801,7 +2861,7 @@ function handleInteract() {
     else if (weapon.id === 'furnace') { if (!isGridOccupied(gx, gy)) furnaces.push({ x: gx, y: gy, cave: caveLevel }); }
     else if (weapon.id === 'sapling') { if (!inCave) saplings.push({ x: gx, y: gy, plantedTime: gameNow }); }
     else if (weapon.id === 'torch') { if (!isGridOccupied(gx, gy)) torches.push({ x: gx, y: gy, cave: caveLevel, redTimer: 0 }); }
-    else if (weapon.id === 'chest') goblinChests.push({ x: gx, y: gy, open: false, level: caveLevel, items: [] });
+    else if (weapon.id === 'chest') goblinChests.push({ x: gx, y: gy, level: caveLevel, slots: new Array(12).fill(null) });
     else if (weapon.id === 'mine_entrance' && !inCave) mineEntrances.push({ x: gx, y: gy });
     else if (weapon.id === 'mine_entrance_t2' && !inCave) mineEntrancesT2.push({ x: gx, y: gy });
     else if (weapon.id === 'void_entrance') voidEntrances.push({ x: gx, y: gy, fromLevel: caveLevel });
@@ -2867,21 +2927,14 @@ function handleInteract() {
   // Goblin/placed chest interaction
   for (const chest of goblinChests) {
     if ((chest.level || 0) !== caveLevel) continue;
-    {
-      if (chest.open) continue;
-      const dx = chest.x - px, dy = chest.y - py;
-      if (Math.sqrt(dx*dx + dy*dy) < 55) {
-        chest.open = true;
-        const _cg = curGround();
-        for (const it of chest.items) {
-          for (let n = 0; n < (it.count || 1); n++) {
-            const a = Math.random() * Math.PI * 2, r = 20 + Math.random() * 28;
-            _cg.push({ type: it.id, x: chest.x + Math.cos(a)*r, y: chest.y + Math.sin(a)*r, pickedUp: false });
-          }
-        }
-        spawnParticles(chest.x, chest.y, '#c8a060', 8);
-        return;
+    const dx = chest.x - px, dy = chest.y - py;
+    if (Math.sqrt(dx*dx + dy*dy) < 55) {
+      if (activeChest === chest) {
+        activeChest = null; inventoryOpen = false;
+      } else {
+        activeChest = chest; inventoryOpen = true; heldSlot = null;
       }
+      return;
     }
   }
 }
@@ -4610,20 +4663,26 @@ function updateCampSpawning() {
 }
 
 function _drawTent(sx, sy) {
-  // Tent fabric
-  for (let r = 0; r < 20; r++) {
-    const w = Math.max(2, Math.round(2 + (r/19)*28));
-    ctx.fillStyle = r < 10 ? '#243a10' : '#2e4a18';
-    ctx.fillRect(sx - Math.floor(w/2), sy - 26 + r, w, 1);
+  const PS = 2;
+  // Pole
+  ctx.fillStyle = '#7a4828';
+  ctx.fillRect(sx - 1, sy - 26, 2, 6);
+  // Tent fabric — triangle in PS=2 blocks, 11 rows
+  for (let r = 0; r < 11; r++) {
+    const w = (r + 1) * 2 * PS;
+    ctx.fillStyle = r < 3 ? '#2c4818' : r < 7 ? '#3a5820' : '#2e4a18';
+    ctx.fillRect(sx - Math.floor(w/2), sy - 22 + r * PS, w, PS);
+  }
+  // Highlight edge (left slope)
+  ctx.fillStyle = '#4a6830';
+  for (let r = 0; r < 11; r++) {
+    const w = (r + 1) * 2 * PS;
+    ctx.fillRect(sx - Math.floor(w/2), sy - 22 + r * PS, PS, PS);
   }
   // Base
-  ctx.fillStyle = '#1e3010'; ctx.fillRect(sx-15, sy-6, 30, 12);
+  ctx.fillStyle = '#1e3010'; ctx.fillRect(sx - 6*PS, sy, 12*PS, PS*2);
   // Entry
-  ctx.fillStyle = '#0e1a06'; ctx.fillRect(sx-5, sy-6, 10, 12);
-  // Pole
-  ctx.fillStyle = '#6a4020'; ctx.fillRect(sx-1, sy-30, 2, 8);
-  // Highlight
-  ctx.fillStyle = '#3a5820'; ctx.fillRect(sx-15, sy-6, 1, 12); ctx.fillRect(sx+14, sy-6, 1, 12);
+  ctx.fillStyle = '#0a1205'; ctx.fillRect(sx - PS, sy - 2*PS, 2*PS, 2*PS + PS);
 }
 
 function _drawBoneCampfire(sx, sy) {
@@ -4650,25 +4709,46 @@ function _drawBoneCampfire(sx, sy) {
 }
 
 function _drawLogPile(sx, sy) {
-  ctx.fillStyle = '#5c3010'; ctx.fillRect(sx-14, sy-4, 28, 7);
-  ctx.fillStyle = '#3a1e08'; ctx.fillRect(sx-12, sy-2, 24, 5);
-  ctx.fillStyle = '#4a2810'; ctx.fillRect(sx-14, sy-4, 5, 7); ctx.fillRect(sx+9, sy-4, 5, 7);
-  ctx.fillStyle = '#7a4820'; ctx.fillRect(sx-13, sy-3, 3, 5); ctx.fillRect(sx+10, sy-3, 3, 5);
+  const PS = 2;
+  // Bottom log
+  ctx.fillStyle = '#5a3010'; ctx.fillRect(sx - 7*PS, sy, 14*PS, 2*PS);
+  ctx.fillStyle = '#8a5830'; ctx.fillRect(sx - 7*PS, sy, 2*PS, 2*PS); ctx.fillRect(sx + 5*PS, sy, 2*PS, 2*PS);
+  // Middle log
+  ctx.fillStyle = '#4a2808'; ctx.fillRect(sx - 6*PS, sy - 2*PS, 12*PS, 2*PS);
+  ctx.fillStyle = '#7a4820'; ctx.fillRect(sx - 6*PS, sy - 2*PS, 2*PS, 2*PS); ctx.fillRect(sx + 4*PS, sy - 2*PS, 2*PS, 2*PS);
+  // Top log
+  ctx.fillStyle = '#5c3212'; ctx.fillRect(sx - 5*PS, sy - 4*PS, 10*PS, 2*PS);
+  ctx.fillStyle = '#9a6828'; ctx.fillRect(sx - 5*PS, sy - 4*PS, 2*PS, 2*PS); ctx.fillRect(sx + 3*PS, sy - 4*PS, 2*PS, 2*PS);
+  // Bark lines
+  ctx.fillStyle = '#2e1806';
+  ctx.fillRect(sx + PS, sy + PS, PS, PS);
+  ctx.fillRect(sx - PS, sy - PS, PS, PS);
 }
 
 function _drawChest(sx, sy, open) {
+  const PS = 3;
   if (open) {
-    ctx.fillStyle = '#3d1f08'; ctx.fillRect(sx-10, sy-4, 20, 10);
-    ctx.fillStyle = '#4a2810'; ctx.fillRect(sx-10, sy-13, 20, 8);
-    ctx.fillStyle = '#6a3818'; ctx.fillRect(sx-10, sy-13, 20, 2);
-    ctx.fillStyle = '#c09040'; ctx.fillRect(sx-1, sy-5, 2, 5);
+    // Body
+    ctx.fillStyle = '#3a1e08'; ctx.fillRect(sx - 4*PS, sy - PS, 8*PS, 4*PS);
+    ctx.fillStyle = '#5a3018'; ctx.fillRect(sx - 4*PS, sy - PS, 8*PS, PS);
+    // Lid raised
+    ctx.fillStyle = '#4a2810'; ctx.fillRect(sx - 4*PS, sy - 6*PS, 8*PS, 2*PS);
+    ctx.fillStyle = '#7a4828'; ctx.fillRect(sx - 4*PS, sy - 7*PS, 8*PS, PS);
+    ctx.fillStyle = '#9a6030'; ctx.fillRect(sx - 4*PS, sy - 7*PS, PS, 3*PS); // left highlight
+    // Hinge pin
+    ctx.fillStyle = '#c09040'; ctx.fillRect(sx - 1, sy - 4*PS, 2, 3*PS);
   } else {
-    ctx.fillStyle = '#3d1f08'; ctx.fillRect(sx-10, sy-8, 20, 16);
-    ctx.fillStyle = '#5c2f12'; ctx.fillRect(sx-10, sy-8, 20, 6);
-    ctx.fillStyle = '#2a1406'; ctx.fillRect(sx-10, sy+7, 20, 1);
-    ctx.fillStyle = '#c09040';
-    ctx.fillRect(sx-8, sy-2, 3, 4); ctx.fillRect(sx+5, sy-2, 3, 4);
-    ctx.fillRect(sx-2, sy-4, 4, 5);
+    // Body
+    ctx.fillStyle = '#3a1e08'; ctx.fillRect(sx - 4*PS, sy - PS, 8*PS, 3*PS);
+    // Lid
+    ctx.fillStyle = '#5a3018'; ctx.fillRect(sx - 4*PS, sy - 4*PS, 8*PS, 3*PS);
+    ctx.fillStyle = '#7a4828'; ctx.fillRect(sx - 4*PS, sy - 5*PS, 8*PS, PS);
+    ctx.fillStyle = '#9a6030'; ctx.fillRect(sx - 4*PS, sy - 5*PS, PS, 4*PS); // left highlight
+    // Seam
+    ctx.fillStyle = '#1a0e04'; ctx.fillRect(sx - 4*PS, sy - PS, 8*PS, 1);
+    // Lock
+    ctx.fillStyle = '#c09040'; ctx.fillRect(sx - PS, sy - 4*PS + PS, 2*PS, 2*PS);
+    ctx.fillStyle = '#e8c058'; ctx.fillRect(sx - 1, sy - 4*PS + PS + 1, 2, PS);
   }
 }
 
@@ -4692,10 +4772,13 @@ function drawGoblinCamps() {
     if ((chest.level || 0) !== caveLevel) continue;
     const sx = Math.round(chest.x - camX), sy = Math.round(chest.y - camY);
     if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
-    _drawChest(sx, sy, chest.open);
-    if (!chest.open && Math.sqrt((chest.x-px)**2+(chest.y-py)**2) < 55) {
+    const _chestOpen = activeChest === chest;
+    _drawChest(sx, sy, _chestOpen);
+    if (Math.sqrt((chest.x-px)**2+(chest.y-py)**2) < 55) {
       ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
-      ctx.textAlign = 'center'; ctx.fillText('[E] open', sx, sy - 16); ctx.textAlign = 'left';
+      ctx.textAlign = 'center';
+      ctx.fillText(_chestOpen ? '[E] close' : '[E] open', sx, sy - 20);
+      ctx.textAlign = 'left';
     }
   }
 }
@@ -5315,44 +5398,25 @@ function drawMap() {
     noGlow();
   }
 
-  // Forest region (surface only, always visible)
-  if (caveLevel === 0) {
-    const fcx = WX + (FOREST_CX + 0.5) * CHUNK_W * scaleX;
-    const fcy = WY + (FOREST_CY + 0.5) * CHUNK_H * scaleY;
-    const fr = 5.5; // matches isForestChunk radius
-    ctx.save();
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = '#1a4a08';
-    ctx.beginPath();
-    ctx.arc(fcx, fcy, Math.sqrt(fr) * CHUNK_W * scaleX * 0.9, 0, Math.PI*2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#2a6010'; ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.arc(fcx, fcy, Math.sqrt(fr) * CHUNK_W * scaleX * 0.9, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.fillStyle = '#3a8020'; ctx.font = '500 7px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('FOREST', fcx, fcy + 3);
-    ctx.restore();
-  }
-
-  // Goblin camp icons (surface + cave1, once discovered)
+  // Goblin camp icons (surface + cave1, once discovered) — tiny bone campfire sprite
   if (caveLevel === 0 || caveLevel === 1) {
     for (const camp of goblinCamps) {
+      if ((camp.level || 0) !== caveLevel) continue;
       if (!camp.discovered) continue;
-      const cx2 = WX + camp.x * scaleX, cy2 = WY + camp.y * scaleY;
-      // Small red tent icon
-      glow('#cc4400', 5);
-      ctx.fillStyle = '#cc4400';
-      ctx.beginPath(); ctx.moveTo(cx2, cy2-5); ctx.lineTo(cx2-5, cy2+3); ctx.lineTo(cx2+5, cy2+3); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#ff8800'; ctx.fillRect(cx2-1, cy2-1, 2, 4);
+      const cx2 = Math.round(WX + camp.x * scaleX), cy2 = Math.round(WY + camp.y * scaleY);
+      // Crossed bones
+      ctx.fillStyle = '#b8a888';
+      ctx.fillRect(cx2 - 4, cy2 + 2, 8, 1);
+      ctx.fillRect(cx2 - 5, cy2,     2, 3); ctx.fillRect(cx2 + 3, cy2, 2, 3);
+      ctx.fillRect(cx2 - 3, cy2 - 2, 6, 1);
+      ctx.fillRect(cx2 - 5, cy2 - 4, 2, 2); ctx.fillRect(cx2 + 3, cy2 - 2, 2, 2);
+      // Flame
+      glow('#dd4408', 4);
+      ctx.fillStyle = '#dd4408'; ctx.fillRect(cx2 - 1, cy2 - 6, 2, 3);
+      ctx.fillStyle = '#ff9020'; ctx.fillRect(cx2,     cy2 - 7, 1, 2);
+      ctx.fillStyle = '#ffe060'; ctx.fillRect(cx2,     cy2 - 7, 1, 1);
       noGlow();
-      ctx.fillStyle = '#ff6020'; ctx.font = '500 6px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('CAMP', cx2, cy2 + 9);
     }
-    ctx.textAlign = 'left';
   }
 
   // Altar dot (surface only, once seen)
@@ -5408,7 +5472,7 @@ function restartGame() {
   inventorySlots.fill(null);
   for (const k of Object.keys(equipSlots)) equipSlots[k] = null;
   px = WORLD_W / 2; py = WORLD_H / 2;
-  heldSlot = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
+  heldSlot = null; activeChest = null; inventoryOpen = false; mapOpen = false; craftScrollY = 0;
   cycleTime = 0; darkAlpha = 0; respawnTimer = 0; gameTime = 0;
   lastMobSpawn = -999; lastCaveMobSpawn = -999; lastChickenSpawn = -999; lastGoblinSpawn = -999;
   shadowSightings.length = 0; lastShadowAppear = -9999;
@@ -6103,10 +6167,14 @@ function loop(ts) {
     if (caveLevel === 2) updateCave2RockRespawn();
     if (caveLevel === 3) updateHellRockRespawn();
     updateHellHazards(dt, now);
+    // Auto-close chest if player walks away
+    if (activeChest && Math.sqrt((activeChest.x-px)**2+(activeChest.y-py)**2) > 90) {
+      activeChest = null; inventoryOpen = false;
+    }
     if (inventoryOpen) {
       const hs  = getSlotAtPos(mouseX, mouseY);
-      const key = hs ? (hs.type === 'inv' ? `i${hs.idx}` : `e${hs.name}`) : null;
-      const prevKey = _invHoverSlot ? (_invHoverSlot.type === 'inv' ? `i${_invHoverSlot.idx}` : `e${_invHoverSlot.name}`) : null;
+      const _slotKey = s => !s ? null : s.type === 'inv' ? `i${s.idx}` : s.type === 'chest' ? `c${s.idx}` : `e${s.name}`;
+      const key = _slotKey(hs), prevKey = _slotKey(_invHoverSlot);
       if (key !== prevKey) { _invHoverSlot = hs; _invHoverTime = now; }
     }
     updateBloodPiles(now);
