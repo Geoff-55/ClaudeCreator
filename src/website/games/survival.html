@@ -3814,28 +3814,42 @@ function handleAttackClick(mx, my) {
 
   if (sword && (sword.id === 'sword' || sword.id === 'bronze_sword' || sword.id === 'iron_sword' || sword.id === 'void_sword')) {
     const dmg = sword.id === 'void_sword' ? 55 : sword.id === 'iron_sword' ? 20 : sword.id === 'bronze_sword' ? 8 : 3;
+    const hitCol = sword.id === 'void_sword' ? '#cc0000' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020';
+    // Find single closest target to click point
+    let bestMob = null, bestMobD = Infinity;
     for (const m of mobs) {
       if (m.dead) continue;
-      const dx = m.x - px, dy = m.y - py;
-      if (Math.sqrt(dx*dx + dy*dy) > SWORD_RANGE) continue;
+      const pdx = m.x - px, pdy = m.y - py;
+      if (Math.sqrt(pdx*pdx + pdy*pdy) > SWORD_RANGE) continue;
       const cdx = wx - m.x, cdy = wy - m.y;
-      if (Math.sqrt(cdx*cdx + cdy*cdy) > 36) continue;
-      if (m.subtype === 'phantom') { spawnParticles(m.x, m.y, '#220000', 3); continue; }
-      m.hp -= dmg;
-      if (m.type === 'chicken') m.fleeTimer = 4;
-      spawnParticles(m.x, m.y, sword.id === 'void_sword' ? '#cc0000' : sword.id === 'iron_sword' ? '#a0b0c0' : sword.id === 'bronze_sword' ? '#e08020' : '#cc2020', 4);
-      if (m.hp <= 0) { m.dead = true; m.hp = 0; killMob(m); }
+      const cd = Math.sqrt(cdx*cdx + cdy*cdy);
+      if (cd > 36) continue;
+      if (cd < bestMobD) { bestMobD = cd; bestMob = m; }
     }
-    // Also hit corrupt creatures
+    let bestCorrupt = null, bestCorruptD = Infinity;
     for (const c of corruptCreatures) {
       if (c.dead) continue;
-      const dx = c.x - px, dy = c.y - py;
-      if (Math.sqrt(dx*dx + dy*dy) > SWORD_RANGE) continue;
+      const pdx = c.x - px, pdy = c.y - py;
+      if (Math.sqrt(pdx*pdx + pdy*pdy) > SWORD_RANGE) continue;
       const cdx = wx - c.x, cdy = wy - c.y;
-      if (Math.sqrt(cdx*cdx + cdy*cdy) > 40) continue;
-      c.hp -= dmg;
-      spawnParticles(c.x, c.y, '#cc0000', 5);
-      if (c.hp <= 0) { c.dead = true; c.hp = 0; score += 80; }
+      const cd = Math.sqrt(cdx*cdx + cdy*cdy);
+      if (cd > 40) continue;
+      if (cd < bestCorruptD) { bestCorruptD = cd; bestCorrupt = c; }
+    }
+    // Only hit whichever is closer to click
+    if (bestMob && bestMobD <= bestCorruptD) {
+      if (bestMob.subtype === 'phantom') { spawnParticles(bestMob.x, bestMob.y, '#220000', 3); }
+      else {
+        bestMob.hp -= dmg;
+        if (bestMob.type === 'chicken') bestMob.fleeTimer = 4;
+        if (bestMob.type === 'goblin') bestMob.alerted = true;
+        spawnParticles(bestMob.x, bestMob.y, hitCol, 4);
+        if (bestMob.hp <= 0) { bestMob.dead = true; bestMob.hp = 0; killMob(bestMob); }
+      }
+    } else if (bestCorrupt) {
+      bestCorrupt.hp -= dmg;
+      spawnParticles(bestCorrupt.x, bestCorrupt.y, '#cc0000', 5);
+      if (bestCorrupt.hp <= 0) { bestCorrupt.dead = true; bestCorrupt.hp = 0; score += 80; }
     }
   }
   if (!inCave && hatchet && (hatchet.id === 'hatchet' || hatchet.id === 'bronze_hatchet' || hatchet.id === 'iron_hatchet')) {
@@ -3851,41 +3865,38 @@ function handleAttackClick(mx, my) {
   if (pickaxe && (pickaxe.id === 'pickaxe' || pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe')) {
     const power = pickaxe.id === 'iron_pickaxe' ? 3 : pickaxe.id === 'bronze_pickaxe' ? 2 : 1;
     const isBronzePlus = pickaxe.id === 'bronze_pickaxe' || pickaxe.id === 'iron_pickaxe';
-    let best = null, bestD = Infinity;
+    // Find single closest minable target (rock, wall, or monolith) to player
+    let bestTarget = null, bestType = null, bestWallIdx = -1, bestD = Infinity;
     for (const rock of curRocks()) {
       if (rock.mined) continue;
       if (rock.type === 'iron' && !isBronzePlus) continue;
       const dx = rock.x - px, dy = rock.y - py;
       const d = Math.sqrt(dx*dx + dy*dy);
-      if (d < MINE_RANGE && d < bestD) { bestD = d; best = rock; }
+      if (d < MINE_RANGE && d < bestD) { bestD = d; bestTarget = rock; bestType = 'rock'; bestWallIdx = -1; }
     }
-    if (best) mineRock(best, power);
-    // Walls: any pickaxe breaks in 1 hit, drops materials
-    let bestWall = null, bestWallIdx = -1, bestWD = Infinity;
     for (let wi = 0; wi < walls.length; wi++) {
       const w = walls[wi];
       if (w.level !== caveLevel) continue;
       const dx = w.x - px, dy = w.y - py;
       const d = Math.sqrt(dx*dx + dy*dy);
-      if (d < MINE_RANGE && d < bestWD) { bestWD = d; bestWall = w; bestWallIdx = wi; }
+      if (d < MINE_RANGE && d < bestD) { bestD = d; bestTarget = w; bestType = 'wall'; bestWallIdx = wi; }
     }
-    if (bestWall) {
-      walls.splice(bestWallIdx, 1);
-      const drop = bestWall.type === 'stone_wall' ? 'rock' : 'wood';
-      curGround().push({ type: drop, x: bestWall.x + (Math.random()-0.5)*20, y: bestWall.y + (Math.random()-0.5)*20, pickedUp: false });
-      spawnParticles(bestWall.x, bestWall.y, bestWall.type === 'stone_wall' ? '#888888' : '#8b4513', 5);
-    }
-    // Monoliths: iron pickaxe only, current level only
     if (pickaxe.id === 'iron_pickaxe') {
-      let bestM = null, bestMD = Infinity;
-      for (const m of monoliths) {
-        if (m.caveLevel !== caveLevel) continue;
-        const dx = m.x - px, dy = m.y - py;
+      for (const mono of monoliths) {
+        if (mono.caveLevel !== caveLevel) continue;
+        const dx = mono.x - px, dy = mono.y - py;
         const d = Math.sqrt(dx*dx + dy*dy);
-        if (d < MINE_RANGE && d < bestMD) { bestMD = d; bestM = m; }
+        if (d < MINE_RANGE && d < bestD) { bestD = d; bestTarget = mono; bestType = 'monolith'; bestWallIdx = -1; }
       }
-      if (bestM) mineMonolith(bestM, power);
     }
+    if (bestType === 'rock') mineRock(bestTarget, power);
+    else if (bestType === 'wall') {
+      walls.splice(bestWallIdx, 1);
+      const drop = bestTarget.type === 'stone_wall' ? 'rock' : 'wood';
+      curGround().push({ type: drop, x: bestTarget.x + (Math.random()-0.5)*20, y: bestTarget.y + (Math.random()-0.5)*20, pickedUp: false });
+      spawnParticles(bestTarget.x, bestTarget.y, bestTarget.type === 'stone_wall' ? '#888888' : '#8b4513', 5);
+    }
+    else if (bestType === 'monolith') mineMonolith(bestTarget, power);
   }
 }
 
@@ -3975,13 +3986,17 @@ function spawnMob(type, cap) {
       else if (r < 1/8 + 1/6)                    { subtype = 'quick';   hp = 4; }
     }
   }
+  const _isGoblin = type === 'goblin';
   mobs.push({
     type, subtype, x, y,
     hp, maxHp: hp,
     vx: 0, vy: 0, dir: 1, drawScale: 1, animTimer: 0,
     dead: false, deathTimer: 0,
     lungeTimer: 1 + Math.random() * 1.5, lungeDuration: 0,
-    arrowTimer: type === 'goblin' ? 2 + Math.random() * 2 : 0,
+    arrowTimer: _isGoblin ? 2 + Math.random() * 2 : 0,
+    alerted: false,
+    idleTimer: _isGoblin ? Math.random() * 2 : 0,
+    idleVx: 0, idleVy: 0,
   });
 }
 
@@ -4081,52 +4096,77 @@ function updateMobs(dt, now) {
         if (equipSlots['pants']?.id==='iron_pants') d+=10; else if (equipSlots['pants']?.id==='feather_pants') d+=5;
         return d;
       };
-      if (m.subtype === 'archer') {
-        if (!m.arrowTimer) m.arrowTimer = 2 + Math.random()*2;
-        m.arrowTimer -= dt;
-        const PREF = 210, FLEE = 130, SPD = 52;
-        if (dist > 0) {
-          if (dist < FLEE) {
-            m.vx = -(dx/dist)*SPD*1.4; m.vy = -(dy/dist)*SPD*1.4;
-          } else if (dist > PREF+70) {
-            m.vx = (dx/dist)*SPD; m.vy = (dy/dist)*SPD;
-          } else {
-            const px2 = -dy/dist, py2 = dx/dist;
-            m.vx = px2*SPD*0.5; m.vy = py2*SPD*0.5;
-          }
-          if (m.arrowTimer <= 0 && dist < 380) {
-            m.arrowTimer = 2 + Math.random()*2;
-            goblinArrows.push({ x: m.x, y: m.y, vx:(dx/dist)*210, vy:(dy/dist)*210, life:2.8 });
-          }
-        }
-        m.dir = m.vx >= 0 ? 1 : -1;
-        if (dist < BODY_R+MOB_COLL_R && now-lastZombieDmg > 1.0) {
-          playerHp = Math.max(0, playerHp - Math.max(1,Math.round(3*(1-_defPct()/100))));
-          lastZombieDmg = now; lastHitTime = now;
-        }
-      } else if (m.subtype === 'brute') {
-        if (dist > 0) { m.vx = (dx/dist)*45; m.vy = (dy/dist)*45; }
-        m.dir = m.vx >= 0 ? 1 : -1;
-        if (dist < BODY_R+MOB_COLL_R*1.5 && now-lastZombieDmg > 1.1) {
-          playerHp = Math.max(0, playerHp - Math.max(1,Math.round(14*(1-_defPct()/100))));
-          lastZombieDmg = now; lastHitTime = now;
-          spawnParticles(px, py, '#cc2020', 5);
-        }
+
+      // Sight / aggro — archers have longer sight
+      const SIGHT_R = m.subtype === 'archer' ? 320 : 265;
+      if (!m.alerted) {
+        if (dist < SIGHT_R) m.alerted = true;
       } else {
-        m.lungeTimer -= dt; m.lungeDuration -= dt;
-        if (m.lungeDuration > 0) {
-          // keep velocity mid-lunge
-        } else if (m.lungeTimer <= 0 && dist < 150 && dist > 0) {
-          m.lungeTimer = 1.5 + Math.random()*1.5; m.lungeDuration = 0.28;
-          m.vx = (dx/dist)*230; m.vy = (dy/dist)*230;
-        } else if (dist > 0) {
-          m.vx = (dx/dist)*70; m.vy = (dy/dist)*70;
+        if (dist > 620) m.alerted = false;
+      }
+
+      if (!m.alerted) {
+        // Idle wander
+        m.idleTimer -= dt;
+        if (m.idleTimer <= 0) {
+          m.idleTimer = 1.5 + Math.random() * 2.5;
+          if (Math.random() < 0.28) {
+            m.idleVx = 0; m.idleVy = 0; // pause briefly
+          } else {
+            const a = Math.random() * Math.PI * 2;
+            m.idleVx = Math.cos(a) * 26; m.idleVy = Math.sin(a) * 26;
+          }
         }
-        m.dir = m.vx >= 0 ? 1 : -1;
-        if (dist < BODY_R+MOB_COLL_R && now-lastZombieDmg > 0.55) {
-          playerHp = Math.max(0, playerHp - Math.max(1,Math.round(6*(1-_defPct()/100))));
-          lastZombieDmg = now; lastHitTime = now;
-          spawnParticles(px, py, '#cc2020', 3);
+        m.vx = m.idleVx; m.vy = m.idleVy;
+        if (m.vx !== 0) m.dir = m.vx > 0 ? 1 : -1;
+      } else {
+        // Alerted: full combat AI
+        if (m.subtype === 'archer') {
+          m.arrowTimer -= dt;
+          const PREF = 210, FLEE = 130, SPD = 52;
+          if (dist > 0) {
+            if (dist < FLEE) {
+              m.vx = -(dx/dist)*SPD*1.4; m.vy = -(dy/dist)*SPD*1.4;
+            } else if (dist > PREF+70) {
+              m.vx = (dx/dist)*SPD; m.vy = (dy/dist)*SPD;
+            } else {
+              const orb = -dy/dist, orby = dx/dist;
+              m.vx = orb*SPD*0.5; m.vy = orby*SPD*0.5;
+            }
+            if (m.arrowTimer <= 0 && dist < 380) {
+              m.arrowTimer = 2 + Math.random()*2;
+              goblinArrows.push({ x: m.x, y: m.y, vx:(dx/dist)*210, vy:(dy/dist)*210, life:2.8 });
+            }
+          }
+          m.dir = m.vx >= 0 ? 1 : -1;
+          if (dist < BODY_R+MOB_COLL_R && now-lastZombieDmg > 1.0) {
+            playerHp = Math.max(0, playerHp - Math.max(1,Math.round(3*(1-_defPct()/100))));
+            lastZombieDmg = now; lastHitTime = now;
+          }
+        } else if (m.subtype === 'brute') {
+          if (dist > 0) { m.vx = (dx/dist)*45; m.vy = (dy/dist)*45; }
+          m.dir = m.vx >= 0 ? 1 : -1;
+          if (dist < BODY_R+MOB_COLL_R*1.5 && now-lastZombieDmg > 1.1) {
+            playerHp = Math.max(0, playerHp - Math.max(1,Math.round(14*(1-_defPct()/100))));
+            lastZombieDmg = now; lastHitTime = now;
+            spawnParticles(px, py, '#cc2020', 5);
+          }
+        } else {
+          m.lungeTimer -= dt; m.lungeDuration -= dt;
+          if (m.lungeDuration > 0) {
+            // keep velocity mid-lunge
+          } else if (m.lungeTimer <= 0 && dist < 150 && dist > 0) {
+            m.lungeTimer = 1.5 + Math.random()*1.5; m.lungeDuration = 0.28;
+            m.vx = (dx/dist)*230; m.vy = (dy/dist)*230;
+          } else if (dist > 0) {
+            m.vx = (dx/dist)*70; m.vy = (dy/dist)*70;
+          }
+          m.dir = m.vx >= 0 ? 1 : -1;
+          if (dist < BODY_R+MOB_COLL_R && now-lastZombieDmg > 0.55) {
+            playerHp = Math.max(0, playerHp - Math.max(1,Math.round(6*(1-_defPct()/100))));
+            lastZombieDmg = now; lastHitTime = now;
+            spawnParticles(px, py, '#cc2020', 3);
+          }
         }
       }
     } else {
@@ -4556,14 +4596,16 @@ function updateCampSpawning() {
       mobs.push({ type:'goblin', subtype:sub, x:gx, y:gy, hp:sub==='archer'?6:8, maxHp:sub==='archer'?6:8,
         vx:0, vy:0, dir:1, drawScale:1, animTimer:Math.random()*6,
         dead:false, deathTimer:0, lungeTimer:1+Math.random()*1.5, lungeDuration:0,
-        arrowTimer:2+Math.random()*2 });
+        arrowTimer:2+Math.random()*2,
+        alerted:false, idleTimer:Math.random()*2, idleVx:0, idleVy:0 });
     }
     const ba = Math.random()*Math.PI*2;
     const bx2 = Math.max(50,Math.min(ww-50,camp.x+Math.cos(ba)*35));
     const by2 = Math.max(50,Math.min(wh-50,camp.y+Math.sin(ba)*35));
     mobs.push({ type:'goblin', subtype:'brute', x:bx2, y:by2, hp:35, maxHp:35,
       vx:0, vy:0, dir:1, drawScale:1, animTimer:Math.random()*6,
-      dead:false, deathTimer:0, lungeTimer:0, lungeDuration:0, arrowTimer:0 });
+      dead:false, deathTimer:0, lungeTimer:0, lungeDuration:0, arrowTimer:0,
+      alerted:false, idleTimer:Math.random()*2, idleVx:0, idleVy:0 });
   }
 }
 
