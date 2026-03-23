@@ -613,13 +613,13 @@ for (let cy = 0; cy < CAVE_CHUNKS_Y; cy++) {
       }
       cave1Details.push({ type: 'pebbles', x: bx, y: by, stones });
     }
-    const numStagMites = rng() < 0.7 ? (rng() < 0.4 ? 2 : 1) : 0;
+    const numStagMites = 1 + Math.floor(rng() * 3);
     for (let i = 0; i < numStagMites; i++) {
       cave1Details.push({
         type: 'stag',
         x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
         y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
-        h: 8 + Math.floor(rng() * 8),
+        h: 18 + Math.floor(rng() * 16),
       });
     }
     // Floor cracks
@@ -735,13 +735,14 @@ function generateCave2World() {
           stones: ashStones,
         });
       }
-      // Rare stalagmites (~30% per chunk, 1 only)
-      if (rng() < 0.3) {
+      // Stalagmites (1–3 per chunk)
+      const numStagMites2 = 1 + Math.floor(rng() * 3);
+      for (let si = 0; si < numStagMites2; si++) {
         cave2Details.push({
           type: 'stag',
           x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
           y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
-          h: 10 + Math.floor(rng() * 10),
+          h: 22 + Math.floor(rng() * 20),
         });
       }
     }
@@ -2338,6 +2339,22 @@ function resolveRockCollisions() {
   }
 }
 
+function resolveStagCollisions() {
+  if (!inCave || caveLevel >= 3) return;
+  const details = caveLevel === 1 ? cave1Details : cave2Details;
+  const STAG_R = 7;
+  for (const d of details) {
+    if (d.type !== 'stag') continue;
+    const dx = px - d.x, dy = py - d.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const min = BODY_R + STAG_R;
+    if (dist < min && dist > 0) {
+      const ov = min - dist;
+      px += (dx/dist)*ov; py += (dy/dist)*ov;
+    }
+  }
+}
+
 // ===================== INTERACT =====================
 const PICKUP_RANGE = 65;
 const CHOP_RANGE   = 90;
@@ -2729,6 +2746,7 @@ function updateMovement(dt) {
 
   resolveTreeCollisions();
   resolveRockCollisions();
+  resolveStagCollisions();
   resolveWallCollisions();
   resolveAltarCollision();
   // Check if player is near altar (reveals it on map)
@@ -3121,7 +3139,7 @@ function drawCave1Details() {
     if (d.type === 'stag') {
       ctx.fillStyle = '#2a2218';
       for (let i = 0; i < d.h; i++) {
-        const w = Math.max(1, Math.round(3 * (1 - i / d.h)));
+        const w = Math.max(1, Math.round(6 * (1 - i / d.h)));
         ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
       }
       ctx.fillStyle = '#3a3028';
@@ -3158,7 +3176,7 @@ function drawCave2Details() {
     if (d.type === 'stag') {
       ctx.fillStyle = '#1e1410';
       for (let i = 0; i < d.h; i++) {
-        const w = Math.max(1, Math.round(3 * (1 - i / d.h)));
+        const w = Math.max(1, Math.round(6 * (1 - i / d.h)));
         ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
       }
       ctx.fillStyle = '#2e2018';
@@ -3555,7 +3573,6 @@ function handleAttackClick(mx, my) {
       if (Math.sqrt(cdx*cdx + cdy*cdy) > 40) continue;
       c.hp -= dmg;
       spawnParticles(c.x, c.y, '#cc0000', 5);
-      glitchScreenTimer = Math.max(glitchScreenTimer, 0.15);
       if (c.hp <= 0) { c.dead = true; c.hp = 0; score += 80; }
     }
   }
@@ -4384,9 +4401,7 @@ function spawnCorruptCreature() {
     x, y, vx: 0, vy: 0,
     hp: 30, maxHp: 30,
     animTimer: Math.random() * 10,
-    glitchOffset: Math.random() * 100,
-    shootTimer: 1.5 + Math.random() * 2.5,
-    dashTimer: 3 + Math.random() * 3,
+    dashTimer: 2 + Math.random() * 2.5,
     dead: false, deathTimer: 0,
   });
 }
@@ -4404,45 +4419,22 @@ function updateCorruptCreatures(dt, now) {
     if (c.dead) { c.deathTimer += dt; if (c.deathTimer > 0.7) corruptCreatures.splice(i, 1); continue; }
     c.animTimer += dt;
     c.dashTimer -= dt;
-    c.shootTimer -= dt;
     const dx = px - c.x, dy = py - c.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
-    // Slow creep toward player
-    const spd = 32;
+    // Lunge toward player
+    const spd = 110;
     if (dist > 0) { c.vx = (dx/dist)*spd; c.vy = (dy/dist)*spd; }
     c.x += c.vx * dt; c.y += c.vy * dt;
     c.x = Math.max(30, Math.min(curWorldW()-30, c.x));
     c.y = Math.max(30, Math.min(curWorldH()-30, c.y));
-    // Teleport dash: jump to ~180-280px from player
-    if (c.dashTimer <= 0 && dist > 100) {
-      c.dashTimer = 2.5 + Math.random() * 3;
-      const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.4;
-      const dashR = 180 + Math.random() * 100;
+    // Teleport: reappear at a random offset from player to set up next lunge
+    if (c.dashTimer <= 0 && dist > 80) {
+      c.dashTimer = 2 + Math.random() * 2.5;
+      const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 2.2;
+      const dashR = 200 + Math.random() * 120;
       c.x = Math.max(30, Math.min(curWorldW()-30, px - Math.cos(angle)*dashR));
       c.y = Math.max(30, Math.min(curWorldH()-30, py - Math.sin(angle)*dashR));
       spawnParticles(c.x, c.y, '#cc0000', 5);
-      glitchScreenTimer = Math.max(glitchScreenTimer, 0.18);
-    }
-    // Shoot glitch net
-    if (c.shootTimer <= 0 && dist < 650) {
-      c.shootTimer = 2 + Math.random() * 2.5;
-      const ang = Math.atan2(dy, dx);
-      const spd2 = 175;
-      corruptNets.push({ x: c.x, y: c.y, vx: Math.cos(ang)*spd2, vy: Math.sin(ang)*spd2, born: now, hit: false });
-    }
-  }
-  // Update nets
-  for (let i = corruptNets.length - 1; i >= 0; i--) {
-    const n = corruptNets[i];
-    if (n.hit || now - n.born > 5) { corruptNets.splice(i, 1); continue; }
-    n.x += n.vx * dt; n.y += n.vy * dt;
-    const ddx = px - n.x, ddy = py - n.y;
-    if (ddx*ddx + ddy*ddy < 22*22) {
-      n.hit = true;
-      playerHp = Math.max(0, playerHp - 7);
-      lastHitTime = now; lastZombieDmg = now;
-      glitchScreenTimer = Math.max(glitchScreenTimer, 0.5);
-      spawnParticles(px, py, '#cc0000', 8);
     }
   }
 }
@@ -4455,90 +4447,53 @@ function drawCorruptCreatures() {
     ctx.save(); ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
     const t = gameNow;
-    const go = c.glitchOffset;
-    // Glitch pixel offsets — jitter on fast timers
-    const gx = Math.floor(Math.sin(t * 19 + go) * 3);
-    const gy = Math.floor(Math.cos(t * 23 + go) * 2);
-    const gx2 = Math.floor(Math.sin(t * 31 + go + 2) * 2);
-    // Dark corrupt body — irregular blocky mass
-    ctx.fillStyle = '#08001a';
-    ctx.fillRect(-10 + gx,  -22, 20, 30);  // torso
-    ctx.fillRect(-7  + gx,  -34, 14, 13);  // head
-    ctx.fillRect(-16 + gx,  -20, 6,  14);  // left arm
-    ctx.fillRect( 10 + gx,  -18, 6,  14);  // right arm
-    ctx.fillRect(-4  + gx2, -10, 8,  16);  // lower/legs
-    // Corruption color fragments (cycle through glitch palette)
-    const cols = ['#2200aa', '#6600cc', '#440088', '#110033', '#001a44'];
-    const ci = Math.floor(t * 6 + go) % cols.length;
-    ctx.fillStyle = cols[ci];
-    ctx.fillRect(-8 + gx,  -26 + gy, 5, 7);
-    ctx.fillRect( 3 + gx2, -18 + gy, 4, 6);
-    ctx.fillRect(-6 + gx2, -10 + gy, 3, 5);
-    // Neon glitch streaks — random displaced pixels
-    const nCols = ['#00ffcc', '#ff00ff', '#8800ff', '#00ff88'];
-    for (let ni = 0; ni < 5; ni++) {
-      const nx = Math.floor(Math.sin(t * 28 + ni * 6.7 + go) * 13);
-      const ny = Math.floor(Math.cos(t * 22 + ni * 4.3 + go) * 18) - 10;
-      ctx.fillStyle = nCols[ni % nCols.length];
-      ctx.fillRect(nx - 1, ny - 1, 2, 2);
-    }
-    // Flickering eyes
-    if (Math.floor(t * 11 + go) % 4 !== 0) {
-      glow('#cc00ff', 10);
-      ctx.fillStyle = '#ff44ff';
-      ctx.fillRect(-4 + gx, -31, 3, 3);
-      ctx.fillRect( 2 + gx, -31, 3, 3);
-      noGlow();
-    }
+    // Pulsing red body
+    const pulse = Math.sin(t * 8 + c.animTimer) * 0.5 + 0.5;
+    ctx.fillStyle = '#1a0000';
+    ctx.fillRect(-10, -22, 20, 30);  // torso
+    ctx.fillRect(-7,  -34, 14, 13);  // head
+    ctx.fillRect(-16, -20, 6,  14);  // left arm
+    ctx.fillRect( 10, -18, 6,  14);  // right arm
+    ctx.fillRect(-4,  -10, 8,  16);  // lower/legs
+    // Red energy fragments
+    ctx.fillStyle = `rgba(180,0,0,${(0.4 + pulse * 0.4).toFixed(2)})`;
+    ctx.fillRect(-8, -26, 5, 7);
+    ctx.fillRect( 3, -18, 4, 6);
+    ctx.fillRect(-6, -10, 3, 5);
+    // Glowing red eyes
+    glow('#ff0000', 12);
+    ctx.fillStyle = '#ff2200';
+    ctx.fillRect(-4, -31, 3, 3);
+    ctx.fillRect( 2, -31, 3, 3);
+    noGlow();
     // HP bar
     if (c.hp < c.maxHp) {
       const bw = 26, bx2 = -13, by2 = -42;
-      ctx.fillStyle = '#1a0030'; ctx.fillRect(bx2, by2, bw, 3);
-      ctx.fillStyle = '#aa00ff'; ctx.fillRect(bx2, by2, bw * c.hp / c.maxHp, 3);
+      ctx.fillStyle = '#1a0000'; ctx.fillRect(bx2, by2, bw, 3);
+      ctx.fillStyle = '#cc0000'; ctx.fillRect(bx2, by2, bw * c.hp / c.maxHp, 3);
     }
     ctx.restore();
   }
 }
 
-function drawCorruptNets() {
-  for (const n of corruptNets) {
-    if (n.hit) continue;
-    const sx = Math.round(n.x - camX), sy = Math.round(n.y - camY);
-    if (sx < -30 || sx > W+30 || sy < -30 || sy > H+30) continue;
-    const r = 9;
-    // Outer glitch net cage
-    glow('#cc0000', 14);
-    ctx.strokeStyle = '#ff2200'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(sx - r, sy - r, r*2, r*2);
-    ctx.beginPath();
-    ctx.moveTo(sx-r, sy-r); ctx.lineTo(sx+r, sy+r);
-    ctx.moveTo(sx+r, sy-r); ctx.lineTo(sx-r, sy+r);
-    ctx.stroke();
-    // Inner glitch offset layer
-    const go = Math.sin(gameNow * 24) * 2.5;
-    ctx.strokeStyle = '#ff4422'; ctx.lineWidth = 1;
-    ctx.strokeRect(sx - r + go, sy - r, r*2, r*2);
-    noGlow();
-  }
-}
-
 // ===================== CORRUPT WORLD =====================
 function drawCorruptWorld() {
-  // Return portal at entry point — small void ellipse matching hell portal style
+  // Return portal at entry point — full-size void ellipse matching hell portal
   const sx = Math.round(corruptEntryX - camX), sy = Math.round(corruptEntryY - camY);
-  if (sx > -60 && sx < W+60 && sy > -60 && sy < H+60) {
-    const RPW = 28, RPH = 38;
+  if (sx > -120 && sx < W+120 && sy > -120 && sy < H+120) {
+    const RPW = 80, RPH = 110;
     ctx.save();
     ctx.beginPath(); ctx.ellipse(sx, sy, RPW, RPH, 0, 0, Math.PI*2); ctx.clip();
     ctx.fillStyle = '#000000'; ctx.fillRect(sx-RPW, sy-RPH, RPW*2, RPH*2);
-    for (let ring = 0; ring < 4; ring++) {
-      const frac = ring / 4;
+    for (let ring = 0; ring < 6; ring++) {
+      const frac = ring / 6;
       const rw = RPW * (1 - frac * 0.55), rh = RPH * (1 - frac * 0.55);
-      const angle = gameNow * ((ring % 2 === 0 ? 1 : -1) * (0.6 + ring * 0.2)) + frac * Math.PI;
+      const speed = (ring % 2 === 0 ? 1 : -1) * (0.6 + ring * 0.18);
+      const angle = gameNow * speed + frac * Math.PI;
       ctx.save(); ctx.translate(sx, sy); ctx.rotate(angle);
-      ctx.strokeStyle = '#cc0000'; ctx.globalAlpha = 0.2 + frac * 0.25;
-      ctx.lineWidth = 2 + (3 - ring) * 1.2;
-      glow('#cc0000', 10);
+      ctx.strokeStyle = '#cc0000'; ctx.globalAlpha = 0.15 + frac * 0.22;
+      ctx.lineWidth = 3 + (5 - ring) * 1.5;
+      glow('#cc0000', 12);
       ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 1.4); ctx.stroke();
       noGlow(); ctx.restore();
     }
@@ -4547,12 +4502,6 @@ function drawCorruptWorld() {
     glow('#ff0000', 22); ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.ellipse(sx, sy, RPW, RPH, 0, 0, Math.PI*2); ctx.stroke();
     noGlow();
-    const dist = Math.sqrt((corruptEntryX-px)**2 + (corruptEntryY-py)**2);
-    if (dist < 90) {
-      ctx.fillStyle = '#ff8888'; ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
-      ctx.fillText('[E] return', sx, sy - RPH - 8);
-      ctx.textAlign = 'left';
-    }
   }
 }
 
@@ -5530,7 +5479,7 @@ function loop(ts) {
   if (caveLevel === 3) drawHellExits();
   if (caveLevel === 3) drawHellPortal();
   if (caveLevel >= 4) drawCorruptWorld();
-  if (caveLevel >= 4) { drawCorruptCreatures(); drawCorruptNets(); }
+  if (caveLevel >= 4) drawCorruptCreatures();
   drawShadowFigures();
   drawPlayer();
   drawMobs();
