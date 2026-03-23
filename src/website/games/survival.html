@@ -619,7 +619,7 @@ for (let cy = 0; cy < CAVE_CHUNKS_Y; cy++) {
         type: 'stag',
         x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
         y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
-        h: 18 + Math.floor(rng() * 16),
+        h: 32 + Math.floor(rng() * 32),
       });
     }
     // Floor cracks
@@ -742,7 +742,7 @@ function generateCave2World() {
           type: 'stag',
           x: wx + 40 + Math.floor(rng() * (CHUNK_W - 80)),
           y: wy + 40 + Math.floor(rng() * (CHUNK_H - 80)),
-          h: 22 + Math.floor(rng() * 20),
+          h: 42 + Math.floor(rng() * 36),
         });
       }
     }
@@ -2367,7 +2367,7 @@ function resolvePortalCollisions() {
 function resolveStagCollisions() {
   if (!inCave || caveLevel >= 3) return;
   const details = caveLevel === 1 ? cave1Details : cave2Details;
-  const STAG_R = 7;
+  const STAG_R = 10;
   for (const d of details) {
     if (d.type !== 'stag') continue;
     const dx = px - d.x, dy = py - d.y;
@@ -3147,13 +3147,14 @@ function drawCave1Details() {
     const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
     if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
     if (d.type === 'stag') {
-      ctx.fillStyle = '#2a2218';
       for (let i = 0; i < d.h; i++) {
-        const w = Math.max(1, Math.round(6 * (1 - i / d.h)));
+        const frac = i / d.h;
+        const w = Math.max(1, Math.round(10 * (1 - frac)));
+        const col = frac < 0.25 ? '#1e1c16' : frac < 0.65 ? '#2c2820' : '#3a3530';
+        ctx.fillStyle = col;
         ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
+        if (w >= 4) { ctx.fillStyle = '#46423c'; ctx.fillRect(sx - Math.floor(w/2), sy - i, 1, 1); }
       }
-      ctx.fillStyle = '#3a3028';
-      ctx.fillRect(sx, sy - d.h + 1, 1, 2);
     } else if (d.type === 'crack') {
       ctx.strokeStyle = '#2a2216'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(sx, sy);
@@ -3184,13 +3185,14 @@ function drawCave2Details() {
     const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
     if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
     if (d.type === 'stag') {
-      ctx.fillStyle = '#1e1410';
       for (let i = 0; i < d.h; i++) {
-        const w = Math.max(1, Math.round(6 * (1 - i / d.h)));
+        const frac = i / d.h;
+        const w = Math.max(1, Math.round(10 * (1 - frac)));
+        const col = frac < 0.25 ? '#221410' : frac < 0.65 ? '#362016' : '#4a2e1c';
+        ctx.fillStyle = col;
         ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
+        if (w >= 4) { ctx.fillStyle = '#5e3c26'; ctx.fillRect(sx - Math.floor(w/2), sy - i, 1, 1); }
       }
-      ctx.fillStyle = '#2e2018';
-      ctx.fillRect(sx, sy - d.h + 1, 1, 2);
     } else if (d.type === 'scorch') {
       ctx.save();
       ctx.globalAlpha = 0.4;
