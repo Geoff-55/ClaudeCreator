@@ -3213,6 +3213,7 @@ function drawWalls() {
 
 function drawCave1Details() {
   for (const d of cave1Details) {
+    if (d.type === 'stag') continue; // drawn after player
     const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
     if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
     if (d.type === 'stag') {
@@ -3262,6 +3263,7 @@ function drawCave1Details() {
 
 function drawCave2Details() {
   for (const d of cave2Details) {
+    if (d.type === 'stag') continue; // drawn after player
     const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
     if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
     if (d.type === 'stag') {
@@ -3301,6 +3303,27 @@ function drawCave2Details() {
         ctx.fillStyle = s.c;
         ctx.fillRect(sx + s.dx, sy + s.dy, s.s, s.s);
       }
+    }
+  }
+}
+
+function drawStalagmites() {
+  const details = caveLevel === 1 ? cave1Details : caveLevel === 2 ? cave2Details : null;
+  if (!details) return;
+  for (const d of details) {
+    if (d.type !== 'stag') continue;
+    const sx = Math.round(d.x - camX), sy = Math.round(d.y - camY);
+    if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
+    for (let i = 0; i < d.h; i++) {
+      const frac = i / d.h;
+      const w = Math.max(1, Math.round(14 * (1 - frac)));
+      const col = caveLevel === 1
+        ? (frac < 0.25 ? '#1e1c16' : frac < 0.65 ? '#2c2820' : '#3a3530')
+        : (frac < 0.25 ? '#221410' : frac < 0.65 ? '#362016' : '#4a2e1c');
+      ctx.fillStyle = col;
+      ctx.fillRect(sx - Math.floor(w/2), sy - i, w, 1);
+      const hlCol = caveLevel === 1 ? '#46423c' : '#5e3c26';
+      if (w >= 5) { ctx.fillStyle = hlCol; ctx.fillRect(sx - Math.floor(w/2), sy - i, 1, 1); }
     }
   }
 }
@@ -4352,6 +4375,11 @@ function drawMineEntrances() {
     // Cap stones
     ctx.fillStyle = '#2a2018';
     ctx.fillRect(sx-22, sy-22, 44, 5);
+    // E prompt
+    if (Math.sqrt((m.x-px)**2 + (m.y-py)**2) < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center'; ctx.fillText('[E] enter', sx, sy - 28); ctx.textAlign = 'left';
+    }
   }
   // T2 mine entrances — bronze-framed
   for (const m of mineEntrancesT2) {
@@ -4372,6 +4400,11 @@ function drawMineEntrances() {
     // Label
     ctx.fillStyle = '#c07828'; ctx.font = '700 7px monospace';
     ctx.textAlign = 'center'; ctx.fillText('T2', sx, sy + 17); ctx.textAlign = 'left';
+    // E prompt
+    if (Math.sqrt((m.x-px)**2 + (m.y-py)**2) < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center'; ctx.fillText('[E] enter', sx, sy - 28); ctx.textAlign = 'left';
+    }
   }
 }
 
@@ -4440,6 +4473,11 @@ function drawMineExits() {
     ctx.fillRect(sx-22, sy-22, 7, 34); ctx.fillRect(sx+15, sy-22, 7, 34);
     // Cap stones
     ctx.fillStyle = '#2a2018'; ctx.fillRect(sx-22, sy-22, 44, 5);
+    // E prompt
+    if (Math.sqrt((m.x-px)**2 + (m.y-py)**2) < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center'; ctx.fillText('[E] exit', sx, sy - 28); ctx.textAlign = 'left';
+    }
   }
 }
 
@@ -4466,6 +4504,11 @@ function drawCave2Exits() {
     ctx.fillRect(sx-22, sy-22, 7, 34); ctx.fillRect(sx+15, sy-22, 7, 34);
     // Cap stones (bronze)
     ctx.fillStyle = '#c07828'; ctx.fillRect(sx-22, sy-22, 44, 5);
+    // E prompt
+    if (Math.sqrt((m.x-px)**2 + (m.y-py)**2) < 70) {
+      ctx.fillStyle = '#e8e8a0'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center'; ctx.fillText('[E] exit', sx, sy - 28); ctx.textAlign = 'left';
+    }
   }
 }
 
@@ -4521,6 +4564,11 @@ function drawHellExits() {
     ctx.fillRect(sx-22, sy-22, 7, 34); ctx.fillRect(sx+15, sy-22, 7, 34);
     // Cap stones
     ctx.fillStyle = '#cc1a1a'; ctx.fillRect(sx-22, sy-22, 44, 5);
+    // E prompt
+    if (Math.sqrt((m.x-px)**2 + (m.y-py)**2) < 70) {
+      ctx.fillStyle = '#ff8080'; ctx.font = '700 9px monospace';
+      ctx.textAlign = 'center'; ctx.fillText('[E] ascend', sx, sy - 28); ctx.textAlign = 'left';
+    }
   }
 }
 
@@ -5679,6 +5727,7 @@ function loop(ts) {
   if (caveLevel >= 4) drawCorruptCreatures();
   drawShadowFigures();
   drawPlayer();
+  if (caveLevel === 1 || caveLevel === 2) drawStalagmites();
   drawMobs();
   drawAltarTop();
   drawAbyssCorrupt();
