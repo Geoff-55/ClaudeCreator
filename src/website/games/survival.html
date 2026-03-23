@@ -532,34 +532,6 @@ function generateSurfaceWorld() {
     if (isInLake(worldGroundItems[i].x, worldGroundItems[i].y)) worldGroundItems.splice(i, 1);
   for (let i = worldRocks.length - 1; i >= 0; i--)
     if (isInLake(worldRocks[i].x, worldRocks[i].y)) worldRocks.splice(i, 1);
-  // Add trees and rock nodes scattered around the lake shore
-  const lakeChunkOf = (tx, ty) => {
-    const ci = Math.floor(ty/CHUNK_H) * CHUNKS_X + Math.floor(tx/CHUNK_W);
-    return (ci >= 0 && ci < worldChunks.length) ? worldChunks[ci] : null;
-  };
-  for (const e of LAKE_CIRCLES) {
-    const numTrees = 4 + Math.floor(Math.random() * 5);
-    for (let i = 0; i < numTrees; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const d = 1.12 + Math.random() * 0.4;
-      const tx = e.cx + Math.cos(angle) * e.rx * d;
-      const ty = e.cy + Math.sin(angle) * e.ry * d;
-      if (isInLake(tx, ty) || tx < 60 || tx > WORLD_W-60 || ty < 60 || ty > WORLD_H-60) continue;
-      const chunk = lakeChunkOf(tx, ty);
-      if (!chunk) continue;
-      if (!chunk.extraTrees) chunk.extraTrees = [];
-      chunk.extraTrees.push({ x: tx, y: ty, segs: makeTreeSegs(Math.random), variant: Math.floor(Math.random()*TREE_VARIANTS.length), scale: 0.93 + Math.random()*0.14, chopped: false });
-    }
-    const numRocks = 3 + Math.floor(Math.random() * 4);
-    for (let i = 0; i < numRocks; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const d = 1.08 + Math.random() * 0.45;
-      const rx = e.cx + Math.cos(angle) * e.rx * d;
-      const ry = e.cy + Math.sin(angle) * e.ry * d;
-      if (isInLake(rx, ry) || rx < 60 || rx > WORLD_W-60 || ry < 60 || ry > WORLD_H-60) continue;
-      worldRocks.push({ x: rx, y: ry, scale: 0.92 + Math.random() * 0.16, mined: false, mineHealth: undefined, hitsLeft: undefined });
-    }
-  }
 }
 initForest();
 generateSurfaceWorld();
@@ -4880,8 +4852,8 @@ function drawMap() {
   // Chunk grid lines (all levels)
   {
     const gcol = caveLevel === 3 ? '#2a0800' : caveLevel === 2 ? '#1a1008' : inCave ? '#14120a' : '#162810';
-    const chunksX = caveLevel === 0 ? CHUNKS_X : 8;
-    const chunksY = caveLevel === 0 ? CHUNKS_Y : 10;
+    const chunksX = caveLevel === 0 ? CHUNKS_X : caveLevel === 1 ? CAVE_CHUNKS_X : caveLevel === 2 ? CAVE2_CHUNKS_X : HELL_CHUNKS_X;
+    const chunksY = caveLevel === 0 ? CHUNKS_Y : caveLevel === 1 ? CAVE_CHUNKS_Y : caveLevel === 2 ? CAVE2_CHUNKS_Y : HELL_CHUNKS_Y;
     ctx.strokeStyle = gcol; ctx.lineWidth = 0.5;
     for (let cx = 1; cx < chunksX; cx++) {
       const sx = WX + cx * CHUNK_W * scaleX;
@@ -5003,16 +4975,6 @@ function restartGame() {
     const a = (i / _drops.length) * Math.PI * 2;
     worldGroundItems.push({ type: id, x: _sp + Math.cos(a)*60, y: _sy + Math.sin(a)*60, pickedUp: false });
   });
-  // Shore rocks near lake
-  for (const e of LAKE_CIRCLES) {
-    const n = 3 + Math.floor(Math.random() * 4);
-    for (let i = 0; i < n; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const d = 1.08 + Math.random() * 0.25;
-      const rx = e.cx + Math.cos(angle)*e.rx*d, ry = e.cy + Math.sin(angle)*e.ry*d;
-      if (!isInLake(rx, ry)) worldGroundItems.push({ type: 'rock', x: rx, y: ry, pickedUp: false });
-    }
-  }
   gameOver = false;
   gameState = 'playing';
 }
