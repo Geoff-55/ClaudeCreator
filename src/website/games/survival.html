@@ -158,9 +158,30 @@ function isForestChunk(cx, cy) { return (cx-FOREST_CX)**2 + (cy-FOREST_CY)**2 <=
 
 function initGoblinCamps() {
   goblinCamps.length = 0; goblinChests.length = 0;
+
+  // Pick N camp positions from candidates with min separation (greedy)
+  function pickCampPositions(cands, n, minDistSq) {
+    const shuffled = [...cands].sort(() => Math.random() - 0.5);
+    const result = [];
+    for (const c of shuffled) {
+      if (result.every(r => (r[0]-c[0])**2+(r[1]-c[1])**2 >= minDistSq)) {
+        result.push(c);
+        if (result.length === n) break;
+      }
+    }
+    return result;
+  }
+
+  // Randomly choose 2 of 3 indices to get the altar scroll
+  function scrollIndices(n) {
+    const idx = [0,1,2].slice(0,n).sort(() => Math.random()-0.5);
+    return new Set(idx.slice(0,2));
+  }
+
+  // ---- SURFACE CAMPS (3) ----
   const spawnCX = Math.floor((WORLD_W/2)/CHUNK_W), spawnCY = Math.floor((WORLD_H/2)/CHUNK_H);
   const cands = [];
-  for (let att = 0; att < 400 && cands.length < 12; att++) {
+  for (let att = 0; att < 600 && cands.length < 18; att++) {
     const cx = 1 + Math.floor(Math.random()*(CHUNKS_X-2));
     const cy = 1 + Math.floor(Math.random()*(CHUNKS_Y-2));
     if ((cx-spawnCX)**2+(cy-spawnCY)**2 < 9) continue;
@@ -169,18 +190,14 @@ function initGoblinCamps() {
     if (isInLake(wx,wy) || isLakeShore(wx,wy,100)) continue;
     cands.push([wx, wy]);
   }
-  // Pick 2 that are at least 4 chunks apart
-  let pairs = [];
-  for (let i = 0; i < cands.length; i++)
-    for (let j = i+1; j < cands.length; j++)
-      if ((cands[i][0]-cands[j][0])**2+(cands[i][1]-cands[j][1])**2 >= (CHUNK_W*4)**2)
-        pairs.push([cands[i], cands[j]]);
-  const pair = pairs.length ? pairs[Math.floor(Math.random()*pairs.length)]
-    : [[WORLD_W*0.25, WORLD_H*0.25],[WORLD_W*0.75, WORLD_H*0.75]];
-
-  const _scrollSurfaceCamp = Math.floor(Math.random() * pair.length); // one of the two gets the scroll
-  for (let _pi = 0; _pi < pair.length; _pi++) {
-    const [cx, cy] = pair[_pi];
+  const surfacePick = pickCampPositions(cands, 3, (CHUNK_W*4)**2);
+  if (surfacePick.length < 3) {
+    surfacePick.push([WORLD_W*0.25,WORLD_H*0.25],[WORLD_W*0.75,WORLD_H*0.75],[WORLD_W*0.5,WORLD_H*0.15]);
+    surfacePick.splice(3);
+  }
+  const _scrollSurface = scrollIndices(surfacePick.length);
+  for (let _pi = 0; _pi < surfacePick.length; _pi++) {
+    const [cx, cy] = surfacePick[_pi];
     const numTents = 2 + Math.floor(Math.random()*2);
     const tents = [];
     for (let i = 0; i < numTents; i++) {
@@ -200,37 +217,33 @@ function initGoblinCamps() {
       _s0[1] = { id: 'bronze_ingot',   count: 1+Math.floor(Math.random()*3) };
       _s0[2] = { id: 'cooked_chicken', count: 1 };
       _s0[3] = { id: 'feather',        count: 1+Math.floor(Math.random()*3) };
-      if (_pi === _scrollSurfaceCamp && i === 0) _s0[4] = { id: 'altar_scroll', count: 1 };
+      if (_scrollSurface.has(_pi) && i === 0) _s0[4] = { id: 'altar_scroll', count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 0, slots: _s0 });
     }
     goblinCamps.push({
       x: cx, y: cy, level: 0,
       campfire: { x: cx+(Math.random()-0.5)*18, y: cy+(Math.random()-0.5)*18 },
-      tents, logs,
-      discovered: false, lastDaySpawned: 0,
+      tents, logs, discovered: false, lastDaySpawned: 0,
     });
   }
 
-  // Cave 1 camps — 2 camps using cave world coordinates
+  // ---- CAVE 1 CAMPS (3) ----
   const c1SpawnCX = Math.floor((CAVE_W/2)/CHUNK_W), c1SpawnCY = Math.floor((CAVE_H/2)/CHUNK_H);
   const c1Cands = [];
-  for (let att = 0; att < 400 && c1Cands.length < 8; att++) {
+  for (let att = 0; att < 600 && c1Cands.length < 18; att++) {
     const ccx = 1 + Math.floor(Math.random()*(CAVE_CHUNKS_X-2));
     const ccy = 1 + Math.floor(Math.random()*(CAVE_CHUNKS_Y-2));
     if ((ccx-c1SpawnCX)**2+(ccy-c1SpawnCY)**2 < 9) continue;
     c1Cands.push([(ccx+0.5)*CHUNK_W, (ccy+0.5)*CHUNK_H]);
   }
-  let c1Pairs = [];
-  for (let i = 0; i < c1Cands.length; i++)
-    for (let j = i+1; j < c1Cands.length; j++)
-      if ((c1Cands[i][0]-c1Cands[j][0])**2+(c1Cands[i][1]-c1Cands[j][1])**2 >= (CHUNK_W*3)**2)
-        c1Pairs.push([c1Cands[i], c1Cands[j]]);
-  const c1Pair = c1Pairs.length ? c1Pairs[Math.floor(Math.random()*c1Pairs.length)]
-    : [[CAVE_W*0.25, CAVE_H*0.25],[CAVE_W*0.75, CAVE_H*0.75]];
-
-  const _scrollC1Camp = Math.floor(Math.random() * c1Pair.length);
-  for (let _pi = 0; _pi < c1Pair.length; _pi++) {
-    const [cx, cy] = c1Pair[_pi];
+  const c1Pick = pickCampPositions(c1Cands, 3, (CHUNK_W*3)**2);
+  if (c1Pick.length < 3) {
+    c1Pick.push([CAVE_W*0.25,CAVE_H*0.25],[CAVE_W*0.75,CAVE_H*0.75],[CAVE_W*0.5,CAVE_H*0.15]);
+    c1Pick.splice(3);
+  }
+  const _scrollC1 = scrollIndices(c1Pick.length);
+  for (let _pi = 0; _pi < c1Pick.length; _pi++) {
+    const [cx, cy] = c1Pick[_pi];
     const numTents = 1 + Math.floor(Math.random()*2);
     const tents = [];
     for (let i = 0; i < numTents; i++) {
@@ -250,14 +263,13 @@ function initGoblinCamps() {
       _s1[1] = { id: 'bronze_ingot', count: 2+Math.floor(Math.random()*4) };
       _s1[2] = { id: 'feather',      count: 2+Math.floor(Math.random()*3) };
       _s1[3] = { id: 'coal',         count: 2+Math.floor(Math.random()*3) };
-      if (_pi === _scrollC1Camp && i === 0) _s1[4] = { id: 'altar_scroll', count: 1 };
+      if (_scrollC1.has(_pi) && i === 0) _s1[4] = { id: 'altar_scroll', count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 1, slots: _s1 });
     }
     goblinCamps.push({
       x: cx, y: cy, level: 1,
       campfire: { x: cx+(Math.random()-0.5)*18, y: cy+(Math.random()-0.5)*18 },
-      tents, logs,
-      discovered: false, lastDaySpawned: 0,
+      tents, logs, discovered: false, lastDaySpawned: 0,
     });
   }
 }
