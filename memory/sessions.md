@@ -1,5 +1,42 @@
 # Session History
 
+## Session 11 -- 2026-03-22
+
+Survival game (survival.html) — trinkets, crits, void temple, main menu:
+
+**Trinket system:**
+  - 3 trinket equip slots in col 1 of inventory (below tools)
+  - 6 trinkets, one per goblin camp (3 surface + 3 cave1, shuffled each game)
+  - Bone Necklace (+20% dmg), Gold Charm (+15% crit), Hermes Boots (+20% spd)
+  - Dragon Scale Cloak (+20% max HP, 75→90), Anklet of Earth (+25% tool dmg), Steel Shoulders (+15% def)
+  - Trinket slots draw with gold border/label, bonus shown below label
+  - `getTrinketBonuses()` + `getMaxPlayerHp()` used across all damage/regen/movement/HP bar
+
+**Critical hits + damage numbers:**
+  - 15% base crit chance (+critBonus from Gold Charm), 1.5x damage on crit
+  - Floating damage numbers above hit targets: red small (normal), gold large "X!" (crit)
+  - Applied to all sword types incl. void_sword; crits also affect corrupt creatures
+
+**Void world temple:**
+  - Winding S-curve pixel path (VOID_PATH rects) from spawn (5280, 4050) to altar
+  - 6-step black temple with red neon outlines, rune lines on each step
+  - Corrupt guardian at VOID_ALTAR_X/Y: dark humanoid with red eyes, 18dmg contact (1.2s cooldown)
+  - enforceVoidPathCollision: axis-separated sliding, player locked to walkable path rects
+
+**Miner zombies on surface:**
+  - After entering floor 2, ~30% chance to spawn miner zombie instead of normal (cap 4)
+  - `spawnSurfaceMiner()` function added
+
+**Main menu redesign:**
+  - Night sky gradient, 120 twinkling stars, blood moon (top-right)
+  - Black tree silhouettes, campfire with flicker, zombie silhouette
+  - Red dripping "SURVIVAL" title with blood drip animation
+
+**Other:**
+  - Goblin defPct now includes trinket defense bonus
+  - HP bar shows "X/Y" (current/max), max HP grows with dragon cloak
+  - `_altarGuardianLastDmg` and `damageNumbers` reset on restartGame
+
 ## Session 10 -- 2026-03-19
 
 Survival game (survival.html) — world detail + progression + horror session:
