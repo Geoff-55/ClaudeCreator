@@ -4934,10 +4934,11 @@ function restartGame() {
   generateCaveWorld();
   generateCave2World();
   generateHellWorld();
-  // Place starting entrances near spawn
-  mineEntrances.push({ x: WORLD_W / 2 - 120, y: WORLD_H / 2 });
-  mineEntrancesT2.push({ x: WORLD_W / 2,      y: WORLD_H / 2 });
-  voidEntrances.push({  x: WORLD_W / 2 + 120, y: WORLD_H / 2, fromLevel: 0 });
+  // Place starting entrances one chunk below spawn
+  const _ey = WORLD_H / 2 + CHUNK_H;
+  mineEntrances.push({ x: WORLD_W / 2 - 120, y: _ey });
+  mineEntrancesT2.push({ x: WORLD_W / 2,      y: _ey });
+  voidEntrances.push({  x: WORLD_W / 2 + 120, y: _ey, fromLevel: 0 });
   // Drop iron gear + void weapons on floor near spawn
   const _sp = WORLD_W / 2, _sy = WORLD_H / 2;
   const _drops = ['iron_sword','iron_hatchet','iron_pickaxe','iron_helmet','iron_chestplate','iron_pants','void_sword','glitch_shield'];
