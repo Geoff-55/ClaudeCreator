@@ -867,7 +867,7 @@ function enterCave(entranceIdx) {
     mineExits.push({ x: ent.x, y: ent.y, entranceIdx });
   }
   px = mineExits[ent.caveExitIdx].x;
-  py = mineExits[ent.caveExitIdx].y;
+  py = mineExits[ent.caveExitIdx].y + 80;
   mobs.length = 0;
 }
 
@@ -876,7 +876,7 @@ function exitCave(exitIdx) {
   inCave = false; caveLevel = 0;
   mobs.length = 0;
   px = mineEntrances[exit.entranceIdx].x;
-  py = mineEntrances[exit.entranceIdx].y;
+  py = mineEntrances[exit.entranceIdx].y + 80;
 }
 
 function enterCave2(entranceIdx) {
@@ -887,7 +887,7 @@ function enterCave2(entranceIdx) {
     cave2Exits.push({ x: ent.x, y: ent.y, entranceIdx });
   }
   px = cave2Exits[ent.cave2ExitIdx].x;
-  py = cave2Exits[ent.cave2ExitIdx].y;
+  py = cave2Exits[ent.cave2ExitIdx].y + 80;
   mobs.length = 0;
 }
 
@@ -896,7 +896,7 @@ function exitCave2(exitIdx) {
   inCave = false; caveLevel = 0;
   mobs.length = 0;
   px = mineEntrancesT2[exit.entranceIdx].x;
-  py = mineEntrancesT2[exit.entranceIdx].y;
+  py = mineEntrancesT2[exit.entranceIdx].y + 80;
 }
 
 function enterHell(entranceIdx) {
@@ -909,7 +909,7 @@ function enterHell(entranceIdx) {
   inCave = true; caveLevel = 3;
   if (!hasEnteredHell) { hasEnteredHell = true; hellEntryDay = getCurrentDay(); }
   px = hellExits[ent.hellExitIdx].x;
-  py = hellExits[ent.hellExitIdx].y;
+  py = hellExits[ent.hellExitIdx].y + 80;
   mobs.length = 0;
 }
 
@@ -919,14 +919,14 @@ function exitHell(exitIdx) {
   inCave = (caveLevel > 0);
   mobs.length = 0;
   px = voidEntrances[exit.entranceIdx].x;
-  py = voidEntrances[exit.entranceIdx].y;
+  py = voidEntrances[exit.entranceIdx].y + 80;
 }
 
 function enterCorruptWorld() {
   corruptReturnX = px; corruptReturnY = py;
   caveLevel = 4; inCave = true;
   corruptEntryX = HELL_W / 2; corruptEntryY = HELL_H / 2;
-  px = corruptEntryX; py = corruptEntryY;
+  px = corruptEntryX; py = corruptEntryY + 130;
   mobs.length = 0;
   corruptCreatures.length = 0; corruptNets.length = 0;
   for (let i = 0; i < 5; i++) spawnCorruptCreature();
@@ -935,7 +935,7 @@ function enterCorruptWorld() {
 
 function exitCorruptWorld() {
   caveLevel = 3; inCave = true;
-  px = corruptReturnX; py = corruptReturnY;
+  px = corruptReturnX; py = corruptReturnY + 130;
   mobs.length = 0;
   corruptCreatures.length = 0; corruptNets.length = 0;
 }
@@ -2339,6 +2339,31 @@ function resolveRockCollisions() {
   }
 }
 
+function resolvePortalCollisions() {
+  const pushOut = (portalX, portalY, r) => {
+    const dx = px - portalX, dy = py - portalY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const min = BODY_R + r;
+    if (dist < min && dist > 0) { const ov = min - dist; px += (dx/dist)*ov; py += (dy/dist)*ov; }
+  };
+  if (caveLevel === 0) {
+    for (const m of mineEntrances) pushOut(m.x, m.y, 28);
+    for (const m of mineEntrancesT2) pushOut(m.x, m.y, 28);
+    for (const v of voidEntrances) if (v.fromLevel === 0) pushOut(v.x, v.y, 28);
+  } else if (caveLevel === 1) {
+    for (const m of mineExits) pushOut(m.x, m.y, 28);
+    for (const v of voidEntrances) if (v.fromLevel === 1) pushOut(v.x, v.y, 28);
+  } else if (caveLevel === 2) {
+    for (const m of cave2Exits) pushOut(m.x, m.y, 28);
+    for (const v of voidEntrances) if (v.fromLevel === 2) pushOut(v.x, v.y, 28);
+  } else if (caveLevel === 3) {
+    for (const m of hellExits) pushOut(m.x, m.y, 28);
+    if (hellPortalActive) pushOut(hellPortalX, hellPortalY, 62);
+  } else if (caveLevel >= 4) {
+    pushOut(corruptEntryX, corruptEntryY, 62);
+  }
+}
+
 function resolveStagCollisions() {
   if (!inCave || caveLevel >= 3) return;
   const details = caveLevel === 1 ? cave1Details : cave2Details;
@@ -2562,24 +2587,8 @@ function handleInteract() {
     if (hellPortalActive) {
       const dx = hellPortalX - px, dy = hellPortalY - py;
       if (Math.sqrt(dx*dx + dy*dy) < 90) {
-        // Check for abyss_key in inventory
-        let keyIdx = -1;
-        for (let i = 0; i < inventorySlots.length; i++) {
-          if (inventorySlots[i]?.id === 'abyss_key') { keyIdx = i; break; }
-        }
-        if (keyIdx >= 0) {
-          // Consume key — enter corrupt world
-          inventorySlots[keyIdx].count--;
-          if (inventorySlots[keyIdx].count <= 0) inventorySlots[keyIdx] = null;
-          spawnParticles(px, py, '#8800ff', 14);
-          spawnParticles(px, py, '#cc00ff', 10);
-          enterCorruptWorld();
-        } else {
-          // No key — portal rejects, deal 1 dmg
-          playerHp = Math.max(0, playerHp - 1);
-          lastHitTime = gameNow;
-          spawnParticles(px, py, '#ff0000', 5);
-        }
+        spawnParticles(px, py, '#cc0000', 10);
+        enterCorruptWorld();
         return;
       }
     }
@@ -2747,6 +2756,7 @@ function updateMovement(dt) {
   resolveTreeCollisions();
   resolveRockCollisions();
   resolveStagCollisions();
+  resolvePortalCollisions();
   resolveWallCollisions();
   resolveAltarCollision();
   // Check if player is near altar (reveals it on map)
@@ -4567,12 +4577,11 @@ function drawHellPortal() {
   // Interact prompt
   const dist = Math.sqrt((hellPortalX-px)**2 + (hellPortalY-py)**2);
   if (dist < 160) {
-    const hasKey = inventorySlots.some(s => s?.id === 'abyss_key');
     ctx.globalAlpha = 0.95;
-    glow(hasKey ? '#ff0000' : '#ff0000', 10);
-    ctx.fillStyle = hasKey ? '#ff8888' : '#ff6666';
+    glow('#ff0000', 10);
+    ctx.fillStyle = '#ff8888';
     ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
-    ctx.fillText(hasKey ? '[E] insert key' : '[E] ???', sx, sy - PH - 14);
+    ctx.fillText('[E] enter', sx, sy - PH - 14);
     noGlow(); ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   }
   ctx.restore();
