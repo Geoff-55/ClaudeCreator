@@ -1296,8 +1296,10 @@ canvas.addEventListener('click', e => {
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   if (gameState === 'menu') {
-    const bx = W/2 - 100, by = H/2 - 12, bw = 200, bh = 52;
-    if (mx >= bx && mx < bx+bw && my >= by && my < by+bh) restartGame();
+    const bx = W/2 - 100, by = H * 0.50, bw = 200, bh = 52;
+    if (mx >= bx && mx < bx+bw && my >= by && my < by+bh) { restartGame(); return; }
+    const sbx = W/2 - 90, sby = H * 0.50 + 62, sbw = 180, sbh = 36;
+    if (mx >= sbx && mx < sbx+sbw && my >= sby && my < sby+sbh) { restartGame(); applyStartSetup(); return; }
     return;
   }
   if (inventoryOpen) { handleInventoryClick(mx, my, e.shiftKey); return; }
@@ -5840,20 +5842,21 @@ function restartGame() {
   generateCaveWorld();
   generateCave2World();
   generateHellWorld();
-  // Place starting entrances one chunk below spawn
+  gameOver = false;
+  gameState = 'playing';
+}
+
+function applyStartSetup() {
   const _ey = WORLD_H / 2 + CHUNK_H;
   mineEntrances.push({ x: WORLD_W / 2 - 120, y: _ey });
   mineEntrancesT2.push({ x: WORLD_W / 2,      y: _ey });
   voidEntrances.push({  x: WORLD_W / 2 + 120, y: _ey, fromLevel: 0 });
-  // Drop iron gear + void weapons on floor near spawn
   const _sp = WORLD_W / 2, _sy = WORLD_H / 2;
   const _drops = ['iron_sword','iron_hatchet','iron_pickaxe','iron_helmet','iron_chestplate','iron_pants','void_sword','glitch_shield'];
   _drops.forEach((id, i) => {
     const a = (i / _drops.length) * Math.PI * 2;
     worldGroundItems.push({ type: id, x: _sp + Math.cos(a)*60, y: _sy + Math.sin(a)*60, pickedUp: false });
   });
-  gameOver = false;
-  gameState = 'playing';
 }
 
 function drawGameOver() {
@@ -6007,6 +6010,15 @@ function drawMainMenu() {
   noGlow();
   ctx.fillStyle = '#ffdddd'; ctx.font = '700 22px monospace';
   ctx.fillText('PLAY', W/2, by + 35);
+
+  // --- Start Setup button ---
+  const sbx = W/2 - 90, sby = H * 0.50 + 62, sbw = 180, sbh = 36;
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(sbx, sby, sbw, sbh);
+  ctx.strokeStyle = '#4a3a6a'; ctx.lineWidth = 1;
+  ctx.strokeRect(sbx, sby, sbw, sbh);
+  ctx.fillStyle = '#6a5a8a'; ctx.font = '500 12px monospace';
+  ctx.fillText('Start Setup', W/2, sby + 23);
 
   // --- Footer ---
   ctx.fillStyle = '#3a1020';
