@@ -1,5 +1,37 @@
 # Session History
 
+## Session 13 -- 2026-03-23
+
+Survival game (survival.html) — goblin camp overhaul, portal/path fixes, water breathing:
+
+**Glitch effect fixes:**
+  - Clears instantly when it turns day (was lingering via decay timer)
+  - Clears instantly when player moves > 500px from corrupt figure (was decaying slowly)
+
+**Portal / void path:**
+  - Players can now walk through all portals (void entrances, hell portal, corrupt return) — pushOut removed
+  - `enforceVoidPathCollision` no longer called; player moves freely in void world
+  - Void world winding path changed from filled rect corridors to a smooth 3-pass glow bezier curve (visual guide only)
+
+**Goblin camp overhaul:**
+  - Tents ~50% bigger (PS 2→3), with stripe accents
+  - 5–7 normal/archer goblins + 1–2 brutes per spawn (was 3–4 + 1)
+  - 2–3 chests per camp (was 1–2); all chests have campId
+  - Archer towers (2 per camp): tall wooden posts + platform + railing + goblin archer on top; hatchet-only (6 hits), archer drops as alerted mob on collapse
+  - Chest lock: yellow ✦ rune floats above locked chests until all camp goblins dead; gold particle burst on clear
+  - Bone campfires emit warm radial light glow with flicker
+
+**Water breathing system:**
+  - 22s air supply; 6 bubble indicators above player head while submerged, drain as air depletes
+  - Thin blue/red air bar below bubbles when not full
+  - Drowning: 2 HP every 1.8s when out of air
+  - Air refills in ~5s when out of water
+  - Resets on restartGame
+
+**Also (earlier in session, carried from Session 12 context):**
+  - Cave Y-sort: `drawCaveYSorted()` combines rocks + stalagmites by Y for cave1/cave2
+  - Fuel priority: coal consumed before sticks in all smelting recipes
+
 ## Session 12 -- 2026-03-23
 
 Survival game (survival.html) — layering, fuel, and UI polish:
