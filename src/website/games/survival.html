@@ -489,6 +489,9 @@ let hellPortalY        = 0;
 let glitchScreenTimer  = 0;
 let playerAir          = 1.0;  // 0-1, drains underwater
 let _airDmgTimer       = 0;
+let altarGuardianChasing = false;   // void guardian is actively chasing player
+let _guardianCX        = 0, _guardianCY = 0; // guardian world pos during chase
+let abyssRedTint       = false;     // surface has red sun tint after portal escape
 let corruptReturnX     = 0, corruptReturnY = 0; // hell position to return to
 let corruptEntryX      = 0, corruptEntryY  = 0; // spawn/exit point in corrupt world
 let corruptCreatures   = [];
@@ -3122,7 +3125,11 @@ function handleInteract() {
   if (caveLevel >= 4) {
     // Corrupt world: exit portal
     const dx = corruptEntryX - px, dy = corruptEntryY - py;
-    if (Math.sqrt(dx*dx + dy*dy) < 90) { exitCorruptWorld(); return; }
+    if (Math.sqrt(dx*dx + dy*dy) < 90) {
+      if (altarGuardianChasing) { altarGuardianChasing = false; abyssRedTint = true; }
+      exitCorruptWorld();
+      return;
+    }
     return;
   }
   if (caveLevel === 3) {
@@ -5930,14 +5937,16 @@ function _drawVoidTemple() {
 }
 
 function _drawAltarGuardian(now) {
-  const ax = Math.round(VOID_ALTAR_X - camX), ay = Math.round(VOID_ALTAR_Y - camY);
+  const wx = altarGuardianChasing ? _guardianCX : VOID_ALTAR_X;
+  const wy = altarGuardianChasing ? _guardianCY : VOID_ALTAR_Y;
+  const ax = Math.round(wx - camX), ay = Math.round(wy - camY);
   if (ax < -80 || ax > W + 80 || ay < -80 || ay > H + 80) return;
-  const pulse = Math.sin(now * 3) * 0.12 + 0.88;
+  const pulse = Math.sin(now * 3) * 0.15 + 0.85;
+  const glowStr = altarGuardianChasing ? 36 * pulse : 16;
   ctx.save();
   ctx.globalAlpha = pulse;
-  // Body — dark shape with red glow
-  glow('#cc0000', 16);
-  ctx.fillStyle = '#0a0005';
+  glow('#cc0000', glowStr);
+  ctx.fillStyle = '#060001';
   // Legs
   ctx.fillRect(ax - 12, ay + 12, 10, 22);
   ctx.fillRect(ax + 2,  ay + 12, 10, 22);
@@ -5945,33 +5954,63 @@ function _drawAltarGuardian(now) {
   ctx.fillRect(ax - 16, ay - 16, 32, 30);
   // Head
   ctx.fillRect(ax - 10, ay - 32, 20, 18);
-  // Arms
-  ctx.fillRect(ax - 26, ay - 14, 12, 8);
-  ctx.fillRect(ax + 14, ay - 14, 12, 8);
+  // Arms (flail outward when chasing)
+  const armSwing = altarGuardianChasing ? Math.sin(now * 8) * 5 : 0;
+  ctx.fillRect(ax - 26, ay - 14 + Math.round(armSwing), 12, 8);
+  ctx.fillRect(ax + 14, ay - 14 - Math.round(armSwing), 12, 8);
   noGlow();
-  // Red eyes
-  glow('#ff0000', 10);
-  ctx.fillStyle = '#ff3030';
+  // Eyes — brighter when chasing
+  glow('#ff0000', altarGuardianChasing ? 18 : 10);
+  ctx.fillStyle = altarGuardianChasing ? '#ff1010' : '#ff3030';
   ctx.fillRect(ax - 7, ay - 26, 4, 4);
   ctx.fillRect(ax + 3,  ay - 26, 4, 4);
   noGlow();
+  // Chase aura rings
+  if (altarGuardianChasing) {
+    for (let ring = 0; ring < 3; ring++) {
+      const r = 22 + ring * 12;
+      const a = now * (ring % 2 === 0 ? 1.1 : -0.7) + ring * 1.3;
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(a);
+      glow('#cc0000', 10);
+      ctx.strokeStyle = `rgba(200,0,0,${0.25 - ring * 0.06})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.6, 0, 0, Math.PI * 1.7); ctx.stroke();
+      noGlow(); ctx.restore();
+    }
+  }
   ctx.globalAlpha = 1;
+  // "[E] beware" prompt when static and player is close
+  if (!altarGuardianChasing) {
+    const gdx = px - VOID_ALTAR_X, gdy = py - VOID_ALTAR_Y;
+    if (gdx*gdx + gdy*gdy < 150*150) {
+      ctx.globalAlpha = 0.85;
+      glow('#ff0000', 8);
+      ctx.fillStyle = '#ff4444';
+      ctx.font = '700 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('[E] beware', ax, ay - 44);
+      noGlow(); ctx.textAlign = 'left';
+      ctx.globalAlpha = 1;
+    }
+  }
   ctx.restore();
-  // Contact damage
-  const gdx = px - VOID_ALTAR_X, gdy = py - VOID_ALTAR_Y;
-  if (gdx*gdx + gdy*gdy < 60*60 && now - _altarGuardianLastDmg > 1.2) {
-    _altarGuardianLastDmg = now;
-    let _agDef = getTrinketBonuses().defBonus;
-    if (equipSlots['helmet']?.id === 'iron_helmet') _agDef += 10; else if (equipSlots['helmet']?.id === 'feather_hat') _agDef += 5;
-    if (equipSlots['shield']?.id === 'bone_shield') _agDef += 10;
-    if (equipSlots['chestplate']?.id === 'iron_chestplate') _agDef += 20; else if (equipSlots['chestplate']?.id === 'bone_armor') _agDef += 10;
-    if (equipSlots['pants']?.id === 'iron_pants') _agDef += 10; else if (equipSlots['pants']?.id === 'feather_pants') _agDef += 5;
-    const _agD = Math.max(1, Math.round(18 * (1 - _agDef / 100)));
-    playerHp = Math.max(0, playerHp - _agD);
-    damageNumbers.push({ wx: px, wy: py - 30, val: _agD, isCrit: false, isPlayer: true, timer: 0 });
-    lastHitTime = now;
-    spawnParticles(px, py, '#cc0000', 6);
-    checkGameOver();
+  // Static position contact damage (not chasing — handled in updateAltarGuardian)
+  if (!altarGuardianChasing) {
+    const gdx = px - VOID_ALTAR_X, gdy = py - VOID_ALTAR_Y;
+    if (gdx*gdx + gdy*gdy < 60*60 && now - _altarGuardianLastDmg > 1.2) {
+      _altarGuardianLastDmg = now;
+      let _agDef = getTrinketBonuses().defBonus;
+      if (equipSlots['helmet']?.id === 'iron_helmet') _agDef += 10; else if (equipSlots['helmet']?.id === 'feather_hat') _agDef += 5;
+      if (equipSlots['shield']?.id === 'bone_shield') _agDef += 10;
+      if (equipSlots['chestplate']?.id === 'iron_chestplate') _agDef += 20; else if (equipSlots['chestplate']?.id === 'bone_armor') _agDef += 10;
+      if (equipSlots['pants']?.id === 'iron_pants') _agDef += 10; else if (equipSlots['pants']?.id === 'feather_pants') _agDef += 5;
+      const _agD = Math.max(1, Math.round(18 * (1 - _agDef / 100)));
+      playerHp = Math.max(0, playerHp - _agD);
+      damageNumbers.push({ wx: px, wy: py - 30, val: _agD, isCrit: false, isPlayer: true, timer: 0 });
+      lastHitTime = now;
+      spawnParticles(px, py, '#cc0000', 6);
+      checkGameOver();
+    }
   }
 }
 
@@ -6311,6 +6350,7 @@ function restartGame() {
   deadBushes.length = 0; bloodPiles.length = 0; lastBloodSpawn = -9999;
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false; lakeSeen = false;
+  altarGuardianChasing = false; _guardianCX = 0; _guardianCY = 0; abyssRedTint = false;
   goblinArrows.length = 0;
   corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
   corruptCreatures.length = 0; corruptNets.length = 0; lastCorruptSpawn = -999;
@@ -6767,6 +6807,16 @@ function drawMonoliths() {
   }
 }
 
+function drawAbyssRedTint() {
+  if (!abyssRedTint || caveLevel !== 0) return;
+  // Subtle permanent red tint — like the sun turned blood-red
+  ctx.save();
+  ctx.globalAlpha = 0.07 + Math.sin(gameNow * 0.4) * 0.015;
+  ctx.fillStyle = '#c01800';
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
 function drawRedFlash() {
   if (redFlashTimer <= 0) return;
   const t = redFlashTimer / 0.8; // 1→0
@@ -6811,46 +6861,93 @@ function updateAbyssEvent() {
   }
 }
 
+function updateAltarGuardian(dt, now) {
+  if (caveLevel < 4) return;
+  if (!altarGuardianChasing) {
+    // Proximity trigger: player walks close to the altar guardian
+    const dx = px - VOID_ALTAR_X, dy = py - VOID_ALTAR_Y;
+    if (dx*dx + dy*dy < 120*120) {
+      altarGuardianChasing = true;
+      _guardianCX = VOID_ALTAR_X;
+      _guardianCY = VOID_ALTAR_Y;
+    }
+    return;
+  }
+  // Move guardian toward player
+  const dx = px - _guardianCX, dy = py - _guardianCY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const speed = 140;
+  if (dist > 2) {
+    _guardianCX += (dx / dist) * speed * dt;
+    _guardianCY += (dy / dist) * speed * dt;
+  }
+  // Contact damage
+  if (dist < 55 && now - _altarGuardianLastDmg > 1.0) {
+    _altarGuardianLastDmg = now;
+    let def = getTrinketBonuses().defBonus;
+    if (equipSlots['helmet']?.id === 'iron_helmet') def += 10; else if (equipSlots['helmet']?.id === 'feather_hat') def += 5;
+    if (equipSlots['shield']?.id === 'bone_shield') def += 10;
+    if (equipSlots['chestplate']?.id === 'iron_chestplate') def += 20; else if (equipSlots['chestplate']?.id === 'bone_armor') def += 10;
+    if (equipSlots['pants']?.id === 'iron_pants') def += 10; else if (equipSlots['pants']?.id === 'feather_pants') def += 5;
+    const dmg = Math.max(1, Math.round(12 * (1 - def / 100)));
+    playerHp = Math.max(0, playerHp - dmg);
+    damageNumbers.push({ wx: px, wy: py - 30, val: dmg, isCrit: false, isPlayer: true, timer: 0 });
+    lastHitTime = now;
+    spawnParticles(px, py, '#cc0000', 8);
+    checkGameOver();
+  }
+  // Auto-exit: player reaches the return portal while being chased
+  const pdx = corruptEntryX - px, pdy = corruptEntryY - py;
+  if (pdx*pdx + pdy*pdy < 90*90) {
+    altarGuardianChasing = false;
+    abyssRedTint = true;
+    exitCorruptWorld();
+    redFlashTimer = 1.2;
+    spawnParticles(px, py, '#ff0000', 20);
+  }
+}
+
 function drawAbyssCorrupt() {
   if (!abyssEventActive || caveLevel !== 0) return;
   const sx = Math.round(abyssX - camX), sy = Math.round(abyssY - camY);
-  if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
-  const PS = 3; // larger pixels — more solid presence
-  const SR = BODY_R * 1.1;
+  if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) return;
+  const pulse = Math.sin(gameNow * 2.8) * 0.15 + 0.85;
+  const drift = Math.sin(gameNow * 1.3) * 3; // subtle float
+  const dsy = sy + Math.round(drift);
   ctx.save();
-  ctx.globalAlpha = 0.95;
-  // Pulsing dark aura
-  const pulse = Math.sin(gameNow * 3.2) * 0.4 + 0.6;
-  glow('#cc0000', 40 * pulse);
-  // Body — dark red pixelated
-  for (let gy = Math.floor(-SR/PS); gy < Math.ceil(SR/PS); gy++) {
-    for (let gx = Math.floor(-SR/PS); gx < Math.ceil(SR/PS); gx++) {
-      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
-      const d = Math.sqrt(cx*cx + cy*cy);
-      if (d > SR) continue;
-      ctx.fillStyle = d > SR - PS*2.5 ? '#880000' : '#180000';
-      ctx.fillRect(sx + gx*PS, sy + gy*PS, PS, PS);
-    }
-  }
-  noGlow();
+  ctx.globalAlpha = 0.96;
+  // Wide pulsing dark aura
+  glow('#cc0000', 52 * pulse);
+  ctx.fillStyle = '#060000';
+  // Legs
+  ctx.fillRect(sx - 11, dsy + 12, 9, 22);
+  ctx.fillRect(sx + 2,  dsy + 12, 9, 22);
+  // Torso
+  ctx.fillRect(sx - 15, dsy - 16, 30, 30);
   // Head
-  glow('#cc0000', 22 * pulse);
-  const hx = sx, hy = sy - Math.round(HEAD_DIST * 1.05);
-  for (let gy = Math.floor(-HEAD_R/PS); gy < Math.ceil(HEAD_R/PS); gy++) {
-    for (let gx = Math.floor(-HEAD_R/PS); gx < Math.ceil(HEAD_R/PS); gx++) {
-      const cx = (gx + 0.5)*PS, cy = (gy + 0.5)*PS;
-      if (Math.sqrt(cx*cx + cy*cy) > HEAD_R) continue;
-      ctx.fillStyle = '#220000';
-      ctx.fillRect(hx + gx*PS, hy + gy*PS, PS, PS);
-    }
-  }
-  // Eyes — glowing void-red
-  const eyeOff = Math.round(HEAD_R * 0.35);
-  glow('#ff0000', 10);
-  ctx.fillStyle = '#ff0000';
-  ctx.fillRect(hx - eyeOff - PS, hy - PS, PS*2, PS*2);
-  ctx.fillRect(hx + eyeOff - PS, hy - PS, PS*2, PS*2);
+  ctx.fillRect(sx - 9, dsy - 32, 18, 18);
+  // Arms
+  ctx.fillRect(sx - 25, dsy - 14, 12, 7);
+  ctx.fillRect(sx + 13, dsy - 14, 12, 7);
   noGlow();
+  // Red eyes
+  glow('#ff0000', 14);
+  ctx.fillStyle = '#ff2020';
+  ctx.fillRect(sx - 6, dsy - 27, 4, 4);
+  ctx.fillRect(sx + 2, dsy - 27, 4, 4);
+  noGlow();
+  // Outer corruption halo rings
+  const haloA = (Math.sin(gameNow * 1.8) * 0.1 + 0.15) * pulse;
+  for (let ring = 0; ring < 3; ring++) {
+    const r = 28 + ring * 14;
+    const a = gameNow * (ring % 2 === 0 ? 0.6 : -0.4) + ring;
+    ctx.save(); ctx.translate(sx, dsy); ctx.rotate(a);
+    glow('#880000', 8);
+    ctx.strokeStyle = `rgba(180,0,0,${haloA - ring * 0.03})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.55, 0, 0, Math.PI * 1.6); ctx.stroke();
+    noGlow(); ctx.restore();
+  }
   ctx.globalAlpha = 1;
   // [E] "death" interact prompt when player is near
   const dist = Math.sqrt((abyssX-px)**2 + (abyssY-py)**2);
@@ -6860,7 +6957,7 @@ function drawAbyssCorrupt() {
     ctx.fillStyle = '#ff4444';
     ctx.font = '700 10px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('[E] "death"', sx, sy - Math.round(SR + HEAD_DIST + HEAD_R + 14));
+    ctx.fillText('[E] "death"', sx, dsy - 48);
     noGlow();
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
@@ -7124,6 +7221,7 @@ function loop(ts) {
     }
     updateBloodPiles(now);
     updateAbyssEvent();
+    updateAltarGuardian(dt, now);
     updateShadow(dt, now);
     updateTorches(dt);
     updateMonoliths();
@@ -7218,6 +7316,7 @@ function loop(ts) {
   drawTargetIndicators();
   drawRedFlash();
   drawNightOverlay();
+  drawAbyssRedTint();
   drawGlitchOverlay();
   drawBorder();
   drawStamina();
