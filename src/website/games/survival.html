@@ -202,21 +202,46 @@ function initGoblinCamps() {
   const _scrollSurface = scrollIndices(surfacePick.length);
   for (let _pi = 0; _pi < surfacePick.length; _pi++) {
     const [cx, cy] = surfacePick[_pi];
-    const numTents = 2 + Math.floor(Math.random()*2);
+    const WALL_R = 158;
+    const numTents = 3 + Math.floor(Math.random()*3);
     const tents = [];
     for (let i = 0; i < numTents; i++) {
-      const a = (i/numTents)*Math.PI*2 + Math.random()*0.8;
-      const r = 50 + Math.random()*35;
+      const a = (i/numTents)*Math.PI*2 + Math.random()*0.9;
+      const r = 72 + Math.random()*55;
       tents.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, dir: Math.random()<0.5?1:-1 });
     }
     const logs = [];
-    for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
-      const a = Math.random()*Math.PI*2, r = 28+Math.random()*22;
+    for (let i = 0; i < 2+Math.floor(Math.random()*3); i++) {
+      const a = Math.random()*Math.PI*2, r = 28+Math.random()*65;
       logs.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r });
     }
+    const wall = _genWall(cx, cy, WALL_R);
+    const _towers0 = [];
+    for (let i = 0; i < 2; i++) {
+      const a = wall.gapAngles[i] + Math.PI / 3;
+      const r = WALL_R * 0.60;
+      _towers0.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, hp: 6, maxHp: 6, chopped: false });
+    }
+    const campTorches = [];
+    for (const ga of wall.gapAngles) {
+      const r = WALL_R * 0.86;
+      campTorches.push({ x: cx+Math.cos(ga-0.19)*r, y: cy+Math.sin(ga-0.19)*r });
+      campTorches.push({ x: cx+Math.cos(ga+0.19)*r, y: cy+Math.sin(ga+0.19)*r });
+    }
+    const paths = [];
+    for (const ga of wall.gapAngles)
+      paths.push({ x1: cx, y1: cy, x2: cx+Math.cos(ga)*WALL_R*0.85, y2: cy+Math.sin(ga)*WALL_R*0.85 });
+    for (const t of tents.slice(0, 3))
+      paths.push({ x1: cx, y1: cy, x2: t.x, y2: t.y });
+    const extras = [];
+    for (let i = 0; i < 2+Math.floor(Math.random()*3); i++) {
+      const a = Math.random()*Math.PI*2, r = 30+Math.random()*90;
+      extras.push({ type: 'skull_pole', x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r });
+    }
+    extras.push({ type: 'weapon_rack', x: cx+(Math.random()-0.5)*55, y: cy+25+Math.random()*40 });
     const _campId0 = goblinCamps.length;
     for (let i = 0; i < 2+Math.floor(Math.random()*2); i++) {
-      const a = Math.random()*Math.PI*2, r = 35+Math.random()*30;
+      const a = Math.random()*Math.PI*2, r = 35+Math.random()*80;
       const _s0 = new Array(12).fill(null);
       _s0[0] = { id: 'bone',           count: 2+Math.floor(Math.random()*4) };
       _s0[1] = { id: 'bronze_ingot',   count: 1+Math.floor(Math.random()*3) };
@@ -226,16 +251,11 @@ function initGoblinCamps() {
       if (i === 0) _s0[5] = { id: _TRINKETS[_pi % _TRINKETS.length], count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 0, slots: _s0, campId: _campId0 });
     }
-    const _towers0 = [];
-    for (let i = 0; i < 2; i++) {
-      const a = (i === 0 ? Math.random() : Math.random()+Math.PI) * Math.PI * 2;
-      const r = 75 + Math.random()*25;
-      _towers0.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, hp: 6, maxHp: 6, chopped: false });
-    }
     goblinCamps.push({
       x: cx, y: cy, level: 0, id: _campId0,
       campfire: { x: cx+(Math.random()-0.5)*18, y: cy+(Math.random()-0.5)*18 },
-      tents, logs, towers: _towers0, discovered: false, lastDaySpawned: 0, hasSpawned: false, justCleared: false,
+      tents, logs, towers: _towers0, wall, campTorches, paths, extras,
+      discovered: false, lastDaySpawned: 0, hasSpawned: false, justCleared: false,
     });
   }
 
@@ -256,21 +276,46 @@ function initGoblinCamps() {
   const _scrollC1 = scrollIndices(c1Pick.length);
   for (let _pi = 0; _pi < c1Pick.length; _pi++) {
     const [cx, cy] = c1Pick[_pi];
-    const numTents = 1 + Math.floor(Math.random()*2);
+    const WALL_R = 132;
+    const numTents = 2 + Math.floor(Math.random()*3);
     const tents = [];
     for (let i = 0; i < numTents; i++) {
-      const a = (i/numTents)*Math.PI*2 + Math.random()*0.8;
-      const r = 45 + Math.random()*30;
+      const a = (i/numTents)*Math.PI*2 + Math.random()*0.9;
+      const r = 55 + Math.random()*45;
       tents.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, dir: Math.random()<0.5?1:-1 });
     }
     const logs = [];
-    for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
-      const a = Math.random()*Math.PI*2, r = 24+Math.random()*20;
+    for (let i = 0; i < 2+Math.floor(Math.random()*3); i++) {
+      const a = Math.random()*Math.PI*2, r = 22+Math.random()*55;
       logs.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r });
     }
+    const wall = _genWall(cx, cy, WALL_R);
+    const _towers1 = [];
+    for (let i = 0; i < 2; i++) {
+      const a = wall.gapAngles[i] + Math.PI / 3;
+      const r = WALL_R * 0.60;
+      _towers1.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, hp: 6, maxHp: 6, chopped: false });
+    }
+    const campTorches = [];
+    for (const ga of wall.gapAngles) {
+      const r = WALL_R * 0.86;
+      campTorches.push({ x: cx+Math.cos(ga-0.19)*r, y: cy+Math.sin(ga-0.19)*r });
+      campTorches.push({ x: cx+Math.cos(ga+0.19)*r, y: cy+Math.sin(ga+0.19)*r });
+    }
+    const paths = [];
+    for (const ga of wall.gapAngles)
+      paths.push({ x1: cx, y1: cy, x2: cx+Math.cos(ga)*WALL_R*0.85, y2: cy+Math.sin(ga)*WALL_R*0.85 });
+    for (const t of tents.slice(0, 3))
+      paths.push({ x1: cx, y1: cy, x2: t.x, y2: t.y });
+    const extras = [];
+    for (let i = 0; i < 2+Math.floor(Math.random()*2); i++) {
+      const a = Math.random()*Math.PI*2, r = 28+Math.random()*70;
+      extras.push({ type: 'skull_pole', x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r });
+    }
+    extras.push({ type: 'weapon_rack', x: cx+(Math.random()-0.5)*45, y: cy+20+Math.random()*35 });
     const _campId1 = goblinCamps.length;
     for (let i = 0; i < 2+Math.floor(Math.random()*2); i++) {
-      const a = Math.random()*Math.PI*2, r = 30+Math.random()*28;
+      const a = Math.random()*Math.PI*2, r = 30+Math.random()*65;
       const _s1 = new Array(12).fill(null);
       _s1[0] = { id: 'bone',         count: 3+Math.floor(Math.random()*4) };
       _s1[1] = { id: 'bronze_ingot', count: 2+Math.floor(Math.random()*4) };
@@ -280,16 +325,11 @@ function initGoblinCamps() {
       if (i === 0) _s1[5] = { id: _TRINKETS[(4 + _pi) % _TRINKETS.length], count: 1 };
       goblinChests.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, level: 1, slots: _s1, campId: _campId1 });
     }
-    const _towers1 = [];
-    for (let i = 0; i < 2; i++) {
-      const a = (i === 0 ? Math.random() : Math.random()+Math.PI) * Math.PI * 2;
-      const r = 70 + Math.random()*20;
-      _towers1.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, hp: 6, maxHp: 6, chopped: false });
-    }
     goblinCamps.push({
       x: cx, y: cy, level: 1, id: _campId1,
       campfire: { x: cx+(Math.random()-0.5)*18, y: cy+(Math.random()-0.5)*18 },
-      tents, logs, towers: _towers1, discovered: false, lastDaySpawned: 0, hasSpawned: false, justCleared: false,
+      tents, logs, towers: _towers1, wall, campTorches, paths, extras,
+      discovered: false, lastDaySpawned: 0, hasSpawned: false, justCleared: false,
     });
   }
 }
@@ -4971,6 +5011,15 @@ function drawNightOverlay() {
   drawLightSources(campfires, 180, [[0,'255,200,100',0.95],[0.5,'255,160,60',0.55],[1,'255,100,20',0]], effectiveDark);
   drawLightSources(torches,   100, [[0,'255,200,100',0.85],[0.5,'255,150,50',0.4 ],[1,'255,100,20',0]], effectiveDark);
   drawLightSources(furnaces,  160, [[0,'255,160,40', 0.92],[0.45,'255,100,20',0.5],[1,'200,60,0',  0]], effectiveDark);
+  // Goblin camp fires and torches
+  const _gcf = [], _gct = [];
+  for (const camp of goblinCamps) {
+    const cl = camp.level || 0;
+    _gcf.push({ x: camp.campfire.x, y: camp.campfire.y, cave: cl });
+    for (const ct of (camp.campTorches || [])) _gct.push({ x: ct.x, y: ct.y, cave: cl });
+  }
+  drawLightSources(_gcf, 180, [[0,'255,200,100',0.95],[0.5,'255,160,60',0.55],[1,'255,100,20',0]], effectiveDark);
+  drawLightSources(_gct, 100, [[0,'255,200,100',0.85],[0.5,'255,150,50',0.4 ],[1,'255,100,20',0]], effectiveDark);
   lctx.globalCompositeOperation = 'source-over';
   ctx.drawImage(lightCanvas, 0, 0);
 }
@@ -5081,7 +5130,7 @@ function updateCampSpawning() {
 }
 
 function _drawTent(sx, sy) {
-  const PS = 3;
+  const PS = 4;
   // Pole
   ctx.fillStyle = '#7a4828';
   ctx.fillRect(sx - 1, sy - 13*PS, 3, 4*PS);
@@ -5187,6 +5236,126 @@ function _drawChest(sx, sy, open) {
   }
 }
 
+function _genWall(cx, cy, radius) {
+  const baseA = Math.random() * Math.PI * 2;
+  const gapAngles = [baseA, baseA + Math.PI*2/3, baseA + Math.PI*4/3];
+  const GAP_HALF = 0.28;
+  const NUM_POSTS = 28;
+  const posts = [], angles = [];
+  for (let i = 0; i < NUM_POSTS; i++) {
+    const a = (i / NUM_POSTS) * Math.PI * 2;
+    const inGap = gapAngles.some(ga => {
+      let d = Math.abs(a - ga); if (d > Math.PI) d = Math.PI*2 - d; return d < GAP_HALF;
+    });
+    if (!inGap) { posts.push({ x: cx+Math.cos(a)*radius, y: cy+Math.sin(a)*radius }); angles.push(a); }
+  }
+  const segs = [];
+  const maxDA = (Math.PI * 2 / NUM_POSTS) * 2.2;
+  for (let i = 0; i < posts.length; i++) {
+    const j = (i + 1) % posts.length;
+    let da = Math.abs(angles[j] - angles[i]);
+    if (da > Math.PI) da = Math.PI * 2 - da;
+    if (da < maxDA) segs.push([i, j]);
+  }
+  return { posts, segs, gapAngles, radius };
+}
+
+function _drawWallPost(sx, sy) {
+  ctx.fillStyle = '#3a1806'; ctx.fillRect(sx-4, sy-24, 8, 24);
+  ctx.fillStyle = '#5a3010'; ctx.fillRect(sx-5, sy-24, 7, 24);
+  ctx.fillStyle = '#8a5030'; ctx.fillRect(sx-5, sy-24, 1, 24);
+  ctx.fillStyle = '#4a2808'; ctx.fillRect(sx-3, sy-30, 6, 7);
+  ctx.fillStyle = '#5a3010'; ctx.fillRect(sx-2, sy-33, 4, 4);
+  ctx.fillStyle = '#6a3818'; ctx.fillRect(sx-1, sy-35, 2, 3);
+}
+
+function _drawCampWall(wall) {
+  const posts = wall.posts, segs = wall.segs;
+  for (const [i, j] of segs) {
+    const p1 = posts[i], p2 = posts[j];
+    const sx1 = Math.round(p1.x - camX), sy1 = Math.round(p1.y - camY);
+    const sx2 = Math.round(p2.x - camX), sy2 = Math.round(p2.y - camY);
+    if ((sx1 < -250 && sx2 < -250) || (sx1 > W+250 && sx2 > W+250)) continue;
+    if ((sy1 < -250 && sy2 < -250) || (sy1 > H+250 && sy2 > H+250)) continue;
+    const dx = sx2-sx1, dy = sy2-sy1;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const a = Math.atan2(dy, dx);
+    ctx.save();
+    ctx.translate(Math.round((sx1+sx2)/2), Math.round((sy1+sy2)/2));
+    ctx.rotate(a);
+    ctx.fillStyle = '#3a1806'; ctx.fillRect(-len/2+1, -14, len-1, 17);
+    ctx.fillStyle = '#5a3010'; ctx.fillRect(-len/2, -14, len, 15);
+    ctx.fillStyle = '#7a4820'; ctx.fillRect(-len/2, -14, len, 4);
+    ctx.fillStyle = '#2a1204'; ctx.fillRect(-len/2, 0, len, 1);
+    ctx.restore();
+  }
+  for (const p of posts) {
+    const sx = Math.round(p.x - camX), sy = Math.round(p.y - camY);
+    if (sx < -30 || sx > W+30 || sy < -40 || sy > H+10) continue;
+    _drawWallPost(sx, sy);
+  }
+}
+
+function _drawCampPath(wx1, wy1, wx2, wy2) {
+  const sx1 = wx1 - camX, sy1 = wy1 - camY;
+  const sx2 = wx2 - camX, sy2 = wy2 - camY;
+  const minX = Math.min(sx1,sx2), maxX = Math.max(sx1,sx2);
+  const minY = Math.min(sy1,sy2), maxY = Math.max(sy1,sy2);
+  if (maxX < -10 || minX > W+10 || maxY < -10 || minY > H+10) return;
+  const dx = sx2-sx1, dy = sy2-sy1;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  if (len < 4) return;
+  ctx.save();
+  ctx.translate(Math.round(sx1), Math.round(sy1));
+  ctx.rotate(Math.atan2(dy, dx));
+  ctx.fillStyle = '#7a5530'; ctx.fillRect(0, -8, len, 16);
+  ctx.fillStyle = '#6a4528'; ctx.fillRect(0, -8, len, 2); ctx.fillRect(0, 6, len, 2);
+  ctx.fillStyle = '#8a6538';
+  for (let d = 10; d < len - 4; d += 16)
+    ctx.fillRect(d, -3 + Math.round(Math.sin(d * 0.5) * 2), 3, 2);
+  ctx.restore();
+}
+
+function _drawSkullPole(sx, sy) {
+  ctx.fillStyle = '#4a2808'; ctx.fillRect(sx-1, sy-36, 3, 36);
+  ctx.fillStyle = '#7a4820'; ctx.fillRect(sx-1, sy-36, 1, 36);
+  ctx.fillStyle = '#ddd8c4'; ctx.fillRect(sx-7, sy-52, 14, 14);
+  ctx.fillStyle = '#c8c0a8'; ctx.fillRect(sx-6, sy-55, 12, 5);
+  ctx.fillStyle = '#181008';
+  ctx.fillRect(sx-5, sy-50, 4, 4);
+  ctx.fillRect(sx+1, sy-50, 4, 4);
+  ctx.fillStyle = '#ccc4b0'; ctx.fillRect(sx-6, sy-41, 12, 5);
+  ctx.fillStyle = '#181008';
+  ctx.fillRect(sx-4, sy-40, 2, 2); ctx.fillRect(sx-1, sy-40, 2, 2); ctx.fillRect(sx+2, sy-40, 2, 2);
+}
+
+function _drawWeaponRack(sx, sy) {
+  ctx.fillStyle = '#4a2808'; ctx.fillRect(sx-3, sy-28, 4, 34);
+  ctx.fillStyle = '#5a3010'; ctx.fillRect(sx-3, sy-28, 1, 34);
+  ctx.fillStyle = '#7a4820'; ctx.fillRect(sx-22, sy-4, 44, 4);
+  ctx.fillStyle = '#9a6030'; ctx.fillRect(sx-22, sy-4, 44, 1);
+  ctx.fillStyle = '#6a4020'; ctx.fillRect(sx-16, sy-22, 3, 22);
+  ctx.fillStyle = '#c0c0c0'; ctx.fillRect(sx-17, sy-24, 5, 5);
+  ctx.fillStyle = '#6a4020'; ctx.fillRect(sx+11, sy-20, 3, 20);
+  ctx.fillStyle = '#c0c0c0'; ctx.fillRect(sx+10, sy-22, 5, 5);
+  ctx.fillStyle = '#909090'; ctx.fillRect(sx-3, sy-20, 2, 22);
+  ctx.fillStyle = '#606060'; ctx.fillRect(sx-5, sy-14, 6, 3);
+}
+
+function _drawCampTorch(sx, sy, t) {
+  ctx.fillStyle = '#5a2a0a'; ctx.fillRect(sx-2, sy-6, 4, 18);
+  ctx.fillStyle = '#7a4020'; ctx.fillRect(sx-2, sy-6, 1, 18);
+  const flick = Math.sin(t * 11 + sx * 0.03) * 1.5;
+  glow('#dd4408', 10);
+  ctx.fillStyle = '#e05010';
+  ctx.beginPath(); ctx.ellipse(sx, sy-14, 3+flick, 7+flick, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffa020';
+  ctx.beginPath(); ctx.ellipse(sx, sy-15, 2+flick*0.4, 5+flick*0.8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffe060';
+  ctx.beginPath(); ctx.ellipse(sx, sy-14, 1, 2, 0, 0, Math.PI*2); ctx.fill();
+  noGlow();
+}
+
 function _drawArcherTower(sx, sy, hpFrac) {
   const H = 72;
   // Post shadows/dark side
@@ -5253,20 +5422,40 @@ function _drawArcherTower(sx, sy, hpFrac) {
 }
 
 function drawGoblinCamps() {
+  const t = gameNow;
   for (const camp of goblinCamps) {
     if ((camp.level || 0) !== caveLevel) continue;
-    for (const t of camp.tents) {
-      const sx = Math.round(t.x - camX), sy = Math.round(t.y - camY);
-      if (sx < -120 || sx > W+120 || sy < -120 || sy > H+120) continue;
-      ctx.save(); ctx.scale(t.dir, 1); _drawTent(sx * t.dir, sy); ctx.restore();
-    }
+    // Ground paths (drawn first, underneath everything)
+    for (const p of (camp.paths || []))
+      _drawCampPath(p.x1, p.y1, p.x2, p.y2);
+    // Log piles
     for (const l of camp.logs) {
       const sx = Math.round(l.x - camX), sy = Math.round(l.y - camY);
       if (sx < -40 || sx > W+40 || sy < -20 || sy > H+20) continue;
       _drawLogPile(sx, sy);
     }
+    // Extras (skull poles, weapon racks)
+    for (const e of (camp.extras || [])) {
+      const sx = Math.round(e.x - camX), sy = Math.round(e.y - camY);
+      if (sx < -30 || sx > W+30 || sy < -60 || sy > H+10) continue;
+      if (e.type === 'skull_pole') _drawSkullPole(sx, sy);
+      else if (e.type === 'weapon_rack') _drawWeaponRack(sx, sy);
+    }
+    // Campfire
     const cfsx = Math.round(camp.campfire.x - camX), cfsy = Math.round(camp.campfire.y - camY);
     if (cfsx >= -110 && cfsx <= W+110 && cfsy >= -110 && cfsy <= H+110) _drawBoneCampfire(cfsx, cfsy);
+    // Camp torches
+    for (const ct of (camp.campTorches || [])) {
+      const sx = Math.round(ct.x - camX), sy = Math.round(ct.y - camY);
+      if (sx < -20 || sx > W+20 || sy < -30 || sy > H+20) continue;
+      _drawCampTorch(sx, sy, t);
+    }
+    // Tents
+    for (const tent of camp.tents) {
+      const sx = Math.round(tent.x - camX), sy = Math.round(tent.y - camY);
+      if (sx < -160 || sx > W+160 || sy < -160 || sy > H+160) continue;
+      ctx.save(); ctx.scale(tent.dir, 1); _drawTent(sx * tent.dir, sy); ctx.restore();
+    }
     // Archer towers
     for (const tower of (camp.towers || [])) {
       if (tower.chopped) continue;
@@ -5274,6 +5463,8 @@ function drawGoblinCamps() {
       if (sx < -120 || sx > W+120 || sy < -120 || sy > H+120) continue;
       _drawArcherTower(sx, sy, tower.hp / tower.maxHp);
     }
+    // Wall (drawn last so it renders over interior objects at the edge)
+    if (camp.wall) _drawCampWall(camp.wall);
   }
   for (const chest of goblinChests) {
     if ((chest.level || 0) !== caveLevel) continue;
