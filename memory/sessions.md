@@ -1,5 +1,34 @@
 # Session History
 
+## Session 14 -- 2026-03-24
+
+Survival game (survival.html) — goblin camp visual overhaul + corrupt guardian chase system:
+
+**Goblin camp overhaul (Round 1):**
+  - Tents upgraded to PS=4 (bigger sprites)
+  - Camps spread wider: surface WALL_R=158, cave1 WALL_R=132
+  - Log palisade walls via `_genWall()`: 28 posts in a ring, 3 entrance gaps, precomputed segment pairs
+  - `_drawWallPost`, `_drawCampWall`, `_drawCampPath`, `_drawSkullPole`, `_drawWeaponRack`, `_drawCampTorch` draw helpers added
+  - Dirt paths from center to each entrance + first 3 tents
+  - 2–4 skull poles + 1 weapon rack per camp as extras
+  - 6 camp torches (2 flanking each entrance gap)
+  - Camp campfires and torches now emit light during night overlay (`drawLightSources` calls in `drawNightOverlay`)
+
+**Corrupt guardian chase system (Round 2):**
+  - `drawAbyssCorrupt()` redesigned: humanoid shape (matches void altar guardian) with floating drift, wide pulsing dark aura, and orbiting halo rings
+  - Void altar guardian (`_drawAltarGuardian`) now supports `altarGuardianChasing` state:
+    - Proximity trigger: walking within 120px starts chase
+    - Moves toward player at 140px/s; arms flail, eyes glow brighter, chase aura rings spin
+    - Contact damage: 12 dmg, 1.0s cooldown
+    - Auto-exits void world when player reaches return portal during chase
+  - `updateAltarGuardian(dt, now)` function handles all chase movement/damage/exit logic
+  - E-key void portal exit also triggers red tint if guardian was chasing
+  - `abyssRedTint`: permanent subtle red overlay on surface (caveLevel 0 only, ~7% alpha with slow breathing pulse) — like the sun turned blood-red
+  - New state vars: `altarGuardianChasing`, `_guardianCX/CY`, `abyssRedTint` — all reset in `restartGame()`
+
+**Also discussed:**
+  - Rojo integration for Roblox Studio (potential future project): Rojo syncs local .luau files into Studio in real-time; Claude handles scripting, user handles 3D world building
+
 ## Session 13 -- 2026-03-23
 
 Survival game (survival.html) — goblin camp overhaul, portal/path fixes, water breathing:
