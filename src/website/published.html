@@ -41,58 +41,44 @@
         <div style="width:100%; height:100px; background:#07060f; overflow:hidden;">
           <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
             <defs>
-              <filter id="sv-glow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="2.2" result="blur"/>
+              <filter id="sv-g" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="1.8" result="blur"/>
                 <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
               </filter>
-              <filter id="sv-blood" x="-40%" y="-40%" width="180%" height="180%">
-                <feGaussianBlur stdDeviation="1.4"/>
-              </filter>
             </defs>
-            <!-- Night sky -->
-            <rect width="160" height="100" fill="#04030d"/>
-            <!-- Stars -->
-            <circle cx="12" cy="8" r="0.6" fill="white" opacity="0.5"/>
-            <circle cx="38" cy="5" r="0.5" fill="white" opacity="0.4"/>
-            <circle cx="65" cy="12" r="0.7" fill="white" opacity="0.55"/>
-            <circle cx="100" cy="6" r="0.5" fill="white" opacity="0.35"/>
-            <circle cx="140" cy="10" r="0.6" fill="white" opacity="0.5"/>
-            <circle cx="155" cy="4" r="0.4" fill="white" opacity="0.4"/>
-            <circle cx="22" cy="20" r="0.4" fill="white" opacity="0.3"/>
-            <circle cx="120" cy="18" r="0.5" fill="white" opacity="0.4"/>
-            <!-- Blood moon -->
-            <circle cx="132" cy="18" r="11" fill="#3a0000" filter="url(#sv-blood)" opacity="0.9"/>
-            <circle cx="132" cy="18" r="8" fill="#8b0000" opacity="0.85" filter="url(#sv-glow)"/>
-            <circle cx="132" cy="18" r="5" fill="#cc1010" opacity="0.7"/>
+            <!-- Sky -->
+            <rect width="160" height="100" fill="#5a8fcc"/>
+            <rect width="160" height="60" fill="#7ab0e8" opacity="0.5"/>
+            <!-- Sun -->
+            <circle cx="128" cy="22" r="12" fill="#ffe066" opacity="0.3" filter="url(#sv-g)"/>
+            <circle cx="128" cy="22" r="8" fill="#ffe066" opacity="0.9"/>
+            <!-- Clouds -->
+            <ellipse cx="40" cy="18" rx="18" ry="7" fill="white" opacity="0.75"/>
+            <ellipse cx="52" cy="15" rx="12" ry="6" fill="white" opacity="0.75"/>
+            <ellipse cx="28" cy="16" rx="10" ry="5" fill="white" opacity="0.65"/>
             <!-- Ground -->
-            <rect x="0" y="72" width="160" height="28" fill="#0a0814"/>
-            <rect x="0" y="70" width="160" height="4" fill="#130e22"/>
-            <!-- Tree silhouettes -->
-            <rect x="8" y="40" width="4" height="34" fill="#07040f"/>
-            <ellipse cx="10" cy="38" rx="10" ry="14" fill="#07040f"/>
-            <rect x="140" y="44" width="4" height="28" fill="#07040f"/>
-            <ellipse cx="142" cy="42" rx="9" ry="12" fill="#07040f"/>
-            <rect x="26" y="50" width="3" height="24" fill="#0a061a"/>
-            <ellipse cx="27" cy="48" rx="7" ry="9" fill="#0a061a"/>
-            <!-- Monolith silhouette -->
-            <rect x="74" y="38" width="8" height="34" fill="#0e0a1e" filter="url(#sv-glow)"/>
-            <polygon points="74,38 82,38 78,30" fill="#0e0a1e" filter="url(#sv-glow)"/>
-            <!-- Red rune glow on monolith -->
-            <rect x="76" y="48" width="4" height="1" fill="#8b0000" opacity="0.7"/>
-            <rect x="76" y="54" width="4" height="1" fill="#8b0000" opacity="0.5"/>
-            <!-- Red eyes in darkness -->
-            <circle cx="48" cy="66" r="1.5" fill="#ff0000" opacity="0.7" filter="url(#sv-glow)"/>
-            <circle cx="54" cy="66" r="1.5" fill="#ff0000" opacity="0.7" filter="url(#sv-glow)"/>
-            <circle cx="108" cy="63" r="1.2" fill="#ff2020" opacity="0.6" filter="url(#sv-glow)"/>
-            <circle cx="113" cy="63" r="1.2" fill="#ff2020" opacity="0.6" filter="url(#sv-glow)"/>
-            <!-- SURVIVAL title with drip effect -->
-            <text x="80" y="26" text-anchor="middle" font-family="monospace" font-size="10" font-weight="900"
-              fill="#cc0000" letter-spacing="1.5" filter="url(#sv-glow)" opacity="0.95">SURVIVAL</text>
-            <!-- Blood drips from title -->
-            <rect x="30" y="26" width="2" height="5" fill="#8b0000" opacity="0.7" rx="1"/>
-            <rect x="58" y="26" width="2" height="7" fill="#8b0000" opacity="0.6" rx="1"/>
-            <rect x="88" y="26" width="2" height="4" fill="#8b0000" opacity="0.65" rx="1"/>
-            <rect x="118" y="26" width="2" height="6" fill="#8b0000" opacity="0.7" rx="1"/>
+            <rect x="0" y="68" width="160" height="32" fill="#4a8c3a"/>
+            <rect x="0" y="66" width="160" height="5" fill="#5aaa48"/>
+            <!-- Trees -->
+            <rect x="10" y="44" width="6" height="28" fill="#7a5230"/>
+            <ellipse cx="13" cy="40" rx="14" ry="16" fill="#2e7d32"/>
+            <ellipse cx="13" cy="36" rx="10" ry="11" fill="#388e3c"/>
+            <rect x="136" y="48" width="5" height="24" fill="#7a5230"/>
+            <ellipse cx="138" cy="44" rx="12" ry="14" fill="#2e7d32"/>
+            <ellipse cx="138" cy="40" rx="9" ry="10" fill="#388e3c"/>
+            <!-- Small rocks -->
+            <ellipse cx="60" cy="76" rx="5" ry="3" fill="#888" opacity="0.6"/>
+            <ellipse cx="105" cy="78" rx="4" ry="2.5" fill="#888" opacity="0.5"/>
+            <!-- Player character -->
+            <rect x="76" y="60" width="8" height="10" fill="#d4a574"/>
+            <circle cx="80" cy="57" r="6" fill="#d4a574"/>
+            <rect x="74" y="62" width="12" height="8" fill="#4a7acc"/>
+            <!-- Sword -->
+            <rect x="89" y="56" width="2" height="12" fill="#c0c0c0" opacity="0.9"/>
+            <rect x="87" y="60" width="6" height="2" fill="#a07850" opacity="0.9"/>
+            <!-- SURVIVAL title -->
+            <text x="80" y="13" text-anchor="middle" font-family="monospace" font-size="10" font-weight="900"
+              fill="#1a3a0a" letter-spacing="1" opacity="0.85">SURVIVAL</text>
           </svg>
         </div>
         <div style="padding:0.5rem 0.7rem; border-top:1px solid #3b1a6b;">
