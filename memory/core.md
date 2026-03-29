@@ -15,6 +15,13 @@ Understands how programming works but not an expert in any language.
 - Website: corecreate.dev -- hosted on Cloudflare Pages, deployed via GitHub push
 - Website source: src/website/ in this repo
 
+## Roblox Project
+- Project root: C:\Dev\RobloxGame
+- Rojo v7.6.1 (Aftman-managed, config at C:\Dev\RobloxGame\aftman.toml)
+- Studio plugin: Rojo 7.6.1 by Rojo Foundation
+- src/server → Scripts folder inside ServerScriptService, src/client → StarterPlayerScripts, src/shared → Shared folder in ReplicatedStorage
+- Must be in Edit mode for Rojo to sync; Script Injection permission must be granted in Plugin Manager
+
 ## Gotchas
 
 - gh CLI installed and working (auth'd as Geoff-55)

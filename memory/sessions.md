@@ -1,5 +1,20 @@
 # Session History
 
+## Session 15 -- 2026-03-28
+
+Roblox Studio + Rojo integration setup:
+
+- Installed Rojo VS Code extension (evaera.vscode-rojo v2.1.2) via `code --install-extension`
+- Rojo binary installed via Aftman (managed by VS Code extension), downgraded to v7.6.1 to match Studio plugin
+- Studio plugin: Rojo 7.6.1 by Rojo Foundation (installed manually via Toolbox)
+- Project created at C:\Dev\RobloxGame with src/server, src/client, src/shared structure
+- Fixed default.project.json: services use $ignoreUnknownInstances + nested folder paths to avoid duplicate service creation
+- Gotcha: Rojo maps src/server into a "Scripts" folder inside ServerScriptService (not directly)
+- Gotcha: must be in Edit mode (not Play mode) for Rojo to sync
+- Gotcha: Studio requires script injection permission granted in Plugin Manager
+- Test scripts: DamagePart (Touched damage + debounce) + DamagePartMover (TweenService side-to-side movement) — both working
+- Claude can't see Studio Explorer directly; workarounds: screenshots, named path descriptions, or WaitForChild by name
+
 ## Session 14 -- 2026-03-24
 
 Survival game (survival.html) — goblin camp visual overhaul + corrupt guardian chase system:

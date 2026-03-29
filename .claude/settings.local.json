@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -command \"\n\\\\$shell = New-Object -ComObject WScript.Shell\n\\\\$sc = \\\\$shell.CreateShortcut\\('C:\\\\\\\\Users\\\\\\\\Geoff\\\\\\\\Desktop\\\\\\\\ClaudeCreator.lnk'\\)\nWrite-Host 'Target:', \\\\$sc.TargetPath\nWrite-Host 'Arguments:', \\\\$sc.Arguments\nWrite-Host 'WorkDir:', \\\\$sc.WorkingDirectory\n\")",
+      "Bash(powershell -command \"\n\\\\$shell = New-Object -ComObject WScript.Shell\n\\\\$sc = \\\\$shell.CreateShortcut\\('C:\\\\\\\\Users\\\\\\\\Geoff\\\\\\\\Desktop\\\\\\\\ClaudeCreator.lnk'\\)\nWrite-Host 'Arguments:', \\\\$sc.Arguments\n\")",
+      "Bash(powershell -File \"C:\\\\Dev\\\\ClaudeCreator\\\\scripts\\\\update-shortcut.ps1\" 2>/dev/null; powershell -command \"\n\\\\$shell = New-Object -ComObject WScript.Shell\n\\\\$sc = \\\\$shell.CreateShortcut\\('C:\\\\\\\\Users\\\\\\\\Geoff\\\\\\\\Desktop\\\\\\\\ClaudeCreator.lnk'\\)\n\\\\$sc.TargetPath = 'C:\\\\\\\\Windows\\\\\\\\System32\\\\\\\\WindowsPowerShell\\\\\\\\v1.0\\\\\\\\powershell.exe'\n\\\\$sc.Arguments = '-NoExit -ExecutionPolicy Bypass -File C:\\\\\\\\Dev\\\\\\\\ClaudeCreator\\\\\\\\scripts\\\\\\\\launch.ps1'\n\\\\$sc.WorkingDirectory = 'C:\\\\\\\\Dev\\\\\\\\ClaudeCreator'\n\\\\$sc.Save\\(\\)\nWrite-Host 'Shortcut updated.'\n\")",
+      "Bash(powershell -command \"\n\\\\$shell = New-Object -ComObject WScript.Shell\n\\\\$sc = \\\\$shell.CreateShortcut\\('C:\\\\\\\\Users\\\\\\\\Geoff\\\\\\\\Desktop\\\\\\\\ClaudeCreator.lnk'\\)\nWrite-Host 'Target:', \\\\$sc.TargetPath\nWrite-Host 'Arguments:', \\\\$sc.Arguments\n\")",
+      "Bash(git:*)",
+      "Bash(winget install:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh:*)",
+      "Bash(git commit:*)",
+      "Bash(code:*)",
+      "Bash(rojo --version)",
+      "Bash(aftman --version)"
+    ]
+  }
+}
