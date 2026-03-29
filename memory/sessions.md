@@ -1,5 +1,20 @@
 # Session History
 
+## Session 16 -- 2026-03-28
+
+Survival game final session + Roblox continued:
+
+**Survival (survival.html) — abyss world ending:**
+- Both void world outcomes (portal return OR guardian contact) now send player to the abyss instead of surface
+- Abyss = caveLevel 5: pitch black looping world (2 chunks), player wanders freely for 30s
+- After 30s: 3s fade to black → 3s game over fade in, buttons locked until halfway through
+- Survival moved from drafts to published; thumbnail = cheerful daytime scene (blue sky, trees, player with sword) — horror is a surprise
+
+**Roblox / Rojo (C:\Dev\RobloxGame):**
+- DamagePart script: Touched → TakeDamage(10) with 0.1s debounce per player
+- DamagePartMover script: TweenService side-to-side movement (Sine easing, 15 studs, 2s sweep)
+- Both working with live Rojo sync
+
 ## Session 15 -- 2026-03-28
 
 Roblox Studio + Rojo integration setup:
