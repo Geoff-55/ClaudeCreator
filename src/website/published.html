@@ -34,6 +34,74 @@
 
   <div style="position:relative; z-index:1; padding: 6rem 3rem 2rem; display:flex; flex-wrap:wrap; gap:1.5rem;">
 
+    <!-- Survival card -->
+    <a href="games/survival.html?from=published" style="text-decoration:none;">
+      <div style="width:160px; border:1px solid #7c3aed; background:#0d0d0f; cursor:pointer; transition: box-shadow 0.2s;"
+           onmouseover="this.style.boxShadow='0 0 18px #7c3aed'" onmouseout="this.style.boxShadow='none'">
+        <div style="width:100%; height:100px; background:#07060f; overflow:hidden;">
+          <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+              <filter id="sv-glow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="2.2" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="sv-blood" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="1.4"/>
+              </filter>
+            </defs>
+            <!-- Night sky -->
+            <rect width="160" height="100" fill="#04030d"/>
+            <!-- Stars -->
+            <circle cx="12" cy="8" r="0.6" fill="white" opacity="0.5"/>
+            <circle cx="38" cy="5" r="0.5" fill="white" opacity="0.4"/>
+            <circle cx="65" cy="12" r="0.7" fill="white" opacity="0.55"/>
+            <circle cx="100" cy="6" r="0.5" fill="white" opacity="0.35"/>
+            <circle cx="140" cy="10" r="0.6" fill="white" opacity="0.5"/>
+            <circle cx="155" cy="4" r="0.4" fill="white" opacity="0.4"/>
+            <circle cx="22" cy="20" r="0.4" fill="white" opacity="0.3"/>
+            <circle cx="120" cy="18" r="0.5" fill="white" opacity="0.4"/>
+            <!-- Blood moon -->
+            <circle cx="132" cy="18" r="11" fill="#3a0000" filter="url(#sv-blood)" opacity="0.9"/>
+            <circle cx="132" cy="18" r="8" fill="#8b0000" opacity="0.85" filter="url(#sv-glow)"/>
+            <circle cx="132" cy="18" r="5" fill="#cc1010" opacity="0.7"/>
+            <!-- Ground -->
+            <rect x="0" y="72" width="160" height="28" fill="#0a0814"/>
+            <rect x="0" y="70" width="160" height="4" fill="#130e22"/>
+            <!-- Tree silhouettes -->
+            <rect x="8" y="40" width="4" height="34" fill="#07040f"/>
+            <ellipse cx="10" cy="38" rx="10" ry="14" fill="#07040f"/>
+            <rect x="140" y="44" width="4" height="28" fill="#07040f"/>
+            <ellipse cx="142" cy="42" rx="9" ry="12" fill="#07040f"/>
+            <rect x="26" y="50" width="3" height="24" fill="#0a061a"/>
+            <ellipse cx="27" cy="48" rx="7" ry="9" fill="#0a061a"/>
+            <!-- Monolith silhouette -->
+            <rect x="74" y="38" width="8" height="34" fill="#0e0a1e" filter="url(#sv-glow)"/>
+            <polygon points="74,38 82,38 78,30" fill="#0e0a1e" filter="url(#sv-glow)"/>
+            <!-- Red rune glow on monolith -->
+            <rect x="76" y="48" width="4" height="1" fill="#8b0000" opacity="0.7"/>
+            <rect x="76" y="54" width="4" height="1" fill="#8b0000" opacity="0.5"/>
+            <!-- Red eyes in darkness -->
+            <circle cx="48" cy="66" r="1.5" fill="#ff0000" opacity="0.7" filter="url(#sv-glow)"/>
+            <circle cx="54" cy="66" r="1.5" fill="#ff0000" opacity="0.7" filter="url(#sv-glow)"/>
+            <circle cx="108" cy="63" r="1.2" fill="#ff2020" opacity="0.6" filter="url(#sv-glow)"/>
+            <circle cx="113" cy="63" r="1.2" fill="#ff2020" opacity="0.6" filter="url(#sv-glow)"/>
+            <!-- SURVIVAL title with drip effect -->
+            <text x="80" y="26" text-anchor="middle" font-family="monospace" font-size="10" font-weight="900"
+              fill="#cc0000" letter-spacing="1.5" filter="url(#sv-glow)" opacity="0.95">SURVIVAL</text>
+            <!-- Blood drips from title -->
+            <rect x="30" y="26" width="2" height="5" fill="#8b0000" opacity="0.7" rx="1"/>
+            <rect x="58" y="26" width="2" height="7" fill="#8b0000" opacity="0.6" rx="1"/>
+            <rect x="88" y="26" width="2" height="4" fill="#8b0000" opacity="0.65" rx="1"/>
+            <rect x="118" y="26" width="2" height="6" fill="#8b0000" opacity="0.7" rx="1"/>
+          </svg>
+        </div>
+        <div style="padding:0.5rem 0.7rem; border-top:1px solid #3b1a6b;">
+          <p style="color:#d8b4fe; font-family:monospace; font-size:0.8rem; font-weight:600; letter-spacing:0.05em;">Survival</p>
+          <p style="color:#a855f7; font-family:monospace; font-size:0.65rem; margin-top:2px;">Published</p>
+        </div>
+      </div>
+    </a>
+
     <!-- Pong 2 card -->
     <a href="games/pong2.html?from=published" style="text-decoration:none;">
       <div style="width:160px; border:1px solid #7c3aed; background:#0d0d0f; cursor:pointer; transition: box-shadow 0.2s;"

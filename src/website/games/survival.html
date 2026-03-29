@@ -94,6 +94,9 @@ const CHUNK_W = W, CHUNK_H = H;
 const CHUNKS_X = 12, CHUNKS_Y = 16;
 const WORLD_W  = CHUNK_W * CHUNKS_X;
 const WORLD_H  = CHUNK_H * CHUNKS_Y;
+const ABYSS_W  = CHUNK_W * 2;  // looping abyss world (2 chunks wide)
+const ABYSS_H  = CHUNK_H * 2;
+const ABYSS_DURATION = 30;     // seconds before death sequence
 // Single forest: random location per game, away from spawn
 let FOREST_CX, FOREST_CY, FOREST_ALTAR_X, FOREST_ALTAR_Y;
 // Lake: opposite side of map from forest
@@ -1104,8 +1107,8 @@ let surfacePx = 0, surfacePy = 0;
 const _emptyArr = [];
 function curRocks()  { return caveLevel >= 4 ? _emptyArr : caveLevel === 3 ? hellRocks : caveLevel === 2 ? cave2Rocks : inCave ? caveRocks : worldRocks; }
 function curGround() { return caveLevel >= 4 ? _emptyArr : caveLevel === 3 ? hellGroundItems : caveLevel === 2 ? cave2GroundItems : inCave ? caveGroundItems : worldGroundItems; }
-function curWorldW() { return caveLevel >= 4 ? HELL_W : caveLevel === 3 ? HELL_W : caveLevel === 2 ? CAVE2_W : inCave ? CAVE_W : WORLD_W; }
-function curWorldH() { return caveLevel >= 4 ? HELL_H : caveLevel === 3 ? HELL_H : caveLevel === 2 ? CAVE2_H : inCave ? CAVE_H : WORLD_H; }
+function curWorldW() { return caveLevel === 5 ? ABYSS_W : caveLevel >= 4 ? HELL_W : caveLevel === 3 ? HELL_W : caveLevel === 2 ? CAVE2_W : inCave ? CAVE_W : WORLD_W; }
+function curWorldH() { return caveLevel === 5 ? ABYSS_H : caveLevel >= 4 ? HELL_H : caveLevel === 3 ? HELL_H : caveLevel === 2 ? CAVE2_H : inCave ? CAVE_H : WORLD_H; }
 
 function enterCave(entranceIdx) {
   const ent = mineEntrances[entranceIdx];
@@ -1218,6 +1221,10 @@ let respawnTimer = 0;
 let score = 0;
 let gameOver = false;
 let gameState = 'menu'; // 'menu' | 'playing' | 'gameover'
+let abyssPhase = 0;         // 0=inactive, 1=waiting(30s), 2=fade to black, 3=gameover fade in
+let abyssTimer = 0;
+let abyssFadeAlpha = 0;
+let gameOverFadeAlpha = 0;
 const goblinCamps  = [];
 const goblinChests = [];
 const goblinArrows = [];
@@ -2840,6 +2847,7 @@ function updateDayNight(dt) {
 let camX = 0, camY = 0;
 
 function updateCamera() {
+  if (caveLevel === 5) { camX = px - W / 2; camY = py - H / 2; return; }
   camX = Math.max(0, Math.min(curWorldW() - W, px - W / 2));
   camY = Math.max(0, Math.min(curWorldH() - H, py - H / 2));
 }
@@ -3123,11 +3131,10 @@ function handleInteract() {
     }
   }
   if (caveLevel >= 4) {
-    // Corrupt world: exit portal
+    // Corrupt world: touching the return portal sends the player to the abyss
     const dx = corruptEntryX - px, dy = corruptEntryY - py;
     if (Math.sqrt(dx*dx + dy*dy) < 90) {
-      if (altarGuardianChasing) { altarGuardianChasing = false; abyssRedTint = true; }
-      exitCorruptWorld();
+      enterAbyssWorld();
       return;
     }
     return;
@@ -3320,8 +3327,14 @@ function updateMovement(dt) {
     const speed = (sprinting ? SPEED * SPRINT_MULT : SPEED) * _sm * (inWater ? 0.45 : 1);
     px += Math.cos(facingAngle) * speed * dt;
     py += Math.sin(facingAngle) * speed * dt;
-    px = Math.max(BODY_R, Math.min(curWorldW() - BODY_R, px));
-    py = Math.max(BODY_R, Math.min(curWorldH() - BODY_R, py));
+    if (caveLevel === 5) {
+      // Wrap position to create seamless looping illusion
+      if (px < 0) px += ABYSS_W; else if (px > ABYSS_W) px -= ABYSS_W;
+      if (py < 0) py += ABYSS_H; else if (py > ABYSS_H) py -= ABYSS_H;
+    } else {
+      px = Math.max(BODY_R, Math.min(curWorldW() - BODY_R, px));
+      py = Math.max(BODY_R, Math.min(curWorldH() - BODY_R, py));
+    }
   }
   if (inWater && moving && Math.random() < 0.22)
     spawnParticles(px + (Math.random()-0.5)*14, py + 8, Math.random() < 0.5 ? '#3a8cb8' : '#6ab8d8', 1);
@@ -6329,6 +6342,7 @@ function drawScore() {
 
 // ===================== GAME OVER =====================
 function checkGameOver() {
+  if (caveLevel === 5) return; // abyss has its own ending sequence
   if (!gameOver && playerHp <= 0) { gameOver = true; playerHp = 0; gameState = 'gameover'; }
 }
 
@@ -6351,6 +6365,7 @@ function restartGame() {
   hasEnteredCave1 = false; hasEnteredCave2 = false; hasEnteredHell = false;
   hellEntryDay = -1; abyssEventActive = false; abyssEventDone = false; abyssX = 0; abyssY = 0; altarSeen = false; lakeSeen = false;
   altarGuardianChasing = false; _guardianCX = 0; _guardianCY = 0; abyssRedTint = false;
+  abyssPhase = 0; abyssTimer = 0; abyssFadeAlpha = 0; gameOverFadeAlpha = 0;
   goblinArrows.length = 0;
   corruptReturnX = 0; corruptReturnY = 0; corruptEntryX = 0; corruptEntryY = 0;
   corruptCreatures.length = 0; corruptNets.length = 0; lastCorruptSpawn = -999;
@@ -6382,7 +6397,9 @@ function applyStartSetup() {
   });
 }
 
-function drawGameOver() {
+function drawGameOver(alpha) {
+  if (alpha === undefined) alpha = 1;
+  ctx.save(); ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(0,0,0,0.80)';
   ctx.fillRect(0, 0, W, H);
   ctx.save(); ctx.textAlign = 'center';
@@ -6408,6 +6425,76 @@ function drawGameOver() {
   ctx.fillStyle = '#a090c0'; ctx.font = '700 15px monospace';
   ctx.fillText('MAIN MENU', bx2 + bw/2, by2 + 28);
   ctx.restore();
+  ctx.restore(); // outer alpha restore
+}
+
+// ===================== ABYSS WORLD =====================
+function enterAbyssWorld() {
+  caveLevel = 5; inCave = true;
+  px = ABYSS_W / 2; py = ABYSS_H / 2;
+  altarGuardianChasing = false;
+  corruptCreatures.length = 0; corruptNets.length = 0;
+  mobs.length = 0; goblinArrows.length = 0;
+  inventoryOpen = false; mapOpen = false; activeChest = null;
+  abyssPhase = 1; abyssTimer = 0; abyssFadeAlpha = 0; gameOverFadeAlpha = 0;
+}
+
+function updateAbyssWorld(dt) {
+  if (abyssPhase === 1) {
+    abyssTimer += dt;
+    if (abyssTimer >= ABYSS_DURATION) { abyssPhase = 2; abyssFadeAlpha = 0; }
+  } else if (abyssPhase === 2) {
+    abyssFadeAlpha = Math.min(1, abyssFadeAlpha + dt / 3);
+    if (abyssFadeAlpha >= 1) { abyssPhase = 3; gameOverFadeAlpha = 0; }
+  } else if (abyssPhase === 3) {
+    gameOverFadeAlpha = Math.min(1, gameOverFadeAlpha + dt / 3);
+    // Transition to gameover state once fully faded in
+    if (gameOverFadeAlpha >= 1 && gameState !== 'gameover') {
+      gameState = 'gameover'; gameOver = true;
+    }
+  }
+}
+
+function drawAbyssWorld() {
+  // Pitch black void
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Phase 1: very faint pulsing darkness — only the subtlest hint player is somewhere
+  if (abyssPhase === 1) {
+    const t = gameNow || 0;
+    // Breathing dark vignette
+    const breathe = 0.03 + Math.sin(t * 0.6) * 0.015;
+    const grad = ctx.createRadialGradient(W/2, H/2, H*0.2, W/2, H/2, H*0.9);
+    grad.addColorStop(0, `rgba(12,0,20,0)`);
+    grad.addColorStop(1, `rgba(0,0,0,${breathe})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Distant floating motes — barely visible
+    ctx.save();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + t * 0.08;
+      const r = 80 + Math.sin(t * 0.3 + i * 1.7) * 30;
+      const mx = W/2 + Math.cos(a) * r;
+      const my = H/2 + Math.sin(a) * r;
+      ctx.globalAlpha = 0.04 + Math.abs(Math.sin(t * 0.5 + i)) * 0.03;
+      ctx.fillStyle = '#3a0060';
+      ctx.fillRect(Math.round(mx), Math.round(my), 2, 2);
+    }
+    ctx.restore();
+  }
+
+  // Phase 2: fade to full black
+  if (abyssPhase >= 2) {
+    ctx.fillStyle = `rgba(0,0,0,${abyssFadeAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Phase 3: game over screen fading in
+  if (abyssPhase >= 3 && gameOverFadeAlpha > 0) {
+    drawGameOver(gameOverFadeAlpha);
+  }
 }
 
 const _menuStars = Array.from({length: 120}, () => ({
@@ -6572,6 +6659,9 @@ function initGameOverClick() {
     const bw = 170, bh = 44;
     const bx1 = W/2 - 190, by1 = H/2 + 18;
     const bx2 = W/2 + 20, by2 = H/2 + 18;
+    // In abyss sequence, buttons are locked until halfway through fade-in
+    const _buttonsReady = (abyssPhase === 0) || (abyssPhase >= 3 && gameOverFadeAlpha >= 0.5);
+    if (!_buttonsReady) return;
     if (mx >= bx1 && mx < bx1+bw && my >= by1 && my < by1+bh) { restartGame(); return; }
     if (mx >= bx2 && mx < bx2+bw && my >= by2 && my < by2+bh) { gameOver = false; gameState = 'menu'; }
   });
@@ -6881,29 +6971,16 @@ function updateAltarGuardian(dt, now) {
     _guardianCX += (dx / dist) * speed * dt;
     _guardianCY += (dy / dist) * speed * dt;
   }
-  // Contact damage
-  if (dist < 55 && now - _altarGuardianLastDmg > 1.0) {
-    _altarGuardianLastDmg = now;
-    let def = getTrinketBonuses().defBonus;
-    if (equipSlots['helmet']?.id === 'iron_helmet') def += 10; else if (equipSlots['helmet']?.id === 'feather_hat') def += 5;
-    if (equipSlots['shield']?.id === 'bone_shield') def += 10;
-    if (equipSlots['chestplate']?.id === 'iron_chestplate') def += 20; else if (equipSlots['chestplate']?.id === 'bone_armor') def += 10;
-    if (equipSlots['pants']?.id === 'iron_pants') def += 10; else if (equipSlots['pants']?.id === 'feather_pants') def += 5;
-    const dmg = Math.max(1, Math.round(12 * (1 - def / 100)));
-    playerHp = Math.max(0, playerHp - dmg);
-    damageNumbers.push({ wx: px, wy: py - 30, val: dmg, isCrit: false, isPlayer: true, timer: 0 });
-    lastHitTime = now;
-    spawnParticles(px, py, '#cc0000', 8);
-    checkGameOver();
+  // Contact: guardian catches the player — drag them to the abyss
+  if (dist < 55) {
+    spawnParticles(px, py, '#cc0000', 12);
+    enterAbyssWorld();
+    return;
   }
-  // Auto-exit: player reaches the return portal while being chased
+  // Auto-exit: player reaches the return portal while being chased — still goes to abyss
   const pdx = corruptEntryX - px, pdy = corruptEntryY - py;
   if (pdx*pdx + pdy*pdy < 90*90) {
-    altarGuardianChasing = false;
-    abyssRedTint = true;
-    exitCorruptWorld();
-    redFlashTimer = 1.2;
-    spawnParticles(px, py, '#ff0000', 20);
+    enterAbyssWorld();
   }
 }
 
@@ -7187,6 +7264,17 @@ function loop(ts) {
   }
 
   initGameOverClick();
+
+  // Abyss world: isolated update + draw path
+  if (caveLevel === 5) {
+    if (abyssPhase < 2) { updateMovement(dt); } // allow wandering during first 30s
+    updateAbyssWorld(dt);
+    updateCamera();
+    drawAbyssWorld();
+    requestAnimationFrame(loop);
+    return;
+  }
+
   if (!gameOver) {
     updateDayNight(dt);
     updateFacing();
