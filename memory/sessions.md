@@ -1,5 +1,31 @@
 # Session History
 
+## Session 17 -- 2026-03-31
+
+Troll Mountain (C:\Dev\RobloxGame) — full game system build:
+
+**Project setup:**
+- Deleted old test scripts (DamagePart, DamagePartMover) — were bleeding into new Studio places
+- Identified issue: single Rojo project = all scripts sync to every place opened. Fix: separate folder per game next time (e.g. C:\Dev\TrollMountain)
+- Renamed src/client/init.client.luau → main.client.luau to fix Rojo ClassName conflict
+
+**Systems built:**
+- `init.server.luau`: leaderstats Coins (+1/sec passive), CoinMultiplier NumberValue per player
+- `ProgressBar.client.luau`: left-side vertical bar, avatar headshot icon moves up with height, green→red gradient, max Y=5000, mild curve
+- `StatsDisplay.client.luau`: top-center chips showing live $ coins and ⚡ speed, IgnoreGuiInset=true
+- `LoadingScreen.client.luau`: full-screen loading screen, ContentProvider preload, skip button, fade out
+- `TrollEvents.server.luau`: Slide (50c, all players sit 3s + teleport reset), Fling (250c, launches all players), SpeedBoost (50c, +10% WalkSpeed stacks), CoinMultiplier (250c, +0.1x on collected coins)
+- `TrollButtons.client.luau`: Trolls + Upgrades tab buttons on right, each opens a scrollable popup menu with items
+- `Coins.server.luau`: invisible hitbox Parts in workspace.Coins, distance-based collection (5 studs), raycasts to ramp surface, 20 coins max, fades on expiry
+- `CoinAnimator.client.luau`: client-owned T1COIN visuals in workspace.CoinVisuals (avoids server override), PivotTo spin+bob, +$5 popup on collect
+
+**Known issue at wrap:**
+- ProgressBar not appearing in game — likely a Rojo sync issue (user manually removed old scripts from Studio, may need reconnect + re-sync to pick up new scripts properly)
+- Coin system rebuilt 3 times trying to fix animation/collection bugs; final architecture uses server hitbox + client visual to avoid server overriding client animation
+
+**Ramp dimensions:** 100w × 4054l × 3002h (Y goes 0→3002 on ramp surface)
+**Models:** T1COIN in ReplicatedStorage.Models (user places manually in Studio)
+
 ## Session 16 -- 2026-03-28
 
 Survival game final session + Roblox continued:

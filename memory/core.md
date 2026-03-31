@@ -15,6 +15,14 @@ Understands how programming works but not an expert in any language.
 - Website: corecreate.dev -- hosted on Cloudflare Pages, deployed via GitHub push
 - Website source: src/website/ in this repo
 
+## Troll Mountain (Roblox)
+- Game concept: climb a mountain, troll other players with purchased abilities
+- Ramp: 100w × 4054l × 3002h studs; Y goes 0→3002 on surface; platform at Y=0 excluded from coin spawns
+- Max climb height for progress bar: Y=5000
+- T1COIN model: placed manually in ReplicatedStorage.Models in Studio
+- Coin system: server places invisible hitbox, client clones T1COIN visual locally (prevents server override of client animation)
+- IMPORTANT: separate Rojo project folder needed per game — single project bleeds all scripts into every Studio place opened
+
 ## Roblox Project
 - Project root: C:\Dev\RobloxGame
 - Rojo v7.6.1 (Aftman-managed, config at C:\Dev\RobloxGame\aftman.toml)
