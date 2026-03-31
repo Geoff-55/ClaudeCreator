@@ -17,11 +17,12 @@ Understands how programming works but not an expert in any language.
 
 ## Troll Mountain (Roblox)
 - Game concept: climb a mountain, troll other players with purchased abilities
-- Ramp: 100w × 4054l × 3002h studs; Y goes 0→3002 on surface; platform at Y=0 excluded from coin spawns
-- Max climb height for progress bar: Y=5000
-- T1COIN model: placed manually in ReplicatedStorage.Models in Studio
-- Coin system: server places invisible hitbox, client clones T1COIN visual locally (prevents server override of client animation)
-- IMPORTANT: separate Rojo project folder needed per game — single project bleeds all scripts into every Studio place opened
+- Ramp: at workspace.Map.Ramp (confirmed in Studio Explorer screenshot)
+- Max climb height for progress bar: Y=2000
+- Coin model: placed manually at ReplicatedStorage.Models.Coin in Studio
+- Coin system: server hitbox (workspace.Coins folder) + client visual clone — prevents server overriding client animation
+- IMPORTANT: duplicate scripts in StarterPlayerScripts caused double popups — watch for this after Rojo syncs
+- Coin spawning on ramp unsolved at end of session 18 — raycast approach used but coins not appearing in Studio Explorer under ServerScriptService > Scripts
 
 ## Roblox Project
 - Project root: C:\Dev\RobloxGame
@@ -29,6 +30,7 @@ Understands how programming works but not an expert in any language.
 - Studio plugin: Rojo 7.6.1 by Rojo Foundation
 - src/server → Scripts folder inside ServerScriptService, src/client → StarterPlayerScripts, src/shared → Shared folder in ReplicatedStorage
 - Must be in Edit mode for Rojo to sync; Script Injection permission must be granted in Plugin Manager
+- Output panel: View → Output in Studio menu bar
 
 ## Gotchas
 

@@ -1,5 +1,29 @@
 # Session History
 
+## Session 18 -- 2026-03-31
+
+Troll Mountain fresh start — wiped all old scripts, rebuilt core systems:
+
+**Cleared:**
+- Deleted all old Luau scripts from src/server and src/client (DamagePart, TrollEvents, etc.)
+- Removed Roblox/Troll Mountain sections from core.md memory
+
+**Scripts rebuilt from scratch:**
+- `init.server.luau`: leaderstats (Coins IntValue), default WalkSpeed=10, passive +1 coin every 10s, +1 WalkSpeed every 100s. Fires `CoinAwarded`, `PassiveCoin`, `SpeedBoosted` RemoteEvents
+- `CoinService.luau` (shared): single `award(player, amount)` function used by all server scripts to give coins + fire popup event
+- `HUD.client.luau`: two chips ($ coins, ⚡ speed) each with a small vertical timer bar to the right showing time until next award. Coin popup (+X$) floats at random screen position on award
+- `ProgressBar.client.luau`: left-side vertical bar, player headshot icon, green→yellow→red gradient, MAX_HEIGHT=2000, mild ease-out curve (p^0.8), bar spans 18%-82% screen height, 28px wide
+- `LoadingScreen.client.luau`: dark fullscreen overlay, gold progress bar, % counter, skip button, ContentProvider preload, fades out
+- `Coins.server.luau`: 200 coins on ramp, 20s lifetime, fade warning 1.5s before expiry, proximity collection (5 studs), respawn at new position on collect or expiry
+- `CoinAnimator.client.luau`: clones Coin model from ReplicatedStorage.Models.Coin, spin+hover animation, fades on expiry signal
+
+**Known issues at wrap:**
+- Coins not spawning on ramp — ramp is at workspace.Map.Ramp (confirmed via screenshot). Raycast approach tried multiple ways (world-Y, local-up-vector, include filter, no filter). Coins.server.luau not visible in Studio Explorer — user couldn't find it in ServerScriptService > Scripts. Suspect Rojo sync issue or explorer navigation confusion
+- Root cause of double popup was duplicate scripts in StarterPlayerScripts — fixed by user manually deleting duplicates
+- Rojo maps: src/server → ServerScriptService > Scripts, src/client → StarterPlayer > StarterPlayerScripts, src/shared → ReplicatedStorage > Shared
+
+**Coin model:** ReplicatedStorage > Models > Coin (placed manually by user in Studio)
+
 ## Session 17 -- 2026-03-31
 
 Troll Mountain (C:\Dev\RobloxGame) — full game system build:
