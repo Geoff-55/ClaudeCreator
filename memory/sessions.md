@@ -1,5 +1,53 @@
 # Session History
 
+## Session 19 -- 2026-04-02
+
+Troll Mountain — major feature expansion + bug fixes:
+
+**New systems built:**
+- `PlayerData.luau` (shared): per-player data store for `coinMultiplier` and `passiveCoinBonus`, auto-init on first access, cleared on PlayerRemoving
+- `UpgradeService.server.luau`: data-driven UPGRADES table (Speed/CoinMult/PassiveCoins), IntValues under `UpgradeLevels` folder per player, prices scale per level
+- `TrollService.server.luau`: data-driven TROLLS table (Slide/Fling), network ownership fix for server-side physics, CooldownEnds attributes on player for client countdown display
+- `WinService.server.luau`: detects WinPad.Touched under workspace.Map, debounced per player, awards 10,000 coins + 1 Win, calls LoadCharacter after 0.5s
+- `Announcement.client.luau`: TrollActivated RemoteEvent listener, banner slides in from above HUD, holds 3.5s, slides back off
+
+**Upgrades rework:**
+- Speed: +1 WalkSpeed per level, price = 5+level
+- CoinMult: 2× multiplier stacks per level, price = 25×4^level
+- PassiveCoins: +1 passive coin/interval per level, price = 10+(level×10)
+- Speed persists through death: `playerSpeeds` table in init.server.luau tracks WalkSpeed changes, restored on CharacterAdded
+
+**Trolls:**
+- Slide: PlatformStand=true + push in look direction (55 force), 3s duration, then zero velocity + nudge up 3 studs + restore
+- Fling: PlatformStand=true, random horizontal direction (180° arc), Vector3(cos×120, 240, sin×120), restore after 3.5s
+- Network ownership: SetNetworkOwner(nil) before velocity, SetNetworkOwner(owner) after
+- Activator excluded from effect (target ≠ player check)
+
+**UI additions:**
+- HUD: Wins chip added (🏁 icon, gold), 3-chip layout (423px container)
+- Menus: Trolls (red), Upgrades (blue), Inventory (purple) sidebar buttons; qty selector (1/10/100) on Upgrades; cooldown countdown on Trolls; Inventory panel empty (placeholder)
+- ProgressBar: tracks all players via PlayerAdded/Removing, local=44px white border, others=32px blue border; MAX_HEIGHT=5500 (5 ramps)
+- Announcement banner positioning fixed to sit below HUD (Y≈80)
+
+**CoinStack system:**
+- 1/10 chance of CoinStack spawn (worth 10×), `CoinType` attribute on hitbox
+- CoinAnimator loads both Coin and CoinStack templates from ReplicatedStorage.Models
+- Both use same spin+hover animation; orientation left as-is from model
+
+**Bug fixes:**
+- ScreenGui ZIndex → DisplayOrder (invalid property was killing Menus script before buttons created)
+- Trolls not applying: network ownership race condition fixed with SetNetworkOwner(nil)/restore
+- Slide standing still: WalkSpeed=0 caused Humanoid to brake; fixed with PlatformStand=true
+- ApplyStrokeMode.Border on buttons prevents text outline bleed
+- "✕" close button not rendering → changed to plain "X" TextLabel
+- Coins popping out of existence (no fade): AncestryChanged was destroying model immediately on collection; fixed by starting fade in AncestryChanged + task.delay for cleanup
+- hitbox.Position access after destruction: fixed by caching pos = hitbox.Position in data table
+- Coin spawn count raised from 200 → 300 → 500; coin lifetime randomized 15–20s (was fixed 20s)
+
+**Testing:**
+- Starting coins set to 10,000 for testing (TODO: remove before release)
+- Trolls affect all players except activator
+
 ## Session 18 -- 2026-03-31
 
 Troll Mountain fresh start — wiped all old scripts, rebuilt core systems:
