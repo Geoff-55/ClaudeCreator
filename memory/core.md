@@ -24,14 +24,17 @@ Understands how programming works but not an expert in any language.
 - Coin lifetime: 15–20s random; fades 3s before expiry; fades on collection too (AncestryChanged starts fade, task.delay cleans up)
 - Upgrades: Speed (+1/level), CoinMult (2× stacks), PassiveCoins (+1/interval) — all data-driven in UpgradeService
 - Speed persists through death via playerSpeeds table in init.server.luau
-- Trolls: Slide (PlatformStand + push 55), Fling (PlatformStand + random dir + up 240) — data-driven in TrollService
-- Troll network ownership: SetNetworkOwner(nil) before velocity, restore after
-- Win condition: touch WinPad → 10,000 coins + 1 Win + LoadCharacter
-- HUD: 3 chips ($ coins, ⚡ speed, 🏁 wins), coin timer bar
-- Menus: Trolls/Upgrades/Inventory sidebar; Inventory empty placeholder
+- Win condition: touch WinPad → 10,000 coins + 1 Win + LoadCharacter + fires PlayerWon RemoteEvent → all clients show "🏁 [name] reached the top!" banner
+- HUD: 3 chips ($ coins, ⚡ speed shows maxSpeed, 🏁 wins), coin timer bar LEFT of coins chip, speed control widget bottom-right (type speed ≤ max, Max button)
+- Menus: Coin Shop (Crates/Upgrades tabs), Win Shop (Crates/Upgrades tabs), Inventory (Crates/Shoes tabs)
+- Coin Shop: 100 coins = 1 crate; Win Shop: 1 win = 10 crates; Win Upgrades: WinSpeed (+100 WalkSpeed, costs level+1 wins)
+- Inventory: player.Inventory folder with CommonCrate IntValue; Open button decrements count (contents TBD)
+- Crates: workspace.Crates folder, CrateHitbox parts, 60s lifetime, 5s fade, Collected attribute = instant vanish on pickup
+- Coins: ExpiresAt attribute (server-synced), Collected attribute = instant vanish on pickup, natural expiry = 3s fade
 - ProgressBar: all players tracked, height-based Y/5500
 - IMPORTANT: duplicate scripts in StarterPlayerScripts caused double popups — watch for this after Rojo syncs
-- TODO: remove 10,000 starting coins before release
+- TODO: remove 100,000 starting coins before release
+- TODO: fix coin/crate inventory count not updating reliably (Collected attr replication timing)
 
 ## Roblox Project
 - Project root: C:\Dev\RobloxGame

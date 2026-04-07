@@ -12,7 +12,9 @@
       "Bash(git commit:*)",
       "Bash(code:*)",
       "Bash(rojo --version)",
-      "Bash(aftman --version)"
+      "Bash(aftman --version)",
+      "Bash(Start-Process powershell:*)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }

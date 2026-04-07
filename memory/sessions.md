@@ -1,5 +1,46 @@
 # Session History
 
+## Session 20 -- 2026-04-06
+
+Troll Mountain — shop overhaul, crate system, coin fade fix, win notification, speed control:
+
+**Coin fade fix:**
+- `ExpiresAt` attribute (server-synced timestamp) replaces old `Expiring` attribute signal — client Heartbeat compares `workspace:GetServerTimeNow()` to `ExpiresAt` each frame to start fade; no replication race
+- Server sets `Collected = true` on hitbox before destroying on pickup; both animators check this in `AncestryChanged` — collected = instant vanish, expired = fade out naturally
+- `CoinAnimator` and `CrateAnimator` both rewritten with this collected/expired distinction
+
+**Troll removal + shop overhaul:**
+- Trolls removed entirely from the game
+- `TrollService.server.luau` replaced with CrateShopService: `BuyCrate("Coins"|"Wins", qty)` and `OpenCrate(crateType)` RemoteEvents
+- `UpgradeService.server.luau`: added `PurchaseWinUpgrade` event, `WinUpgradeLevels` folder per player, `WinSpeed` upgrade (costs level+1 wins, gives +100 WalkSpeed)
+- `Announcement.client.luau` gutted (no trolls), repurposed for win notification
+
+**Crate system:**
+- `CrateService.server.luau`: spawns CommonCrates on ramps (1/sec for testing, 60s lifetime, 5s fade, 5-stud collection radius), awards to `player.Inventory.CommonCrate` IntValue, defensive awardCrate (creates Inventory if missing)
+- `CrateAnimator.client.luau`: bobs vertically (0.3 studs, 0.7 cyc/s), fades in 0.5s, fades out 5s before expiry, instant vanish on collection
+- `workspace.Crates` folder; `CrateHitbox` parts with `ExpiresAt` and `CrateType` attributes
+
+**Menu restructure (Menus.client.luau full rewrite):**
+- Sidebar: Coin Shop (gold), Win Shop (teal), Inventory (purple)
+- Coin Shop tabs: Crates (100 coins = 1 crate, qty selector) + Upgrades (existing)
+- Win Shop tabs: Crates (1 win = 10 crates, qty selector) + Upgrades (WinSpeed card)
+- Inventory tabs: Crates (CommonCrate count + Open button) + Shoes (Coming Soon)
+- RemoteEvents for BuyCrate/OpenCrate/PurchaseWinUpgrade resolved lazily via task.spawn to prevent blocking UI creation
+
+**Win notification:**
+- `WinService.server.luau`: fires `PlayerWon` RemoteEvent to all clients on win
+- `Announcement.client.luau`: gold banner slides in — "🏁 [name] reached the top!", winner's name highlighted gold
+
+**HUD additions:**
+- Coin timer bar moved to LEFT of coins chip
+- Speed chip now shows `maxSpeed` (highest WalkSpeed from upgrades), not current WalkSpeed
+- Speed control widget (bottom-right, 160×26px): "Speed | [textbox] | Max" — type any number ≤ maxSpeed to set current speed, Max button snaps back to full speed
+
+**Starting coins:** 100,000 (was 10,000) for testing
+
+**Known issues (carry to next session):**
+- Coin/crate collection works (notification fires) but inventory count not updating reliably — investigate Inventory folder timing and Collected attribute replication
+
 ## Session 19 -- 2026-04-02
 
 Troll Mountain — major feature expansion + bug fixes:
