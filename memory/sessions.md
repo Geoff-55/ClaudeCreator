@@ -1,5 +1,46 @@
 # Session History
 
+## Session 21 -- 2026-04-07
+
+Troll Mountain — shoe loot system, crate roll animation, speed/coin fixes, balance tuning:
+
+**Bug fix — crate buying broken:**
+- Root cause: `CrateService.server.luau` had an early `return` if ramps weren't found, which skipped the player inventory setup entirely. Moved `setupInventory` before the ramp detection block so buying always works.
+- TrollService: added defensive inventory creation + `warn()` logs on buy failure.
+
+**Shoe loot system:**
+- Opening a crate rolls 90% Common / 10% Rare shoe; result stored in `player.Inventory.CommonShoe` / `RareShoe` (IntValues), equipped in `EquippedShoe` (StringValue)
+- Common (green): ×1.5 speed, ×2 coins, sells for 5$; Rare (blue): ×2.5 speed, ×5 coins, sells for 50$
+- `TrollService`: `OpenCrate` rolls result + fires `CrateResult` to client; `EquipShoe` + `SellShoe` RemoteEvents handle equip/sell
+- Only one shoe equipped at a time; switching shoes correctly removes old effect before applying new
+- Inventory → Shoes tab: card per shoe type with count, stats, EQUIPPED badge, Equip and Sell buttons
+
+**Crate roll animation:**
+- Full-screen overlay (transparent panel over dark dimmer); 32-slot reel scrolls left-to-right
+- Items scale by distance from centre: centre = full size (100×134px), edges = 50% — driven by RunService.Heartbeat reading AbsolutePosition each frame
+- Items are portrait (taller than wide) to prevent icon clipping; viewport has 8px top/bottom padding
+- 5s Quart.Out tween — rushes fast then decelerates hard
+- Skip button below reel during spin; snaps to result immediately
+
+**Speed system overhaul:**
+- `PlayerData.baseSpeed` tracks raw speed (no shoe mult); `WalkSpeed = baseSpeed × shoeSpeedMult` everywhere
+- Speed/WinSpeed upgrades add to `baseSpeed` then recalculate — shoe mult preserved correctly
+- Switching/selling shoes always applies cleanly via `baseSpeed × newMult`; no more `preShoeSpeed` needed
+- `playerSpeeds` table removed; `CharacterAdded` restores from `data.baseSpeed × data.shoeSpeedMult`
+
+**Coin multipliers:**
+- Both `coinMultiplier` (upgrades) and `shoeCoinMult` (shoes) now apply to ramp pickups AND passive coin generator
+
+**High-speed fix:**
+- `HighSpeedController.client.luau`: sets `HumanoidRootPart.AssemblyLinearVelocity` directly each Heartbeat when moving — bypasses the humanoid hip motor cap (~100 WalkSpeed). Y velocity preserved for gravity/jumping.
+
+**Balance / UI tweaks:**
+- Starting speed: 1 (was 10); starting coins: 0 (was 100,000)
+- Speed upgrade cost: `1 + level` (was `5 + level`); level display starts at Lv. 1
+- HUD `maxSpeed` initial value fixed: 1 (was hardcoded 10)
+- Coin/Win Shop: Upgrades tab now first (left); Win Shop Upgrades now has qty selector (1/10/100)
+- RobloxGame initialized as its own git repo (was untracked)
+
 ## Session 20 -- 2026-04-06
 
 Troll Mountain — shop overhaul, crate system, coin fade fix, win notification, speed control:

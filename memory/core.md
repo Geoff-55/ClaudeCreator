@@ -22,19 +22,22 @@ Understands how programming works but not an expert in any language.
 - Models: ReplicatedStorage.Models.Coin + ReplicatedStorage.Models.CoinStack (placed manually in Studio)
 - Coin system: server hitbox (workspace.Coins folder, 500 coins) + client visual clone; CoinType attribute picks template
 - Coin lifetime: 15–20s random; fades 3s before expiry; fades on collection too (AncestryChanged starts fade, task.delay cleans up)
-- Upgrades: Speed (+1/level), CoinMult (2× stacks), PassiveCoins (+1/interval) — all data-driven in UpgradeService
-- Speed persists through death via playerSpeeds table in init.server.luau
+- Starting speed: 1 WalkSpeed; starting coins: 0
+- Upgrades: Speed (cost 1+level, +1/level, display starts Lv.1), CoinMult (2× stacks), PassiveCoins (+1/interval) — all data-driven in UpgradeService
+- Speed system: PlayerData.baseSpeed tracks raw speed; WalkSpeed = baseSpeed × shoeSpeedMult everywhere (upgrades, equip, respawn). No playerSpeeds table.
+- High-speed fix: HighSpeedController.client.luau sets HRootPart.AssemblyLinearVelocity each Heartbeat — bypasses humanoid motor cap at ~100
 - Win condition: touch WinPad → 10,000 coins + 1 Win + LoadCharacter + fires PlayerWon RemoteEvent → all clients show "🏁 [name] reached the top!" banner
 - HUD: 3 chips ($ coins, ⚡ speed shows maxSpeed, 🏁 wins), coin timer bar LEFT of coins chip, speed control widget bottom-right (type speed ≤ max, Max button)
-- Menus: Coin Shop (Crates/Upgrades tabs), Win Shop (Crates/Upgrades tabs), Inventory (Crates/Shoes tabs)
-- Coin Shop: 100 coins = 1 crate; Win Shop: 1 win = 10 crates; Win Upgrades: WinSpeed (+100 WalkSpeed, costs level+1 wins)
-- Inventory: player.Inventory folder with CommonCrate IntValue; Open button decrements count (contents TBD)
+- Menus: Coin Shop (Upgrades/Crates tabs, Upgrades first), Win Shop (Upgrades/Crates tabs, Upgrades first + qty selector), Inventory (Crates/Shoes tabs)
+- Coin Shop: 100 coins = 1 crate; Win Shop: 1 win = 10 crates; Win Upgrades: WinSpeed (+100 WalkSpeed, costs level+1 wins, supports qty)
+- Inventory: player.Inventory folder; CommonCrate, CommonShoe, RareShoe (IntValues), EquippedShoe (StringValue)
+- Shoe system: OpenCrate rolls 90% Common / 10% Rare; Common (green) ×1.5 speed ×2 coins sells 5$; Rare (blue) ×2.5 speed ×5 coins sells 50$; only one equipped; both coinMult and shoeCoinMult apply to ramp pickups + passive coins
+- Crate roll animation: 32-slot reel, items scale by distance from centre (Heartbeat loop), 5s Quart.Out, Skip button
 - Crates: workspace.Crates folder, CrateHitbox parts, 60s lifetime, 5s fade, Collected attribute = instant vanish on pickup
 - Coins: ExpiresAt attribute (server-synced), Collected attribute = instant vanish on pickup, natural expiry = 3s fade
 - ProgressBar: all players tracked, height-based Y/5500
 - IMPORTANT: duplicate scripts in StarterPlayerScripts caused double popups — watch for this after Rojo syncs
-- TODO: remove 100,000 starting coins before release
-- TODO: fix coin/crate inventory count not updating reliably (Collected attr replication timing)
+- RobloxGame has its own git repo at C:\Dev\RobloxGame (initialized session 21)
 
 ## Roblox Project
 - Project root: C:\Dev\RobloxGame
