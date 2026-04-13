@@ -1,5 +1,20 @@
 # Session History
 
+## Session 24 -- 2026-04-12
+
+One Versus All — control rebind + balance pass:
+
+**Controls:**
+- Block moved from M2 (right-click) to Space
+- Right-click hold now activates lock-on (combat mode) — releases when button released; CapsLock toggle removed entirely
+- Fly up: Space → V; fly down: B (unchanged)
+- Vertical fly speed: 20 → 40
+
+**Balance:**
+- Punch hitbox: 8×6×6 → 12×8×8 studs
+- Perfect block window: 0.3s → 0.5s (updated in both PlayerController and CombatService)
+- Knockback per damage point: 4.5 → 7.0 (faster punches hit much harder)
+
 ## Session 23 -- 2026-04-12
 
 One Versus All — polish pass: drift fix, ground clearance, ragdoll on death:
