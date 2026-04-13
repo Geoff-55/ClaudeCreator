@@ -1,5 +1,22 @@
 # Session History
 
+## Session 23 -- 2026-04-12
+
+One Versus All — polish pass: drift fix, ground clearance, ragdoll on death:
+
+**Drift deadzone fix:**
+- Added three-tier brake: fast (`FLY_BRAKE * 4`) above `FLY_SPEED * 2`, extra-fast (`FLY_BRAKE * 10`) below 8 studs/s, hard snap to `Vector3.zero` below 0.4 studs/s
+- The snap kills residual drift that lerp asymptotically approaches but never actually reaches
+
+**Ground clearance (leg clipping):**
+- `MIN_GROUND_CLEARANCE` raised 3 → 5 studs (R15 legs reach ~3 studs below HRP center)
+- Push velocity multiplier raised 10 → 15 for faster correction
+- Added hard position teleport correction if ground distance drops below 2 studs (catches fast downward movement before velocity alone can respond)
+
+**Ragdoll on death:**
+- `doRagdoll(character)`: disables all Motor6Ds (limbs separate), enables CanCollide on all BaseParts, destroys BodyVelocity so momentum carries into the fall
+- Connected to `humanoid.Died` inside `enableFly()` so it fires on every spawn/respawn
+
 ## Session 22 -- 2026-04-12
 
 One Versus All (C:\Dev\OneVersusAll) — new game built from scratch this session:
