@@ -1,5 +1,65 @@
 # Session History
 
+## Session 22 -- 2026-04-12
+
+One Versus All (C:\Dev\OneVersusAll) — new game built from scratch this session:
+
+**Project setup:**
+- Rojo project at `C:\Dev\OneVersusAll` (aftman.toml: rojo 7.6.1)
+- `default.project.json`: src/server → ServerScriptService/Scripts, src/client → StarterPlayerScripts, src/shared → ReplicatedStorage/Shared
+
+**Always-on flight system:**
+- `PlayerController.client.luau`: BodyVelocity-based flight, auto-enabled on spawn, `PlatformStand = true`
+- WASD moves relative to camera yaw; Space/Shift = up/down; natural deceleration (`FLY_BRAKE`)
+- Speed-dependent brake: `FLY_BRAKE * 4` when `flyVelocity.Magnitude > FLY_SPEED * 2` to kill drift after high-speed
+
+**Dash system:**
+- Double-tap WASD to dash (900 burst for 0.25s, then cruises at 300 constant — no decay until crash/stop)
+- 2s cooldown; crashing into geometry triggers full stop (velocity check ratio)
+- Wind SFX plays on dash; footstep sound volume zeroed while flying
+
+**Camera modes:**
+- Surf mode (default): free mouse look (yaw+pitch), no lock-on
+- Combat mode (Caps Lock toggle): same shoulder-cam but auto-locks yaw+pitch toward nearest Humanoid in workspace (players, dummies, NPCs)
+- `getNearestEnemy()` scans `workspace:GetChildren()` for any Humanoid with Health > 0
+- Shortest-path yaw lerp: `((yawTarget - yaw + 180) % 360) - 180`
+- `combatMode = false` forced in `enableFly()` to guard against OS CapsLock state on load
+
+**3D dash tilt:**
+- W dash: HRP tilts feet-toward-cam (up = camera LookVector)
+- S dash: feet-away-from-cam (up = -LookVector)
+- A/D dash: partial tilt (up = blend of world-up + camera look) + lean roll via `CFrame.fromAxisAngle`
+- Gram-Schmidt orthonormalization builds clean basis; `currentDashUp`/`currentDashLean` lerped for smooth transitions
+
+**M1 Punch:**
+- Anchored Part hitbox (8×6×6, hidden, yaw-only, no tilt) placed 3.5 studs in front, updated per frame during PUNCH_DURATION (0.3s)
+- Overlap via `workspace:GetPartsInPart()`, fires `PunchHit` RemoteEvent to server with target Humanoid + speed + direction + hitPos
+- Arm pose: right shoulder Motor6D rotated forward (`C0 * CFrame.Angles(-π/2, 0, 0)`) for punch duration
+
+**M2 Block:**
+- `BlockChanged` RemoteEvent fires server on hold/release; server tracks `blockData[player] = {active, startTime}` using `os.clock()`
+- Perfect block (first 0.3s): 0 damage; partial block (held): 50% damage; unblocked: full damage
+- Knockback always uses `rawDamage` (pre-block) so blocking doesn't reduce momentum
+- Arm pose: both shoulders rotated into crossed-arm stance while blocking
+
+**CombatService.server.luau (new file):**
+- Speed-scaled damage: `BASE_DAMAGE(10) + attackerSpeed * DAMAGE_PER_SPEED(0.15)`, capped at 100
+- Knockback: `punchDir * (rawDamage * KNOCKBACK_PER_DAMAGE(4.5))`
+- Player health: 3× default (300 MaxHealth), applied on CharacterAdded
+- Server fires `PunchResult(resultType, hitPos)` to attacker for VFX routing
+- Knockback delivered via `KnockbackHit` RemoteEvent to player clients; direct `AssemblyLinearVelocity` for NPCs
+
+**VFX/SFX system:**
+- `ReplicatedStorage.VFX.Punch.Punch` fires on normal hit; `ReplicatedStorage.VFX.Block.Finisher` on perfect block
+- `ReplicatedStorage.SFX.Punch` / `SFX.Block` sounds play at hit position
+- VFX anchored to temp Part in workspace, `emitter:Emit(12)`, `Debris:AddItem(anchor, 0.5)`
+- Client `punchResult.OnClientEvent` drives VFX — server decides type, client spawns it
+
+**Key bug fixes:**
+- Hitbox using `hrp.CFrame` (tilted) → fixed to yaw-only: `CFrame.new(hrp.Position) * CFrame.Angles(0, math.rad(yaw), 0) * CFrame.new(0, 0, -3.5)`
+- Combat mode toggling on load due to OS CapsLock state → fixed with `combatMode = false` in `enableFly()`
+- VFX burst emitters needed `Emit(N)` not `Enabled = true`; multiple hits spawning stacked VFX fixed with `vfxSpawned` flag
+
 ## Session 21 -- 2026-04-07
 
 Troll Mountain — shoe loot system, crate roll animation, speed/coin fixes, balance tuning:

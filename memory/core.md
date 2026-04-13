@@ -47,6 +47,18 @@ Understands how programming works but not an expert in any language.
 - Must be in Edit mode for Rojo to sync; Script Injection permission must be granted in Plugin Manager
 - Output panel: View → Output in Studio menu bar
 
+## One Versus All (Roblox)
+- Project root: C:\Dev\OneVersusAll (separate from C:\Dev\RobloxGame/Troll Mountain)
+- Rojo v7.6.1 (aftman.toml), same structure: src/server → ServerScriptService/Scripts, src/client → StarterPlayerScripts, src/shared → ReplicatedStorage/Shared
+- Game concept: 3D aerial combat — always flying, dash/punch/block, speed-scaled damage
+- Flight: BodyVelocity + PlatformStand; WASD camera-relative, Space/Shift vertical; 300 cruise after dash, no decay until crash
+- Camera: Surf mode (free look, default) vs Combat mode (Caps Lock, lock-on to nearest Humanoid)
+- Damage: 10 base + 0.15 per stud/s speed, cap 100; 300 player HP (3×); knockback = rawDamage × 4.5 studs/s
+- Block: server-timed (os.clock), perfect (0.3s window) = 0 dmg, partial = 50% dmg; knockback always uses raw damage
+- VFX/SFX: ReplicatedStorage.VFX.Punch.Punch (hit), VFX.Block.Finisher (perfect block), SFX.Punch, SFX.Block
+- RemoteEvents: PunchHit, BlockChanged, KnockbackHit, PunchResult (server→attacker for VFX type)
+- Hitbox: yaw-only positioning (no tilt) — 8×6×6 anchored Part, updated each frame during punch
+
 ## Gotchas
 
 - gh CLI installed and working (auth'd as Geoff-55)
