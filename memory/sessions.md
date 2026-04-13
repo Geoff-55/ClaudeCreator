@@ -1,5 +1,27 @@
 # Session History
 
+## Session 25 -- 2026-04-12
+
+One Versus All — several polish/balance changes:
+
+**No health regen:** CombatService waits for the default `Health` LocalScript in the character and disables it on every spawn.
+
+**Slam removed entirely:** Momentum kill and damage both removed. Hitting geometry at any speed has no effect.
+
+**Cursor hidden:** `UIS.MouseIconEnabled = false` enforced every RenderStepped frame so it can never re-appear.
+
+**Health bar:** Background red (`160, 30, 30`), green fill (`60, 200, 60`). Dash cooldown bar stays white on dark.
+
+**Dash overhaul:**
+- Burst speed locked for the full 1-second window — `flyVelocity` set to `lastDashDir * 1500` every frame during burst, no lerp or brake can interfere
+- `lastDashDir` stored at dash time so direction is preserved
+- Cruise speed (`200`) only drops to normal after burst ends AND velocity bleeds below FLY_SPEED
+- Cooldown: 10s → 5s
+
+**Hitbox:** 14×10×10 (from previous session's 12×8×8)
+
+**Controls (from session 24):** Space = block, right-click hold = lock-on, V/B = up/down at speed 40
+
 ## Session 24 -- 2026-04-12
 
 One Versus All — control rebind + balance pass:
