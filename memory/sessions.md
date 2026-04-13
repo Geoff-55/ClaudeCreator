@@ -1,5 +1,14 @@
 # Session History
 
+## Session 26 -- 2026-04-12
+
+One Versus All — dash rebalance + smooth transition:
+
+- `DASH_BURST_SPEED`: 1500 → 350 (1.75× cruise speed of 200)
+- Added `DASH_TRANSITION_TIME = 0.6s`: after the 1s burst, velocity linearly interpolates from 350 → 200 over 0.6s before handing off to normal control
+- Cruise speed guard now also skips during transition phase (`not inBurst and not inTransition`)
+- Burst phase still hard-locks velocity to `lastDashDir * DASH_BURST_SPEED` each frame
+
 ## Session 25 -- 2026-04-12
 
 One Versus All — several polish/balance changes:
