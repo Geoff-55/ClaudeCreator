@@ -51,13 +51,16 @@ Understands how programming works but not an expert in any language.
 - Project root: C:\Dev\OneVersusAll (separate from C:\Dev\RobloxGame/Troll Mountain)
 - Rojo v7.6.1 (aftman.toml), same structure: src/server → ServerScriptService/Scripts, src/client → StarterPlayerScripts, src/shared → ReplicatedStorage/Shared
 - Game concept: 3D aerial combat — always flying, dash/punch/block, speed-scaled damage
-- Flight: BodyVelocity + PlatformStand; WASD camera-relative, Space/Shift vertical; 300 cruise after dash, no decay until crash
-- Camera: Surf mode (free look, default) vs Combat mode (Caps Lock, lock-on to nearest Humanoid)
-- Damage: 10 base + 0.15 per stud/s speed, cap 100; 300 player HP (3×); knockback = rawDamage × 4.5 studs/s
-- Block: server-timed (os.clock), perfect (0.3s window) = 0 dmg, partial = 50% dmg; knockback always uses raw damage
+- Flight: BodyVelocity + PlatformStand; WASD flies in full camera direction (includes pitch); V/B = instant vertical boost (added to finalVel, not flyVelocity)
+- Normal cruise: FLY_SPEED=200, FLY_ACCEL=0.015 (slow 0→200 buildup); direction change rate 0.15 (fast/instant)
+- Dash: burst 400 studs/s, 1s burst + 0.6s transition to 200; WASD steerable throughout; same lerp system as normal flight
+- Camera: Surf mode (free look, default) vs Combat mode (right-click hold, lock-on to nearest Humanoid)
+- Damage: 10 base + 0.15 per stud/s speed, cap 100; 300 player HP (3×); knockback = rawDamage × 7.0 studs/s
+- Block: Space; server-timed perfect (0.5s window) = 0 dmg, partial = 50% dmg; knockback always uses raw damage
+- Tilt: single system (currentDashUp/currentDashLean), speed-scaled; velocity-based when coasting; S+D/S+A lean inverted
+- Punch hitbox: yaw-only, 10×10×14, offset -3.5 local Z (4 studs forward), transparency 0.8, player excluded via FilterDescendantsInstances
 - VFX/SFX: ReplicatedStorage.VFX.Punch.Punch (hit), VFX.Block.Finisher (perfect block), SFX.Punch, SFX.Block
 - RemoteEvents: PunchHit, BlockChanged, KnockbackHit, PunchResult (server→attacker for VFX type)
-- Hitbox: yaw-only positioning (no tilt) — 8×6×6 anchored Part, updated each frame during punch
 
 ## Gotchas
 

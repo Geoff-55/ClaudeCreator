@@ -1,5 +1,33 @@
 # Session History
 
+## Session 27 -- 2026-04-13
+
+One Versus All — flight overhaul, punch hitbox tuning, tilt polish:
+
+**Dash:**
+- `DASH_BURST_SPEED`: 350 → 400
+- WASD steering restored during burst and transition (direction follows input, speed stays at burst/blend level)
+- Burst/transition now use same lerp system as normal flight (no hard-set) — seamless handoff
+
+**Normal flight:**
+- `FLY_SPEED`: 50 → 200 (new normal cruise max)
+- `FLY_ACCEL`: 0.15 → 0.015 — W now slowly accelerates from 0 to 200 over ~2–3s
+- Direction change rate kept fast (0.15) — camera turning is instant, separate from speed buildup
+- W/A/S/D now fly in full camera direction including pitch (looking up + W = fly up)
+- V/B restored as instant vertical boost added to `finalVel`, independent of WASD pitch movement
+- Brake only affects `flyVelocity`, not V/B
+
+**Tilt system unified:**
+- Removed old `tiltFwd`/`tiltSide` angle-based system entirely
+- Single system (`currentDashUp`/`currentDashLean`) always active, scaled by `speedFactor` (0 at rest → full at FLY_SPEED)
+- Backwards diagonal lean (S+D, S+A): `targetLean` inverted when S held without W
+- Coasting tilt: when no keys pressed but still moving, `fwdSign`/`sideSign` derived from velocity projected onto camera axes so tilt lingers; lerpRate `TILT_LERP*2` (was `*5`) when coasting
+
+**Punch hitbox:**
+- Size: 14×10×10 → 10×10×14 (narrower, longer)
+- Offset: shifted 4 studs forward (0.5 → -3.5 local Z)
+- Transparency: 0.2 → 0.8
+
 ## Session 26 -- 2026-04-12
 
 One Versus All — dash rebalance + smooth transition:
