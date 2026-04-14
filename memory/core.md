@@ -58,9 +58,12 @@ Understands how programming works but not an expert in any language.
 - Damage: 10 base + 0.15 per stud/s speed, cap 100; 300 player HP (3×); knockback = rawDamage × 7.0 studs/s
 - Block: Space; server-timed perfect (0.5s window) = 0 dmg, partial = 50% dmg; knockback always uses raw damage
 - Tilt: single system (currentDashUp/currentDashLean), speed-scaled; velocity-based when coasting; S+D/S+A lean inverted
-- Punch hitbox: yaw-only, 10×10×14, offset -3.5 local Z (4 studs forward), transparency 0.8, player excluded via FilterDescendantsInstances
-- VFX/SFX: ReplicatedStorage.VFX.Punch.Punch (hit), VFX.Block.Finisher (perfect block), SFX.Punch, SFX.Block
-- RemoteEvents: PunchHit, BlockChanged, KnockbackHit, PunchResult (server→attacker for VFX type)
+- Punch hitbox: yaw-only, 10×10×14, offset -3.5 local Z (4 studs forward), fully invisible (Transparency=1), player excluded via FilterDescendantsInstances
+- HitSphere: 16×16 ball on every player, fully invisible (Transparency=1), punch detection uses HitSphere only
+- VFX/SFX: ReplicatedStorage.VFX.Punch.Punch (hit), VFX.Block.Finisher (perfect block), SFX.Punch, SFX.Block — plays for BOTH attacker and receiver
+- RemoteEvents: PunchHit, BlockChanged, KnockbackHit (carries knockbackVel + stunDuration + resultType), PunchResult (server→attacker for VFX type)
+- Leaderboard: leaderstats with Kills (sorts first) and Deaths; kill credited via lastHitBy table on Humanoid.Died
+- Momentum stopper: ignores PunchHitbox, HitSphere, own character parts, and any Humanoid model
 
 ## Gotchas
 

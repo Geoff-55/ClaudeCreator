@@ -1,5 +1,32 @@
 # Session History
 
+## Session 28 -- 2026-04-13
+
+One Versus All — hitbox polish, leaderboard, SFX, cleanup:
+
+**Momentum stopper fix:**
+- `hrp.Touched` handler now also skips parts named `PunchHitbox` or `HitSphere`, and any part descending from the local character — prevents own hitboxes from triggering a momentum stop
+
+**Leaderboard (Kills / Deaths):**
+- `leaderstats` folder with `Kills` (IntValue, sorts first) and `Deaths` (IntValue) created on `PlayerAdded`
+- `lastHitBy[targetPlayer]` tracks last attacker per player; credited a Kill when their target's `Humanoid.Died` fires, receiver gets a Death
+- Player removal cleans up all references to prevent stale kill credits
+
+**Barrel roll (added then removed):**
+- Implemented A↔D flip barrel roll (decaying extra lean offset, additive); user decided to remove it
+
+**Hand wind VFX (added then removed):**
+- Attempted to clone `ReplicatedStorage.VFX.Small Wind` onto each hand and toggle Beams at 190+ speed; Beam attachment references broke in clone — removed
+
+**Hitbox visibility:**
+- `PunchHitbox` Transparency: 0.8 → 1 (fully invisible)
+- `HitSphere` Transparency: 0.8 → 1 (fully invisible)
+
+**Receiver SFX:**
+- `resultType` now passed through `knockbackRemote` to the receiver
+- Receiver plays punch SFX on hit/partial, block SFX on perfect block — same sounds as attacker
+- `punchSFXTemplate`/`blockSFXTemplate` declarations moved above knockback handler (Lua scoping fix)
+
 ## Session 27 -- 2026-04-13
 
 One Versus All — flight overhaul, punch hitbox tuning, tilt polish:
