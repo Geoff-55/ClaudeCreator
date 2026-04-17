@@ -1,5 +1,39 @@
 # Session History
 
+## Session 30 -- 2026-04-17
+
+One Versus All — loading screen, punch animation, drift fix, SFX spatial audio, zoom smoothing:
+
+**Loading screen (MenuController + MenuService):**
+- Full loading screen shows instantly on join (dark bg, progress bar, status text, Skip button)
+- 7 sequential tasks: RequestSpawn, ReturnToMenu, RequestLoadSpawn remotes + Map folder + CameraAnchor + VFX + SFX
+- `RequestLoadSpawn` (new remote in MenuService): spawns a temporary invisible character (all parts Transparency=1) with `ForceField{Visible=false}` so the character is undetectable and invincible — its existence causes Roblox to stream/replicate the map before the menu appears, fixing the "no map on initial join" bug
+- After loading: `ReturnToMenu` destroys the temp character, menu fades in with fully loaded map in orbit camera
+- Skip button: works at any time; if temp character was spawned, it's cleaned up; Play button falls back to `WaitForChild` if remote not yet assigned (extreme early skip)
+- `BindToRenderStep("MenuOrbit", Camera+1)` so orbit overwrites Roblox's camera module each frame
+
+**Punch arm animation:**
+- Arms alternate each punch (within 1.5s window): `punchIsLeft` bool flips on follow-up punch, resets to right arm after gap
+- Arm direction: corrected from "arm goes right" to "arm goes forward (away from camera)" — added `Z=±π/2` rotation to redirect from sideways to forward; camera pitch tilts jab up/down
+- Separate `punchPoseL` for left arm using `origLSC0` with mirrored Z rotation
+
+**Drift fix:**
+- Root cause: drift suppression check used `currentActual.Magnitude < 2.0` which never triggered because hover adds ~1-2 st/s to Y constantly — changed to check horizontal magnitude only (`horizActual = Vector3.new(X,0,Z)`)
+- Mid-speed brake tripled (0.04→0.12 per frame), near-stop and high-speed brakes also increased
+- Snap-to-zero threshold lowered from 2.0 to 0.5 st/s
+- Idle hard-lock now triggers only when `flyVelocity == Vector3.zero` (exact zero after snap)
+- `HOVER_AMP`: 2.5→1.2 studs/s (subtler vertical oscillation)
+
+**SFX spatial audio:**
+- All own-action sounds (punch landed, got hit, ground crash, dash) → parented to `SoundService` (non-positional, consistent volume regardless of camera zoom)
+- Opponent/receiver sounds → parented to anchor Part at `hitPos` (3D positional, comes from fight location)
+- Fixed double-sound bug: receiver was playing sound twice (explicit + spawnHitVFX both played)
+- `PunchSFXBroadcast` remote (CombatService): FireClient to all bystanders when punch lands so they hear hits from the correct 3D position
+- `spawnHitVFX(resultType, hitPos, isLocal)` — isLocal flag controls SoundService vs positional anchor
+
+**Zoom smoothing:**
+- Added `camZoomTarget`; scroll updates target; `camZoom` lerps toward target at rate 0.14/frame
+
 ## Session 29 -- 2026-04-16
 
 One Versus All — polish, bug fixes, impact/bounce overhaul, world health bar, player collision:
