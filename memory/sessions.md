@@ -1,5 +1,22 @@
 # Session History
 
+## Session 31 -- 2026-04-17
+
+One Versus All — punch arm polish, SFX fixes, zoom smoothing (addendum to session 30):
+
+**Arm tilt-to-overhead:**
+- Punch arm now lerps between two anchor poses based on `tiltFrac` (derived from `currentDashUp:Dot(worldUp)`)
+- Forward pose (upright): `X=-π/2, Z=±π/2` — arm extends in front of body
+- Overhead pose (flat/full speed): `X=π` — arm above head in body space = world-forward from camera
+- Lateral lean: `PUNCH_LATERAL = math.rad(10)`, Z offset angles arm outward from head (right punch = right, left punch = left)
+- Lateral sign went through multiple iterations to get correct outward direction
+
+**Wind sound fix:**
+- `windSound.Parent` changed from `hrp` to `SoundService` — was getting quieter when zoomed out
+
+**Tick on Play button:**
+- Clones `ReplicatedStorage.SFX.Tick`, parents to `SoundService`, plays on Play button click
+
 ## Session 30 -- 2026-04-17
 
 One Versus All — loading screen, punch animation, drift fix, SFX spatial audio, zoom smoothing:
