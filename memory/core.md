@@ -63,7 +63,13 @@ Understands how programming works but not an expert in any language.
 - VFX/SFX: ReplicatedStorage.VFX.Punch.Punch (hit), VFX.Block.Finisher (perfect block), SFX.Punch, SFX.Block — plays for BOTH attacker and receiver
 - RemoteEvents: PunchHit, BlockChanged, KnockbackHit (carries knockbackVel + stunDuration + resultType), PunchResult (server→attacker for VFX type)
 - Leaderboard: leaderstats with Kills (sorts first) and Deaths; kill credited via lastHitBy table on Humanoid.Died
-- Momentum stopper: ignores PunchHitbox, HitSphere, own character parts, and any Humanoid model
+- Touched handler filters (layered): name check (PunchHitbox/HitSphere/ImpactBlastSphere/VFXAnchor), own character, fast-path Humanoid (hit.Parent), full Players loop IsDescendantOf, punch suppression (punchArmEnd+0.2)
+- VFX anchor Parts: CanCollide=false + CanTouch=false + CanQuery=false + Name="VFXAnchor" — prevents false Touched triggers (CanCollide=false parts can still fire Touched in Roblox)
+- Players collision group: PhysicsService "Players" group, CollisionGroupSetCollidable(Players,Players,false) — players phase through each other, combat is hitbox-only; set server-side in CombatService, assigned on CharacterAdded
+- Impact bounce: Touched (async) + sphere-sweep (same frame) both call onImpact; debounce MUST NOT zero flyVelocity or it kills the bounce
+- World health bar: BillboardGui parented to player.PlayerGui, Adornee=wHRP, Size=(0,150,0,36), bar in top-half Frame (0,0,0.5,0), StudsOffset=(0,3.5,0) → bottom of bar is anchor point; distance scale: 1.0 at ≤20 studs → min 0.55 at long range
+- HUD update runs before `if not flying then return end` so bars update during ragdoll/death
+- Screen health bar color: green→yellow→red using worldBarColor() function
 
 ## Gotchas
 

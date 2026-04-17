@@ -1,5 +1,46 @@
 # Session History
 
+## Session 29 -- 2026-04-16
+
+One Versus All — polish, bug fixes, impact/bounce overhaul, world health bar, player collision:
+
+**Impact system fixes:**
+- Bounce was being killed by duplicate trigger: `hrp.Touched` (async) and sphere-sweep (same frame) both called `onImpact`; the second hit the IMPACT_COOLDOWN debounce which had `flyVelocity = Vector3.zero` — removed that zero from debounce path so the first trigger's bounce survives
+- Added `punchArmEnd + 0.2` guard to Touched handler: impact suppressed during/after punch swing to prevent close-range punch from triggering wall impact
+- VFX anchor Parts (placed at hit positions in workspace) could fire `hrp.Touched` despite CanCollide=false (known Roblox quirk): added `CanTouch=false` + `CanQuery=false` to all VFX anchors; named them "VFXAnchor" and added to Touched name filter
+- `ImpactBlastSphere` made fully invisible (Transparency=1, removed neon color/material)
+
+**Player-player collision (spinning fix):**
+- Physical HRP contact during flight caused Roblox physics separation impulses; tilt system read these as rapid direction changes → character spin visible to other clients
+- Added PhysicsService "Players" collision group (server-side in CombatService): all character parts assigned on spawn, `CollisionGroupSetCollidable("Players","Players",false)` — players now phase through each other; all combat remains hitbox-based so nothing breaks
+
+**World health bar:**
+- Restructured billboard to double height (36px) with bar occupying top half only — bottom edge of bar now sits at StudsOffset anchor, preventing bar from clipping into opponent's head at close range
+- Distance scaling: full size within 20 studs, shrinks to 55% minimum at long range (0.3%/stud beyond 20)
+- Bar visibility tied to lock-on: shows only when right-click locked onto a player
+
+**Screen health bar:**
+- Removed default Roblox health bar (`SetCoreGuiEnabled(Health, false)`)
+- Flash on damage (white overlay, 0.35s fade)
+- Color now changes green→yellow→red via `worldBarColor()` (same function as world bar)
+- HUD update moved before `if not flying then return end` so bars stay accurate during ragdoll/death
+
+**Camera:**
+- `LOOK_OFFSET`: 2 → 3.5 so player appears slightly below camera center
+
+**Respawn state resets (enableFly):**
+- Now resets: `stunEndTime=0`, `punchArmEnd=0`, `lastDashTime=-DASH_COOLDOWN` (dash ready on spawn), `lastImpactTime=-10`
+
+**Dead code removed:**
+- Client constants: `DASH_CRASH_RATIO`, `SLAM_MIN_SPEED` (client-side 150, never read), `IMPACT_SPEED_LOST`
+
+**Touched handler (player filtering, layered):**
+- Name filter: PunchHitbox, HitSphere, ImpactBlastSphere, VFXAnchor
+- Own character: `IsDescendantOf(character)`
+- Fast-path Humanoid: `hit.Parent:FindFirstChildOfClass("Humanoid")`
+- Belt-and-suspenders: full `Players:GetPlayers()` loop with `IsDescendantOf`
+- Punch suppression: `os.clock() < punchArmEnd + 0.2`
+
 ## Session 28 -- 2026-04-13
 
 One Versus All — hitbox polish, leaderboard, SFX, cleanup:
