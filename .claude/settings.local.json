@@ -14,7 +14,21 @@
       "Bash(rojo --version)",
       "Bash(aftman --version)",
       "Bash(Start-Process powershell:*)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(curl -s http://127.0.0.1:11434/api/tags)",
+      "Bash(winget list *)",
+      "Bash(/c/Users/Geoff/AppData/Local/Programs/Ollama/ollama.exe pull *)",
+      "Bash(mkdir -p \"/c/Users/Geoff/Mark Obsidian/01-Projects/Mark\")",
+      "Bash(mkdir -p \"/c/Users/Geoff/Mark Obsidian/02-Concepts\")",
+      "Bash(mkdir -p \"/c/Users/Geoff/Mark Obsidian/03-Patterns\")",
+      "Bash(mkdir -p \"/c/Users/Geoff/Mark Obsidian/04-Archive\")",
+      "Bash(mkdir -p \"/c/Users/Geoff/Mark Obsidian/05-Infrastructure\")",
+      "Bash(mkdir -p \"/c/Users/Geoff/.claude/hooks/logs\")",
+      "Bash(mkdir -p \"/c/Users/Geoff/.claude/projects/C--Dev-ClaudeCreator/memory/projects\")",
+      "Bash(sed -i 's|python3 |\"C:/Users/Geoff/AppData/Local/Programs/Python/Python312/python.exe\" |g' /c/Users/Geoff/.claude/hooks/read_guard.sh)",
+      "Bash(sed -i 's|python3\\\\.exe|\"C:/Users/Geoff/AppData/Local/Programs/Python/Python312/python.exe\"|g' /c/Users/Geoff/.claude/hooks/read_guard.sh)",
+      "Bash(rm \"/c/Users/Geoff/.claude/mcp.json\")",
+      "Bash(claude mcp *)"
     ]
   }
 }

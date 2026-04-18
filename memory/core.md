@@ -71,6 +71,16 @@ Understands how programming works but not an expert in any language.
 - HUD update runs before `if not flying then return end` so bars update during ragdoll/death
 - Screen health bar color: green→yellow→red using worldBarColor() function
 
+## Mark System
+- Installed and operational: 2026-04-17
+- Vault: C:\Users\Geoff\Mark Obsidian\
+- MCP: mcp-obsidian via HTTP port 27123 (not HTTPS 27124 — self-signed cert breaks MCP)
+- Correct env vars: OBSIDIAN_API_URL + OBSIDIAN_API_KEY (not OBSIDIAN_REST_API_*)
+- Hooks: all Python, at C:\Users\Geoff\.claude\hooks\
+- Global CLAUDE.md: C:\Users\Geoff\.claude\CLAUDE.md
+- Routing: local-only (no OpenAI), /default = Mistral→Deepseek/Qwen→Sonnet fallback
+- Mistral 7b known limitation: occasionally misclassifies architectural tasks as mechanical
+
 ## Gotchas
 
 - gh CLI installed and working (auth'd as Geoff-55)

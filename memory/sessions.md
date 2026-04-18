@@ -1,5 +1,38 @@
 # Session History
 
+## Session 32 -- 2026-04-17
+
+Mark system install — full build from scratch:
+
+**Installed:**
+- Ollama + mistral:7b, qwen3:14b, deepseek-coder:6.7b (all pulled, all responding)
+- Obsidian vault structured (C:\Users\Geoff\Mark Obsidian\) — 01-Projects/02-Concepts/03-Patterns/04-Archive/05-Infrastructure/Templates
+- Obsidian Local REST API plugin v3.6.1 installed; HTTP on port 27123 (HTTPS port 27124 causes MCP failures)
+- mcp-obsidian MCP server registered via `claude mcp add` at user scope; env vars: OBSIDIAN_API_URL + OBSIDIAN_API_KEY (guide incorrectly shows OBSIDIAN_REST_API_*)
+- uv/uvx v0.11.7 installed
+- Global ~/.claude/CLAUDE.md written (routing, tiers, session protocol, hard rules)
+- Memory system populated: core.md, preferences.md, brief.md, INTEGRATION_MAP.md + projects/ subfolder
+- All hooks written in Python (guide used batch/bash which broke under Git Bash): health check, auto-node creator, pre-compact snapshot, session end, session error
+- settings.json wired with hooks + permissions + deny rules
+- Project dispatcher JSON written
+- switch_model.ps1 written
+- Routing table updated: local-only (no OpenAI), /default uses Mistral→Deepseek/Qwen→Sonnet fallback
+- Pressure tested all systems — 8/8 pass (Mistral classifier 7b accuracy limitation noted and documented)
+
+**Vault populated:**
+- 01-Projects/Mark/Mark System.md
+- 01-Projects/ClaudeCreator/ClaudeCreator.md
+- 01-Projects/Troll Mountain/Troll Mountain.md
+- 01-Projects/One Versus All/One Versus All.md
+- 02-Concepts/Rojo Workflow.md
+- 02-Concepts/Cloudflare Pages Deploy.md
+- 03-Patterns/Roblox Server-Client Pattern.md
+- 05-Infrastructure/smoke_test.md (auto-generated during test)
+
+**Cleanup:**
+- Deleted BotService.server.luau (Troll Mountain — scrapped)
+- Deleted PlayerController.client.luau.bak (One Versus All — stale backup)
+
 ## Session 31 -- 2026-04-17
 
 One Versus All — punch arm polish, SFX fixes, zoom smoothing (addendum to session 30):
