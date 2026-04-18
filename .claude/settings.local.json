@@ -28,7 +28,10 @@
       "Bash(sed -i 's|python3 |\"C:/Users/Geoff/AppData/Local/Programs/Python/Python312/python.exe\" |g' /c/Users/Geoff/.claude/hooks/read_guard.sh)",
       "Bash(sed -i 's|python3\\\\.exe|\"C:/Users/Geoff/AppData/Local/Programs/Python/Python312/python.exe\"|g' /c/Users/Geoff/.claude/hooks/read_guard.sh)",
       "Bash(rm \"/c/Users/Geoff/.claude/mcp.json\")",
-      "Bash(claude mcp *)"
+      "Bash(claude mcp *)",
+      "Skill(update-config)",
+      "mcp__obsidian__obsidian_get_periodic_note",
+      "mcp__obsidian__obsidian_append_content"
     ]
   }
 }
