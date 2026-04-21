@@ -47,6 +47,16 @@ Understands how programming works but not an expert in any language.
 - Must be in Edit mode for Rojo to sync; Script Injection permission must be granted in Plugin Manager
 - Output panel: View → Output in Studio menu bar
 
+## Generic Fighting Game (Roblox)
+- Project root: C:\Dev\GenericFightingGame\ (R6 only, ground-based)
+- Rojo v7.6.1 (aftman.toml), same structure as other Roblox projects
+- Started session 39 (2026-04-19); One Versus All shelved that session
+- Systems: camera (fixed zoom, shiftlock, offset left), M1 combo (1→2→3→4→1), M2 block
+- Punch: server-authoritative, hits players and rigs; hitbox 5×5×7 transparent
+- Combo walk: WalkSpeed=8 during combo, stage 4 = full lock 0.5s after finisher
+- Block: 50% damage reduction, can't activate while stunned, lockout if released mid-combo
+- Config: all tunable values in src/shared/Config.luau
+
 ## One Versus All (Roblox)
 - Project root: C:\Dev\OneVersusAll (separate from C:\Dev\RobloxGame/Troll Mountain)
 - Rojo v7.6.1 (aftman.toml), same structure: src/server → ServerScriptService/Scripts, src/client → StarterPlayerScripts, src/shared → ReplicatedStorage/Shared

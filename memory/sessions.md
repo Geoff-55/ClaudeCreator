@@ -1,5 +1,17 @@
 # Session History
 
+## Session 40 -- 2026-04-20
+
+Generic Fighting Game (C:\Dev\GenericFightingGame) — combat polish:
+- Punches now hit rigs (any Model with Humanoid); rig knockback applied server-side
+- Hitboxes fully transparent; size 5×5×7
+- Lunge system scrapped; replaced with slow walk (WalkSpeed=8) during combo window
+- Stage 4 finisher: attacker locked (WalkSpeed=0) for 0.5s after throwing it
+- Block system: M2 hold = 50% damage reduction (server-tracked SetBlocking remote)
+  - Can't activate block while stunned; release mid-combo = blockLocked until stun ends
+- Knockback: 80 (stages 1–3), 200 (stage 4)
+- Config: PUNCH_COOLDOWN=0.5, COMBO_WINDOW=1.0, COMBO_WALK_SPEED=8, FINISHER_LOCK=0.5, BLOCK_DAMAGE_MULT=0.5
+
 ## Session 32 -- 2026-04-17
 
 Mark system install — full build from scratch:
