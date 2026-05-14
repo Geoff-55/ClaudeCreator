@@ -264,12 +264,14 @@
 
       <!-- Duration -->
       <div>
-        <div class="section-label">Output Length</div>
-        <div class="btn-group">
-          <button class="opt-btn" data-dur="15">15s</button>
-          <button class="opt-btn selected" data-dur="30">30s</button>
-          <button class="opt-btn" data-dur="45">45s</button>
-          <button class="opt-btn" data-dur="60">60s</button>
+        <div class="intensity-row">
+          <div class="section-label" style="margin-bottom:0;">Output Length</div>
+          <span class="intensity-value" id="durationLabel">30s</span>
+        </div>
+        <input type="range" id="durationSlider" min="10" max="100" step="1" value="30">
+        <div class="intensity-ends">
+          <span>10s</span>
+          <span>100s</span>
         </div>
       </div>
 
@@ -296,15 +298,13 @@
   </div>
 
   <script>
-    // Duration selection
-    const durationBtns = document.querySelectorAll('.opt-btn[data-dur]');
+    // Duration slider
+    const durationSlider = document.getElementById('durationSlider');
+    const durationLabel  = document.getElementById('durationLabel');
     let selectedDuration = 30;
-    durationBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        durationBtns.forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        selectedDuration = parseInt(btn.dataset.dur);
-      });
+    durationSlider.addEventListener('input', () => {
+      selectedDuration = parseInt(durationSlider.value);
+      durationLabel.textContent = selectedDuration + 's';
     });
 
     // Intensity slider
