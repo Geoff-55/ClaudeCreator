@@ -283,6 +283,35 @@
       font-family: monospace;
       letter-spacing: 0.06em;
       user-select: none;
+      flex: 1;
+    }
+
+    .sfx-preview {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid #a855f755;
+      background: transparent;
+      color: #a855f7;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+      padding: 0;
+    }
+
+    .sfx-preview:hover {
+      border-color: #a855f7;
+      background: #a855f720;
+      box-shadow: 0 0 6px #a855f7;
+    }
+
+    .sfx-preview.playing {
+      border-color: #a855f7;
+      background: #a855f730;
+      box-shadow: 0 0 8px #a855f7;
     }
 
     /* Divider */
@@ -450,30 +479,37 @@
           <label class="sfx-item">
             <input type="checkbox" id="sfx-woosh1" checked>
             <span class="sfx-label">Woosh 1</span>
+            <button class="sfx-preview" data-src="sfx/woosh1.mp3" type="button" title="Preview">&#9654;</button>
           </label>
           <label class="sfx-item">
             <input type="checkbox" id="sfx-woosh2" checked>
             <span class="sfx-label">Woosh 2</span>
+            <button class="sfx-preview" data-src="sfx/woosh2.mp3" type="button" title="Preview">&#9654;</button>
           </label>
           <label class="sfx-item">
             <input type="checkbox" id="sfx-woosh3" checked>
             <span class="sfx-label">Woosh 3</span>
+            <button class="sfx-preview" data-src="sfx/woosh3.mp3" type="button" title="Preview">&#9654;</button>
           </label>
           <label class="sfx-item">
             <input type="checkbox" id="sfx-woosh4" checked>
             <span class="sfx-label">Woosh 4</span>
+            <button class="sfx-preview" data-src="sfx/woosh4.mp3" type="button" title="Preview">&#9654;</button>
           </label>
           <label class="sfx-item">
             <input type="checkbox" id="sfx-woosh5" checked>
             <span class="sfx-label">Woosh 5</span>
+            <button class="sfx-preview" data-src="sfx/woosh5.mp3" type="button" title="Preview">&#9654;</button>
           </label>
           <label class="sfx-item">
             <input type="checkbox" id="sfx-woosh6" checked>
             <span class="sfx-label">Woosh 6</span>
+            <button class="sfx-preview" data-src="sfx/woosh6.mp3" type="button" title="Preview">&#9654;</button>
           </label>
           <label class="sfx-item">
             <input type="checkbox" id="sfx-ding" checked>
             <span class="sfx-label">Ding</span>
+            <button class="sfx-preview" data-src="sfx/ding.mp3" type="button" title="Preview">&#9654;</button>
           </label>
         </div>
       </div>
@@ -513,6 +549,33 @@
 
   <script>
     const freqNames = ['', 'Rare', 'Low', 'Medium', 'High', 'Every Cut'];
+
+    // SFX preview
+    let activeAudio = null;
+    let activeBtn   = null;
+    document.querySelectorAll('.sfx-preview').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (activeAudio && !activeAudio.paused) {
+          activeAudio.pause();
+          activeAudio.currentTime = 0;
+          if (activeBtn) { activeBtn.classList.remove('playing'); activeBtn.innerHTML = '&#9654;'; }
+          if (activeBtn === btn) { activeAudio = null; activeBtn = null; return; }
+        }
+        const audio = new Audio(btn.dataset.src);
+        activeAudio = audio;
+        activeBtn   = btn;
+        btn.classList.add('playing');
+        btn.innerHTML = '&#9646;&#9646;';
+        audio.play();
+        audio.onended = () => {
+          btn.classList.remove('playing');
+          btn.innerHTML = '&#9654;';
+          activeAudio = null;
+          activeBtn   = null;
+        };
+      });
+    });
 
     // Duration slider
     const durationSlider = document.getElementById('durationSlider');
