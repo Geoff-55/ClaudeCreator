@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Clip Editor — CoreCreate</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { overflow-y: auto; }
+
+    .editor-wrap {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      padding: 3vh 1rem 5vh;
+      min-height: 100vh;
+    }
+
+    .editor-title {
+      font-size: clamp(1.6rem, 5vw, 3rem);
+      margin-bottom: 2.2rem;
+    }
+
+    .editor-panel {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.6rem;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #a855f7;
+      background: #0d0d0f;
+      padding: 3rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+      min-height: 200px;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      background: #a855f710;
+      box-shadow: 0 0 24px #7c3aed44;
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon { opacity: 0.45; }
+
+    .drop-label {
+      color: #a855f7;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .drop-sub {
+      color: #a855f755;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      font-family: monospace;
+    }
+
+    .drop-filename {
+      color: #d8b4fe;
+      font-size: 0.82rem;
+      font-family: monospace;
+      letter-spacing: 0.05em;
+      display: none;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Section label */
+    .section-label {
+      color: #a855f7;
+      font-size: 0.7rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-family: monospace;
+      margin-bottom: 0.55rem;
+    }
+
+    /* Button group */
+    .btn-group {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    .opt-btn {
+      flex: 1;
+      padding: 0.6rem 0;
+      border: 1px solid #a855f7;
+      background: transparent;
+      color: #a855f7;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+      font-family: sans-serif;
+    }
+
+    .opt-btn:hover { background: #a855f718; }
+
+    .opt-btn.selected {
+      background: #a855f728;
+      box-shadow: 0 0 10px #a855f7, 0 0 20px #7c3aed;
+      color: #d8b4fe;
+    }
+
+    /* Intensity slider */
+    .intensity-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+    }
+
+    .intensity-value {
+      color: #d8b4fe;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      font-family: monospace;
+      text-transform: uppercase;
+    }
+
+    .intensity-ends {
+      display: flex;
+      justify-content: space-between;
+      color: #a855f744;
+      font-size: 0.66rem;
+      letter-spacing: 0.1em;
+      font-family: monospace;
+      text-transform: uppercase;
+      margin-top: 0.35rem;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 2px;
+      background: #a855f740;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #a855f7;
+      box-shadow: 0 0 8px #a855f7;
+      cursor: pointer;
+    }
+
+    /* Generate button */
+    .gen-btn {
+      width: 100%;
+      padding: 1rem;
+      border: 1px solid #a855f7;
+      background: transparent;
+      color: #a855f7;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+      font-family: sans-serif;
+    }
+
+    .gen-btn:hover:not(:disabled) {
+      background: #a855f720;
+      box-shadow: 0 0 18px #a855f7, 0 0 36px #7c3aed;
+      color: #d8b4fe;
+    }
+
+    .gen-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    /* Status */
+    .status-bar {
+      color: #a855f755;
+      font-size: 0.72rem;
+      font-family: monospace;
+      letter-spacing: 0.09em;
+      text-align: center;
+      min-height: 1.1em;
+    }
+
+    .status-bar.error { color: #f87171aa; }
+    .status-bar.ok    { color: #86efac99; }
+  </style>
+</head>
+<body>
+
+  <div class="bg">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+          <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#1a1a2e" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="1440" height="900" fill="url(#grid)"/>
+      <polygon points="200,50 400,50 300,230" fill="none" stroke="#1e1b4b" stroke-width="1.5"/>
+      <polygon points="1100,80 1350,80 1225,300" fill="none" stroke="#1e1b4b" stroke-width="1.5"/>
+      <polygon points="50,400 200,600 50,750" fill="none" stroke="#1e1b4b" stroke-width="1"/>
+      <polygon points="1300,350 1440,500 1300,650" fill="none" stroke="#1e1b4b" stroke-width="1"/>
+      <polygon points="600,700 800,800 700,900" fill="none" stroke="#1e1b4b" stroke-width="1"/>
+      <rect x="900" y="650" width="150" height="150" fill="none" stroke="#1e1b4b" stroke-width="1" transform="rotate(20 975 725)"/>
+      <rect x="100" y="200" width="100" height="100" fill="none" stroke="#1e1b4b" stroke-width="1" transform="rotate(15 150 250)"/>
+      <line x1="0" y1="450" x2="1440" y2="450" stroke="#12102a" stroke-width="1"/>
+      <line x1="720" y1="0" x2="720" y2="900" stroke="#12102a" stroke-width="1"/>
+      <circle cx="720" cy="450" r="300" fill="none" stroke="#150f2a" stroke-width="1"/>
+      <circle cx="720" cy="450" r="200" fill="none" stroke="#150f2a" stroke-width="1"/>
+    </svg>
+  </div>
+
+  <a class="back-btn" href="index.html">Back</a>
+
+  <div class="editor-wrap">
+    <h1 class="title editor-title">Auto Clip Editor</h1>
+
+    <div class="editor-panel">
+
+      <!-- Upload -->
+      <div>
+        <div class="section-label">Upload Clip</div>
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept="video/*">
+          <svg class="drop-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <span class="drop-label">Drag & Drop or Click to Upload</span>
+          <span class="drop-sub">Max 5 minutes &nbsp;·&nbsp; MP4, MOV, AVI, WEBM</span>
+          <span class="drop-filename" id="fileName"></span>
+        </div>
+      </div>
+
+      <!-- Duration -->
+      <div>
+        <div class="section-label">Output Length</div>
+        <div class="btn-group">
+          <button class="opt-btn" data-dur="15">15s</button>
+          <button class="opt-btn selected" data-dur="30">30s</button>
+          <button class="opt-btn" data-dur="45">45s</button>
+          <button class="opt-btn" data-dur="60">60s</button>
+        </div>
+      </div>
+
+      <!-- Intensity -->
+      <div>
+        <div class="intensity-row">
+          <div class="section-label" style="margin-bottom:0;">Effect Intensity</div>
+          <span class="intensity-value" id="intensityLabel">Medium</span>
+        </div>
+        <input type="range" id="intensitySlider" min="1" max="5" step="1" value="3">
+        <div class="intensity-ends">
+          <span>Subtle</span>
+          <span>Intense</span>
+        </div>
+      </div>
+
+      <!-- Generate -->
+      <button class="gen-btn" id="genBtn" disabled>Generate Clip</button>
+
+      <!-- Status -->
+      <div class="status-bar" id="statusBar">Upload a clip to get started.</div>
+
+    </div>
+  </div>
+
+  <script>
+    // Duration selection
+    const durationBtns = document.querySelectorAll('.opt-btn[data-dur]');
+    let selectedDuration = 30;
+    durationBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        durationBtns.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedDuration = parseInt(btn.dataset.dur);
+      });
+    });
+
+    // Intensity slider
+    const slider = document.getElementById('intensitySlider');
+    const intensityLabel = document.getElementById('intensityLabel');
+    const intensityNames = ['', 'Subtle', 'Light', 'Medium', 'Heavy', 'Intense'];
+    slider.addEventListener('input', () => {
+      intensityLabel.textContent = intensityNames[slider.value];
+    });
+
+    // File handling
+    const dropZone  = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameEl = document.getElementById('fileName');
+    const genBtn    = document.getElementById('genBtn');
+    const statusBar = document.getElementById('statusBar');
+    let selectedFile = null;
+
+    function handleFile(file) {
+      if (!file || !file.type.startsWith('video/')) {
+        setStatus('Only video files are supported.', 'error');
+        return;
+      }
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src);
+        if (video.duration > 300) {
+          setStatus('Clip exceeds 5 minutes. Please trim before uploading.', 'error');
+          selectedFile = null;
+          genBtn.disabled = true;
+          fileNameEl.style.display = 'none';
+          return;
+        }
+        selectedFile = file;
+        fileNameEl.textContent = file.name;
+        fileNameEl.style.display = 'block';
+        genBtn.disabled = false;
+        setStatus('Ready to generate.');
+      };
+      video.src = URL.createObjectURL(file);
+    }
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    // Generate
+    genBtn.addEventListener('click', () => {
+      if (!selectedFile) return;
+      const intensity = intensityNames[slider.value].toLowerCase();
+      setStatus(`Generating — ${selectedDuration}s clip · ${intensity} effects...`);
+      genBtn.disabled = true;
+      // TODO: POST selectedFile + selectedDuration + slider.value to backend
+    });
+
+    function setStatus(msg, type = '') {
+      statusBar.textContent = msg;
+      statusBar.className = 'status-bar' + (type ? ' ' + type : '');
+    }
+  </script>
+
+</body>
+</html>
