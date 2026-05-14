@@ -102,44 +102,15 @@
       margin-bottom: 0.55rem;
     }
 
-    /* Button group */
-    .btn-group {
-      display: flex;
-      gap: 0.6rem;
-    }
-
-    .opt-btn {
-      flex: 1;
-      padding: 0.6rem 0;
-      border: 1px solid #a855f7;
-      background: transparent;
-      color: #a855f7;
-      font-size: 0.9rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.15s, box-shadow 0.15s, color 0.15s;
-      font-family: sans-serif;
-    }
-
-    .opt-btn:hover { background: #a855f718; }
-
-    .opt-btn.selected {
-      background: #a855f728;
-      box-shadow: 0 0 10px #a855f7, 0 0 20px #7c3aed;
-      color: #d8b4fe;
-    }
-
-    /* Intensity slider */
-    .intensity-row {
+    /* Slider row */
+    .slider-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.6rem;
     }
 
-    .intensity-value {
+    .slider-value {
       color: #d8b4fe;
       font-size: 0.78rem;
       letter-spacing: 0.1em;
@@ -147,7 +118,7 @@
       text-transform: uppercase;
     }
 
-    .intensity-ends {
+    .slider-ends {
       display: flex;
       justify-content: space-between;
       color: #a855f744;
@@ -174,6 +145,173 @@
       background: #a855f7;
       box-shadow: 0 0 8px #a855f7;
       cursor: pointer;
+    }
+
+    /* Effects settings button */
+    .effects-btn {
+      width: 100%;
+      padding: 0.7rem;
+      border: 1px solid #a855f7;
+      background: transparent;
+      color: #a855f7;
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+      font-family: sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .effects-btn:hover {
+      background: #a855f718;
+      box-shadow: 0 0 10px #a855f755;
+      color: #d8b4fe;
+    }
+
+    .effects-summary {
+      color: #a855f755;
+      font-size: 0.66rem;
+      font-family: monospace;
+      letter-spacing: 0.07em;
+      text-align: center;
+      margin-top: 0.4rem;
+    }
+
+    /* Effects popup overlay */
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: #0d0d0fcc;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .popup-overlay.open { display: flex; }
+
+    .popup-box {
+      border: 1px solid #a855f7;
+      background: #0d0d0f;
+      box-shadow: 0 0 40px #7c3aed55;
+      padding: 2rem 2.2rem 2rem;
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .popup-title {
+      color: #a855f7;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-family: monospace;
+    }
+
+    .popup-close {
+      background: transparent;
+      border: none;
+      color: #a855f755;
+      font-size: 1.2rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 0.2rem;
+      transition: color 0.15s;
+    }
+
+    .popup-close:hover { color: #a855f7; }
+
+    /* SFX checkboxes */
+    .sfx-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem 1rem;
+    }
+
+    .sfx-item {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      cursor: pointer;
+    }
+
+    .sfx-item input[type="checkbox"] {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #a855f7;
+      background: transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .sfx-item input[type="checkbox"]:checked {
+      background: #a855f730;
+      box-shadow: 0 0 6px #a855f7;
+    }
+
+    .sfx-item input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 4px;
+      width: 4px; height: 7px;
+      border: 1.5px solid #a855f7;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg);
+    }
+
+    .sfx-label {
+      color: #d8b4fe;
+      font-size: 0.78rem;
+      font-family: monospace;
+      letter-spacing: 0.06em;
+      user-select: none;
+    }
+
+    /* Divider */
+    .popup-divider {
+      border: none;
+      border-top: 1px solid #a855f720;
+      margin: 0;
+    }
+
+    /* Apply button in popup */
+    .popup-apply {
+      width: 100%;
+      padding: 0.65rem;
+      border: 1px solid #a855f7;
+      background: transparent;
+      color: #a855f7;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+      font-family: sans-serif;
+    }
+
+    .popup-apply:hover {
+      background: #a855f720;
+      box-shadow: 0 0 14px #a855f7;
+      color: #d8b4fe;
     }
 
     /* Generate button */
@@ -262,30 +400,29 @@
         </div>
       </div>
 
-      <!-- Duration -->
+      <!-- Output Length -->
       <div>
-        <div class="intensity-row">
+        <div class="slider-row">
           <div class="section-label" style="margin-bottom:0;">Output Length</div>
-          <span class="intensity-value" id="durationLabel">30s</span>
+          <span class="slider-value" id="durationLabel">30s</span>
         </div>
         <input type="range" id="durationSlider" min="10" max="100" step="1" value="30">
-        <div class="intensity-ends">
+        <div class="slider-ends">
           <span>10s</span>
           <span>100s</span>
         </div>
       </div>
 
-      <!-- Intensity -->
+      <!-- Effects Settings -->
       <div>
-        <div class="intensity-row">
-          <div class="section-label" style="margin-bottom:0;">Effect Intensity</div>
-          <span class="intensity-value" id="intensityLabel">Medium</span>
-        </div>
-        <input type="range" id="intensitySlider" min="1" max="5" step="1" value="3">
-        <div class="intensity-ends">
-          <span>Subtle</span>
-          <span>Intense</span>
-        </div>
+        <div class="section-label">Effects</div>
+        <button class="effects-btn" id="effectsBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+          </svg>
+          Effects Settings
+        </button>
+        <div class="effects-summary" id="effectsSummary">All SFX on &nbsp;·&nbsp; Zoom: Medium &nbsp;·&nbsp; Tint: Medium</div>
       </div>
 
       <!-- Generate -->
@@ -297,7 +434,86 @@
     </div>
   </div>
 
+  <!-- Effects Settings Popup -->
+  <div class="popup-overlay" id="popupOverlay">
+    <div class="popup-box">
+
+      <div class="popup-header">
+        <span class="popup-title">Effects Settings</span>
+        <button class="popup-close" id="popupClose">✕</button>
+      </div>
+
+      <!-- Sound Effects -->
+      <div>
+        <div class="section-label">Sound Effects</div>
+        <div class="sfx-grid">
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-woosh1" checked>
+            <span class="sfx-label">Woosh 1</span>
+          </label>
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-woosh2" checked>
+            <span class="sfx-label">Woosh 2</span>
+          </label>
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-woosh3" checked>
+            <span class="sfx-label">Woosh 3</span>
+          </label>
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-woosh4" checked>
+            <span class="sfx-label">Woosh 4</span>
+          </label>
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-woosh5" checked>
+            <span class="sfx-label">Woosh 5</span>
+          </label>
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-woosh6" checked>
+            <span class="sfx-label">Woosh 6</span>
+          </label>
+          <label class="sfx-item">
+            <input type="checkbox" id="sfx-ding" checked>
+            <span class="sfx-label">Ding</span>
+          </label>
+        </div>
+      </div>
+
+      <hr class="popup-divider">
+
+      <!-- Zoom Intensity -->
+      <div>
+        <div class="slider-row">
+          <div class="section-label" style="margin-bottom:0;">Zoom Frequency</div>
+          <span class="slider-value" id="zoomLabel">Medium</span>
+        </div>
+        <input type="range" id="zoomSlider" min="1" max="5" step="1" value="3">
+        <div class="slider-ends">
+          <span>Rare</span>
+          <span>Every Cut</span>
+        </div>
+      </div>
+
+      <!-- Tint Intensity -->
+      <div>
+        <div class="slider-row">
+          <div class="section-label" style="margin-bottom:0;">Tint Frequency</div>
+          <span class="slider-value" id="tintLabel">Medium</span>
+        </div>
+        <input type="range" id="tintSlider" min="1" max="5" step="1" value="3">
+        <div class="slider-ends">
+          <span>Rare</span>
+          <span>Every Cut</span>
+        </div>
+      </div>
+
+      <button class="popup-apply" id="popupApply">Apply</button>
+
+    </div>
+  </div>
+
   <script>
+    const freqNames = ['', 'Rare', 'Low', 'Medium', 'High', 'Every Cut'];
+
     // Duration slider
     const durationSlider = document.getElementById('durationSlider');
     const durationLabel  = document.getElementById('durationLabel');
@@ -307,20 +523,51 @@
       durationLabel.textContent = selectedDuration + 's';
     });
 
-    // Intensity slider
-    const slider = document.getElementById('intensitySlider');
-    const intensityLabel = document.getElementById('intensityLabel');
-    const intensityNames = ['', 'Subtle', 'Light', 'Medium', 'Heavy', 'Intense'];
-    slider.addEventListener('input', () => {
-      intensityLabel.textContent = intensityNames[slider.value];
+    // Popup sliders
+    const zoomSlider = document.getElementById('zoomSlider');
+    const tintSlider = document.getElementById('tintSlider');
+    const zoomLabel  = document.getElementById('zoomLabel');
+    const tintLabel  = document.getElementById('tintLabel');
+
+    zoomSlider.addEventListener('input', () => { zoomLabel.textContent = freqNames[zoomSlider.value]; });
+    tintSlider.addEventListener('input', () => { tintLabel.textContent = freqNames[tintSlider.value]; });
+
+    // Effects popup
+    const popupOverlay   = document.getElementById('popupOverlay');
+    const effectsBtn     = document.getElementById('effectsBtn');
+    const popupClose     = document.getElementById('popupClose');
+    const popupApply     = document.getElementById('popupApply');
+    const effectsSummary = document.getElementById('effectsSummary');
+
+    effectsBtn.addEventListener('click', () => popupOverlay.classList.add('open'));
+    popupClose.addEventListener('click', closePopup);
+    popupOverlay.addEventListener('click', (e) => { if (e.target === popupOverlay) closePopup(); });
+
+    popupApply.addEventListener('click', () => {
+      updateSummary();
+      closePopup();
     });
 
+    function closePopup() { popupOverlay.classList.remove('open'); }
+
+    function updateSummary() {
+      const sfxIds = ['sfx-woosh1','sfx-woosh2','sfx-woosh3','sfx-woosh4','sfx-woosh5','sfx-woosh6','sfx-ding'];
+      const sfxLabels = ['Woosh 1','Woosh 2','Woosh 3','Woosh 4','Woosh 5','Woosh 6','Ding'];
+      const active = sfxIds.filter(id => document.getElementById(id).checked)
+                           .map(id => sfxLabels[sfxIds.indexOf(id)]);
+      const sfxText = active.length === 0 ? 'No SFX' :
+                      active.length === sfxIds.length ? 'All SFX on' :
+                      active.join(', ');
+      effectsSummary.textContent =
+        `${sfxText} · Zoom: ${freqNames[zoomSlider.value]} · Tint: ${freqNames[tintSlider.value]}`;
+    }
+
     // File handling
-    const dropZone  = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
+    const dropZone   = document.getElementById('dropZone');
+    const fileInput  = document.getElementById('fileInput');
     const fileNameEl = document.getElementById('fileName');
-    const genBtn    = document.getElementById('genBtn');
-    const statusBar = document.getElementById('statusBar');
+    const genBtn     = document.getElementById('genBtn');
+    const statusBar  = document.getElementById('statusBar');
     let selectedFile = null;
 
     function handleFile(file) {
@@ -366,10 +613,14 @@
     // Generate
     genBtn.addEventListener('click', () => {
       if (!selectedFile) return;
-      const intensity = intensityNames[slider.value].toLowerCase();
-      setStatus(`Generating — ${selectedDuration}s clip · ${intensity} effects...`);
+      const sfxIds = ['sfx-woosh1','sfx-woosh2','sfx-woosh3','sfx-woosh4','sfx-woosh5','sfx-woosh6','sfx-ding'];
+      const sfxFiles = ['woosh1.mp3','woosh2.mp3','woosh3.mp3','woosh4.mp3','woosh5.mp3','woosh6.mp3','ding.mp3'];
+      const activeSfx = sfxIds.map((id, i) => document.getElementById(id).checked ? sfxFiles[i] : null).filter(Boolean);
+      // activeSfx, zoomSlider.value, tintSlider.value, selectedDuration → pass to backend
+      // Effects always trigger at cut boundaries for timing/impact
+      setStatus(`Generating — ${selectedDuration}s · Zoom: ${freqNames[zoomSlider.value]} · Tint: ${freqNames[tintSlider.value]} · SFX: ${activeSfx.length}`);
       genBtn.disabled = true;
-      // TODO: POST selectedFile + selectedDuration + slider.value to backend
+      // TODO: POST to backend
     });
 
     function setStatus(msg, type = '') {
