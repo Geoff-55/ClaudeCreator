@@ -424,7 +424,7 @@
             <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
           </svg>
           <span class="drop-label">Drag & Drop or Click to Upload</span>
-          <span class="drop-sub">Max 5 minutes &nbsp;·&nbsp; MP4, MOV, AVI, WEBM</span>
+          <span class="drop-sub">Max 10 minutes &nbsp;·&nbsp; 3 min recommended &nbsp;·&nbsp; MP4, MOV, AVI, WEBM</span>
           <span class="drop-filename" id="fileName"></span>
         </div>
       </div>
@@ -642,8 +642,8 @@
       video.preload = 'metadata';
       video.onloadedmetadata = () => {
         URL.revokeObjectURL(video.src);
-        if (video.duration > 300) {
-          setStatus('Clip exceeds 5 minutes. Please trim before uploading.', 'error');
+        if (video.duration > 600) {
+          setStatus('Clip exceeds 10 minutes. Please trim before uploading.', 'error');
           selectedFile = null;
           genBtn.disabled = true;
           fileNameEl.style.display = 'none';
