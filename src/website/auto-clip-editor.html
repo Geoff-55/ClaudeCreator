@@ -548,16 +548,18 @@
     // ── ffmpeg loader ──────────────────────────────────────────
     async function loadFFmpeg() {
       if (ffmpegLoaded) return ffmpegInst;
-      const { FFmpeg }     = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm/index.js');
-      const { toBlobURL }  = await import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js');
-      const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      const { FFmpeg }    = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm/index.js');
+      const { toBlobURL } = await import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js');
+      const coreBase   = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      const ffmpegBase = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm';
       ffmpegInst = new FFmpeg();
       ffmpegInst.on('log', ({ message }) => {
         if (/frame=|time=|speed=/.test(message)) setProgressLog(message.trim().slice(0, 90));
       });
       await ffmpegInst.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   'text/javascript'),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+        coreURL:   await toBlobURL(`${coreBase}/ffmpeg-core.js`,   'text/javascript'),
+        wasmURL:   await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
+        workerURL: await toBlobURL(`${ffmpegBase}/worker.js`,      'text/javascript'),
       });
       ffmpegLoaded = true;
       return ffmpegInst;
@@ -565,7 +567,9 @@
 
     async function fetchBuf(input) {
       if (input instanceof File || input instanceof Blob) return new Uint8Array(await input.arrayBuffer());
-      return new Uint8Array(await (await fetch(input)).arrayBuffer());
+      const resp = await fetch(input);
+      if (!resp.ok) throw new Error(`Failed to fetch ${input} (${resp.status})`);
+      return new Uint8Array(await resp.arrayBuffer());
     }
 
     // ── generate ───────────────────────────────────────────────
@@ -622,8 +626,12 @@
         const sfxFsEntries = [];
         for (let i = 0; i < sfxEntries.length; i++) {
           const fsName = `sfx${i}.mp3`;
-          await ffmpeg.writeFile(fsName, await fetchBuf(sfxEntries[i].path));
-          sfxFsEntries.push({ ...sfxEntries[i], fsName });
+          try {
+            await ffmpeg.writeFile(fsName, await fetchBuf(sfxEntries[i].path));
+            sfxFsEntries.push({ ...sfxEntries[i], fsName });
+          } catch {
+            // SFX fetch blocked (file:// protocol) — skip silently
+          }
         }
         setProgress(45);
 
