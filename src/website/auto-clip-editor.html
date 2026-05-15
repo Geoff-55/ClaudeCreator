@@ -19,10 +19,7 @@
       min-height: 100vh;
     }
 
-    .editor-title {
-      font-size: clamp(1.6rem, 5vw, 3rem);
-      margin-bottom: 2.2rem;
-    }
+    .editor-title { font-size: clamp(1.6rem, 5vw, 3rem); margin-bottom: 2.2rem; }
 
     .editor-panel {
       width: 100%;
@@ -47,339 +44,147 @@
       min-height: 200px;
       position: relative;
     }
-
-    .drop-zone:hover,
-    .drop-zone.drag-over {
+    .drop-zone:hover, .drop-zone.drag-over {
       background: #a855f710;
       box-shadow: 0 0 24px #7c3aed44;
     }
-
     .drop-zone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
     }
-
     .drop-icon { opacity: 0.45; }
-
     .drop-label {
-      color: #a855f7;
-      font-size: 0.95rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-weight: 600;
+      color: #a855f7; font-size: 0.95rem; letter-spacing: 0.08em;
+      text-transform: uppercase; font-weight: 600;
     }
-
     .drop-sub {
-      color: #a855f755;
-      font-size: 0.72rem;
-      letter-spacing: 0.1em;
-      font-family: monospace;
+      color: #a855f755; font-size: 0.72rem; letter-spacing: 0.1em; font-family: monospace;
     }
-
     .drop-filename {
-      color: #d8b4fe;
-      font-size: 0.82rem;
-      font-family: monospace;
-      letter-spacing: 0.05em;
-      display: none;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      color: #d8b4fe; font-size: 0.82rem; font-family: monospace; letter-spacing: 0.05em;
+      display: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
     /* Section label */
     .section-label {
-      color: #a855f7;
-      font-size: 0.7rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-family: monospace;
-      margin-bottom: 0.55rem;
+      color: #a855f7; font-size: 0.7rem; letter-spacing: 0.16em;
+      text-transform: uppercase; font-family: monospace; margin-bottom: 0.55rem;
     }
 
-    /* Slider row */
+    /* Slider */
     .slider-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.6rem;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;
     }
-
     .slider-value {
-      color: #d8b4fe;
-      font-size: 0.78rem;
-      letter-spacing: 0.1em;
-      font-family: monospace;
-      text-transform: uppercase;
+      color: #d8b4fe; font-size: 0.78rem; letter-spacing: 0.1em;
+      font-family: monospace; text-transform: uppercase;
     }
-
     .slider-ends {
-      display: flex;
-      justify-content: space-between;
-      color: #a855f744;
-      font-size: 0.66rem;
-      letter-spacing: 0.1em;
-      font-family: monospace;
-      text-transform: uppercase;
-      margin-top: 0.35rem;
+      display: flex; justify-content: space-between; color: #a855f744;
+      font-size: 0.66rem; letter-spacing: 0.1em; font-family: monospace;
+      text-transform: uppercase; margin-top: 0.35rem;
     }
-
     input[type="range"] {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 2px;
-      background: #a855f740;
-      outline: none;
-      cursor: pointer;
+      -webkit-appearance: none; width: 100%; height: 2px;
+      background: #a855f740; outline: none; cursor: pointer;
     }
-
     input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      background: #a855f7;
-      box-shadow: 0 0 8px #a855f7;
-      cursor: pointer;
+      -webkit-appearance: none; width: 14px; height: 14px;
+      background: #a855f7; box-shadow: 0 0 8px #a855f7; cursor: pointer;
     }
 
-    /* Effects settings button */
+    /* Effects button */
     .effects-btn {
-      width: 100%;
-      padding: 0.7rem;
-      border: 1px solid #a855f7;
-      background: transparent;
-      color: #a855f7;
-      font-size: 0.88rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s, color 0.2s;
-      font-family: sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.6rem;
+      width: 100%; padding: 0.7rem; border: 1px solid #a855f7; background: transparent;
+      color: #a855f7; font-size: 0.88rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; cursor: pointer; transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+      font-family: sans-serif; display: flex; align-items: center; justify-content: center; gap: 0.6rem;
     }
-
-    .effects-btn:hover {
-      background: #a855f718;
-      box-shadow: 0 0 10px #a855f755;
-      color: #d8b4fe;
-    }
-
+    .effects-btn:hover { background: #a855f718; box-shadow: 0 0 10px #a855f755; color: #d8b4fe; }
     .effects-summary {
-      color: #a855f755;
-      font-size: 0.66rem;
-      font-family: monospace;
-      letter-spacing: 0.07em;
-      text-align: center;
-      margin-top: 0.4rem;
+      color: #a855f755; font-size: 0.66rem; font-family: monospace;
+      letter-spacing: 0.07em; text-align: center; margin-top: 0.4rem;
     }
 
-    /* Effects popup overlay */
+    /* Popup */
     .popup-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 200;
-      background: #0d0d0fcc;
-      align-items: center;
-      justify-content: center;
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: #0d0d0fcc; align-items: center; justify-content: center;
     }
-
     .popup-overlay.open { display: flex; }
-
     .popup-box {
-      border: 1px solid #a855f7;
-      background: #0d0d0f;
-      box-shadow: 0 0 40px #7c3aed55;
-      padding: 2rem 2.2rem 2rem;
-      width: 100%;
-      max-width: 500px;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-      max-height: 90vh;
-      overflow-y: auto;
+      border: 1px solid #a855f7; background: #0d0d0f; box-shadow: 0 0 40px #7c3aed55;
+      padding: 2rem 2.2rem; width: 100%; max-width: 500px;
+      display: flex; flex-direction: column; gap: 1.5rem; max-height: 90vh; overflow-y: auto;
     }
-
-    .popup-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
+    .popup-header { display: flex; justify-content: space-between; align-items: center; }
     .popup-title {
-      color: #a855f7;
-      font-size: 0.72rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-family: monospace;
+      color: #a855f7; font-size: 0.72rem; letter-spacing: 0.18em;
+      text-transform: uppercase; font-family: monospace;
     }
-
     .popup-close {
-      background: transparent;
-      border: none;
-      color: #a855f755;
-      font-size: 1.2rem;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0 0.2rem;
-      transition: color 0.15s;
+      background: transparent; border: none; color: #a855f755; font-size: 1.2rem;
+      cursor: pointer; line-height: 1; padding: 0 0.2rem; transition: color 0.15s;
     }
-
     .popup-close:hover { color: #a855f7; }
-
-    /* SFX checkboxes */
-    .sfx-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem 1rem;
-    }
-
-    .sfx-item {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      cursor: pointer;
-    }
-
+    .sfx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
+    .sfx-item { display: flex; align-items: center; gap: 0.55rem; cursor: pointer; }
     .sfx-item input[type="checkbox"] {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border: 1px solid #a855f7;
-      background: transparent;
-      cursor: pointer;
-      flex-shrink: 0;
-      position: relative;
+      -webkit-appearance: none; width: 14px; height: 14px;
+      border: 1px solid #a855f7; background: transparent; cursor: pointer;
+      flex-shrink: 0; position: relative;
     }
-
-    .sfx-item input[type="checkbox"]:checked {
-      background: #a855f730;
-      box-shadow: 0 0 6px #a855f7;
-    }
-
+    .sfx-item input[type="checkbox"]:checked { background: #a855f730; box-shadow: 0 0 6px #a855f7; }
     .sfx-item input[type="checkbox"]:checked::after {
-      content: '';
-      position: absolute;
-      top: 2px; left: 4px;
-      width: 4px; height: 7px;
-      border: 1.5px solid #a855f7;
-      border-top: none;
-      border-left: none;
-      transform: rotate(45deg);
+      content: ''; position: absolute; top: 2px; left: 4px;
+      width: 4px; height: 7px; border: 1.5px solid #a855f7;
+      border-top: none; border-left: none; transform: rotate(45deg);
     }
-
-    .sfx-label {
-      color: #d8b4fe;
-      font-size: 0.78rem;
-      font-family: monospace;
-      letter-spacing: 0.06em;
-      user-select: none;
-      flex: 1;
-    }
-
+    .sfx-label { color: #d8b4fe; font-size: 0.78rem; font-family: monospace; letter-spacing: 0.06em; user-select: none; flex: 1; }
     .sfx-preview {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      border: 1px solid #a855f755;
-      background: transparent;
-      color: #a855f7;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-      padding: 0;
+      width: 20px; height: 20px; border-radius: 50%; border: 1px solid #a855f755;
+      background: transparent; color: #a855f7; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: border-color 0.15s, box-shadow 0.15s, background 0.15s; padding: 0;
+      font-size: 0.6rem;
     }
-
-    .sfx-preview:hover {
-      border-color: #a855f7;
-      background: #a855f720;
-      box-shadow: 0 0 6px #a855f7;
-    }
-
-    .sfx-preview.playing {
-      border-color: #a855f7;
-      background: #a855f730;
-      box-shadow: 0 0 8px #a855f7;
-    }
-
-    /* Divider */
-    .popup-divider {
-      border: none;
-      border-top: 1px solid #a855f720;
-      margin: 0;
-    }
-
-    /* Apply button in popup */
+    .sfx-preview:hover { border-color: #a855f7; background: #a855f720; box-shadow: 0 0 6px #a855f7; }
+    .sfx-preview.playing { border-color: #a855f7; background: #a855f730; box-shadow: 0 0 8px #a855f7; }
+    .popup-divider { border: none; border-top: 1px solid #a855f720; margin: 0; }
     .popup-apply {
-      width: 100%;
-      padding: 0.65rem;
-      border: 1px solid #a855f7;
-      background: transparent;
-      color: #a855f7;
-      font-size: 0.88rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+      width: 100%; padding: 0.65rem; border: 1px solid #a855f7; background: transparent;
+      color: #a855f7; font-size: 0.88rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; cursor: pointer; transition: background 0.2s, box-shadow 0.2s, color 0.2s;
       font-family: sans-serif;
     }
+    .popup-apply:hover { background: #a855f720; box-shadow: 0 0 14px #a855f7; color: #d8b4fe; }
 
-    .popup-apply:hover {
-      background: #a855f720;
-      box-shadow: 0 0 14px #a855f7;
-      color: #d8b4fe;
+    /* Progress */
+    .progress-section { display: none; }
+    .progress-track { width: 100%; height: 2px; background: #a855f740; margin-bottom: 0.5rem; }
+    .progress-fill {
+      height: 100%; background: #a855f7; box-shadow: 0 0 6px #a855f7;
+      width: 0%; transition: width 0.5s ease;
+    }
+    .progress-log {
+      color: #a855f755; font-size: 0.68rem; font-family: monospace;
+      letter-spacing: 0.07em; min-height: 1em; word-break: break-all;
     }
 
-    /* Generate button */
+    /* Generate / Download */
     .gen-btn {
-      width: 100%;
-      padding: 1rem;
-      border: 1px solid #a855f7;
-      background: transparent;
-      color: #a855f7;
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s, color 0.2s;
-      font-family: sans-serif;
+      width: 100%; padding: 1rem; border: 1px solid #a855f7; background: transparent;
+      color: #a855f7; font-size: 1rem; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; cursor: pointer; transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+      font-family: sans-serif; text-align: center; text-decoration: none; display: block;
     }
-
-    .gen-btn:hover:not(:disabled) {
-      background: #a855f720;
-      box-shadow: 0 0 18px #a855f7, 0 0 36px #7c3aed;
-      color: #d8b4fe;
-    }
-
-    .gen-btn:disabled {
-      opacity: 0.25;
-      cursor: not-allowed;
-    }
+    .gen-btn:hover:not(:disabled) { background: #a855f720; box-shadow: 0 0 18px #a855f7, 0 0 36px #7c3aed; color: #d8b4fe; }
+    .gen-btn:disabled { opacity: 0.25; cursor: not-allowed; }
 
     /* Status */
     .status-bar {
-      color: #a855f755;
-      font-size: 0.72rem;
-      font-family: monospace;
-      letter-spacing: 0.09em;
-      text-align: center;
-      min-height: 1.1em;
+      color: #a855f755; font-size: 0.72rem; font-family: monospace;
+      letter-spacing: 0.09em; text-align: center; min-height: 1.1em;
     }
-
     .status-bar.error { color: #f87171aa; }
     .status-bar.ok    { color: #86efac99; }
   </style>
@@ -436,13 +241,10 @@
           <span class="slider-value" id="durationLabel">30s</span>
         </div>
         <input type="range" id="durationSlider" min="10" max="100" step="1" value="30">
-        <div class="slider-ends">
-          <span>10s</span>
-          <span>100s</span>
-        </div>
+        <div class="slider-ends"><span>10s</span><span>100s</span></div>
       </div>
 
-      <!-- Effects Settings -->
+      <!-- Effects -->
       <div>
         <div class="section-label">Effects</div>
         <button class="effects-btn" id="effectsBtn">
@@ -456,6 +258,16 @@
 
       <!-- Generate -->
       <button class="gen-btn" id="genBtn" disabled>Generate Clip</button>
+
+      <!-- Progress -->
+      <div class="progress-section" id="progressSection">
+        <div class="section-label">Processing</div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-log" id="progressLog"></div>
+      </div>
+
+      <!-- Download -->
+      <a class="gen-btn" id="downloadBtn" style="display:none;" download="clip.mp4">Download Clip</a>
 
       <!-- Status -->
       <div class="status-bar" id="statusBar">Upload a clip to get started.</div>
@@ -472,7 +284,6 @@
         <button class="popup-close" id="popupClose">✕</button>
       </div>
 
-      <!-- Sound Effects -->
       <div>
         <div class="section-label">Sound Effects</div>
         <div class="sfx-grid">
@@ -516,30 +327,22 @@
 
       <hr class="popup-divider">
 
-      <!-- Zoom Intensity -->
       <div>
         <div class="slider-row">
           <div class="section-label" style="margin-bottom:0;">Zoom Frequency</div>
           <span class="slider-value" id="zoomLabel">Medium</span>
         </div>
         <input type="range" id="zoomSlider" min="1" max="5" step="1" value="3">
-        <div class="slider-ends">
-          <span>Rare</span>
-          <span>Every Cut</span>
-        </div>
+        <div class="slider-ends"><span>Rare</span><span>Every Cut</span></div>
       </div>
 
-      <!-- Tint Intensity -->
       <div>
         <div class="slider-row">
           <div class="section-label" style="margin-bottom:0;">Tint Frequency</div>
           <span class="slider-value" id="tintLabel">Medium</span>
         </div>
         <input type="range" id="tintSlider" min="1" max="5" step="1" value="3">
-        <div class="slider-ends">
-          <span>Rare</span>
-          <span>Every Cut</span>
-        </div>
+        <div class="slider-ends"><span>Rare</span><span>Every Cut</span></div>
       </div>
 
       <button class="popup-apply" id="popupApply">Apply</button>
@@ -547,149 +350,332 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    // ── state ──────────────────────────────────────────────────
+    let selectedFile  = null;
+    let videoDuration = 0;
+    let videoWidth    = 0;
+    let videoHeight   = 0;
+    let hasAudio      = true;
+    let ffmpegLoaded  = false;
+    let ffmpegInst    = null;
+
+    // ── element refs ───────────────────────────────────────────
+    const dropZone        = document.getElementById('dropZone');
+    const fileInput       = document.getElementById('fileInput');
+    const fileNameEl      = document.getElementById('fileName');
+    const genBtn          = document.getElementById('genBtn');
+    const statusBar       = document.getElementById('statusBar');
+    const progressSection = document.getElementById('progressSection');
+    const progressFill    = document.getElementById('progressFill');
+    const progressLog     = document.getElementById('progressLog');
+    const downloadBtn     = document.getElementById('downloadBtn');
+    const durationSlider  = document.getElementById('durationSlider');
+    const durationLabel   = document.getElementById('durationLabel');
+    const zoomSlider      = document.getElementById('zoomSlider');
+    const tintSlider      = document.getElementById('tintSlider');
+    const zoomLabel       = document.getElementById('zoomLabel');
+    const tintLabel       = document.getElementById('tintLabel');
+    const popupOverlay    = document.getElementById('popupOverlay');
+    const effectsSummary  = document.getElementById('effectsSummary');
+
     const freqNames = ['', 'Rare', 'Low', 'Medium', 'High', 'Every Cut'];
-
-    // SFX preview
-    let activeAudio = null;
-    let activeBtn   = null;
-    document.querySelectorAll('.sfx-preview').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (activeAudio && !activeAudio.paused) {
-          activeAudio.pause();
-          activeAudio.currentTime = 0;
-          if (activeBtn) { activeBtn.classList.remove('playing'); activeBtn.innerHTML = '&#9654;'; }
-          if (activeBtn === btn) { activeAudio = null; activeBtn = null; return; }
-        }
-        const audio = new Audio(btn.dataset.src);
-        activeAudio = audio;
-        activeBtn   = btn;
-        btn.classList.add('playing');
-        btn.innerHTML = '&#9646;&#9646;';
-        audio.play();
-        audio.onended = () => {
-          btn.classList.remove('playing');
-          btn.innerHTML = '&#9654;';
-          activeAudio = null;
-          activeBtn   = null;
-        };
-      });
-    });
-
-    // Duration slider
-    const durationSlider = document.getElementById('durationSlider');
-    const durationLabel  = document.getElementById('durationLabel');
     let selectedDuration = 30;
+
+    // ── duration ───────────────────────────────────────────────
     durationSlider.addEventListener('input', () => {
       selectedDuration = parseInt(durationSlider.value);
       durationLabel.textContent = selectedDuration + 's';
     });
 
-    // Popup sliders
-    const zoomSlider = document.getElementById('zoomSlider');
-    const tintSlider = document.getElementById('tintSlider');
-    const zoomLabel  = document.getElementById('zoomLabel');
-    const tintLabel  = document.getElementById('tintLabel');
-
+    // ── popup sliders ──────────────────────────────────────────
     zoomSlider.addEventListener('input', () => { zoomLabel.textContent = freqNames[zoomSlider.value]; });
     tintSlider.addEventListener('input', () => { tintLabel.textContent = freqNames[tintSlider.value]; });
 
-    // Effects popup
-    const popupOverlay   = document.getElementById('popupOverlay');
-    const effectsBtn     = document.getElementById('effectsBtn');
-    const popupClose     = document.getElementById('popupClose');
-    const popupApply     = document.getElementById('popupApply');
-    const effectsSummary = document.getElementById('effectsSummary');
-
-    effectsBtn.addEventListener('click', () => popupOverlay.classList.add('open'));
-    popupClose.addEventListener('click', closePopup);
-    popupOverlay.addEventListener('click', (e) => { if (e.target === popupOverlay) closePopup(); });
-
-    popupApply.addEventListener('click', () => {
-      updateSummary();
-      closePopup();
-    });
+    // ── effects popup ──────────────────────────────────────────
+    document.getElementById('effectsBtn').addEventListener('click', () => popupOverlay.classList.add('open'));
+    document.getElementById('popupClose').addEventListener('click', closePopup);
+    popupOverlay.addEventListener('click', e => { if (e.target === popupOverlay) closePopup(); });
+    document.getElementById('popupApply').addEventListener('click', () => { updateSummary(); closePopup(); });
 
     function closePopup() { popupOverlay.classList.remove('open'); }
-
     function updateSummary() {
-      const sfxIds = ['sfx-woosh1','sfx-woosh2','sfx-woosh3','sfx-woosh4','sfx-woosh5','sfx-woosh6','sfx-ding'];
-      const sfxLabels = ['Woosh 1','Woosh 2','Woosh 3','Woosh 4','Woosh 5','Woosh 6','Ding'];
-      const active = sfxIds.filter(id => document.getElementById(id).checked)
-                           .map(id => sfxLabels[sfxIds.indexOf(id)]);
-      const sfxText = active.length === 0 ? 'No SFX' :
-                      active.length === sfxIds.length ? 'All SFX on' :
-                      active.join(', ');
-      effectsSummary.textContent =
-        `${sfxText} · Zoom: ${freqNames[zoomSlider.value]} · Tint: ${freqNames[tintSlider.value]}`;
+      const ids    = ['sfx-woosh1','sfx-woosh2','sfx-woosh3','sfx-woosh4','sfx-woosh5','sfx-woosh6','sfx-ding'];
+      const labels = ['Woosh 1','Woosh 2','Woosh 3','Woosh 4','Woosh 5','Woosh 6','Ding'];
+      const active = ids.filter(id => document.getElementById(id).checked).map(id => labels[ids.indexOf(id)]);
+      const sfxText = active.length === 0 ? 'No SFX' : active.length === ids.length ? 'All SFX on' : active.join(', ');
+      effectsSummary.textContent = `${sfxText} · Zoom: ${freqNames[zoomSlider.value]} · Tint: ${freqNames[tintSlider.value]}`;
     }
 
-    // File handling
-    const dropZone   = document.getElementById('dropZone');
-    const fileInput  = document.getElementById('fileInput');
-    const fileNameEl = document.getElementById('fileName');
-    const genBtn     = document.getElementById('genBtn');
-    const statusBar  = document.getElementById('statusBar');
-    let selectedFile = null;
+    // ── sfx preview ────────────────────────────────────────────
+    let activeAudio = null, activeBtn = null;
+    document.querySelectorAll('.sfx-preview').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        if (activeAudio && !activeAudio.paused) {
+          activeAudio.pause(); activeAudio.currentTime = 0;
+          if (activeBtn) { activeBtn.classList.remove('playing'); activeBtn.innerHTML = '&#9654;'; }
+          if (activeBtn === btn) { activeAudio = null; activeBtn = null; return; }
+        }
+        const audio = new Audio(btn.dataset.src);
+        activeAudio = audio; activeBtn = btn;
+        btn.classList.add('playing'); btn.innerHTML = '&#9646;&#9646;';
+        audio.play();
+        audio.onended = () => {
+          btn.classList.remove('playing'); btn.innerHTML = '&#9654;';
+          activeAudio = null; activeBtn = null;
+        };
+      });
+    });
 
+    // ── file handling ──────────────────────────────────────────
     function handleFile(file) {
-      if (!file || !file.type.startsWith('video/')) {
-        setStatus('Only video files are supported.', 'error');
-        return;
-      }
+      if (!file || !file.type.startsWith('video/')) { setStatus('Only video files are supported.', 'error'); return; }
       const video = document.createElement('video');
       video.preload = 'metadata';
       video.onloadedmetadata = () => {
         URL.revokeObjectURL(video.src);
         if (video.duration > 600) {
           setStatus('Clip exceeds 10 minutes. Please trim before uploading.', 'error');
-          selectedFile = null;
-          genBtn.disabled = true;
-          fileNameEl.style.display = 'none';
-          return;
+          selectedFile = null; genBtn.disabled = true; fileNameEl.style.display = 'none'; return;
         }
-        selectedFile = file;
+        selectedFile  = file;
+        videoDuration = video.duration;
+        videoWidth    = video.videoWidth;
+        videoHeight   = video.videoHeight;
         fileNameEl.textContent = file.name;
         fileNameEl.style.display = 'block';
         genBtn.disabled = false;
+        downloadBtn.style.display = 'none';
+        progressSection.style.display = 'none';
         setStatus('Ready to generate.');
       };
       video.src = URL.createObjectURL(file);
     }
 
-    fileInput.addEventListener('change', () => {
-      if (fileInput.files[0]) handleFile(fileInput.files[0]);
-    });
-
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag-over');
       if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
     });
 
-    // Generate
-    genBtn.addEventListener('click', () => {
-      if (!selectedFile) return;
-      const sfxIds = ['sfx-woosh1','sfx-woosh2','sfx-woosh3','sfx-woosh4','sfx-woosh5','sfx-woosh6','sfx-ding'];
-      const sfxFiles = ['woosh1.mp3','woosh2.mp3','woosh3.mp3','woosh4.mp3','woosh5.mp3','woosh6.mp3','ding.mp3'];
-      const activeSfx = sfxIds.map((id, i) => document.getElementById(id).checked ? sfxFiles[i] : null).filter(Boolean);
-      // activeSfx, zoomSlider.value, tintSlider.value, selectedDuration → pass to backend
-      // Effects always trigger at cut boundaries for timing/impact
-      setStatus(`Generating — ${selectedDuration}s · Zoom: ${freqNames[zoomSlider.value]} · Tint: ${freqNames[tintSlider.value]} · SFX: ${activeSfx.length}`);
-      genBtn.disabled = true;
-      // TODO: POST to backend
-    });
+    // ── audio analysis ─────────────────────────────────────────
+    async function analyzeAudio(file) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const buf = await file.arrayBuffer();
+      let decoded;
+      try { decoded = await ctx.decodeAudioData(buf); } catch { ctx.close(); return null; }
+      ctx.close();
+      const data  = decoded.getChannelData(0);
+      const sr    = decoded.sampleRate;
+      const winSz = sr; // 1-second windows
+      const out   = [];
+      for (let i = 0; i + winSz <= data.length; i += winSz) {
+        let sum = 0;
+        for (let j = i; j < i + winSz; j++) sum += data[j] * data[j];
+        out.push({ time: i / sr, energy: Math.sqrt(sum / winSz) });
+      }
+      return out;
+    }
 
+    // ── segment selection ──────────────────────────────────────
+    function selectSegments(energies, targetDur, vidDur) {
+      const numCuts = Math.max(3, Math.min(8, Math.round(targetDur / 4)));
+      const segDur  = parseFloat((targetDur / numCuts).toFixed(3));
+      const sorted  = energies ? [...energies].sort((a, b) => b.energy - a.energy) : null;
+      const segs    = [], used = [];
+
+      function tryAdd(t) {
+        const start = parseFloat(Math.max(0, Math.min(vidDur - segDur - 0.1, t)).toFixed(3));
+        const end   = start + segDur;
+        if (used.some(u => start < u.end && end > u.start)) return false;
+        segs.push({ start, duration: segDur });
+        used.push({ start, end });
+        return true;
+      }
+
+      if (sorted) for (const p of sorted) { if (segs.length >= numCuts) break; tryAdd(p.time); }
+      const step = (vidDur - segDur) / Math.max(1, numCuts - 1);
+      for (let i = 0; i < numCuts && segs.length < numCuts; i++) tryAdd(i * step);
+      return segs.sort((a, b) => a.start - b.start);
+    }
+
+    // ── filter graph builder ───────────────────────────────────
+    function buildFilterGraph(segments, sfxEntries, zf, tf) {
+      const N  = segments.length;
+      const ZW = Math.floor(videoWidth  * 1.12 / 2) * 2;
+      const ZH = Math.floor(videoHeight * 1.12 / 2) * 2;
+      const W  = Math.floor(videoWidth  / 2) * 2;
+      const H  = Math.floor(videoHeight / 2) * 2;
+      const parts = [], vLabels = [], aLabels = [];
+
+      segments.forEach((seg, i) => {
+        const doZoom = Math.random() < (zf / 5);
+        const doTint = Math.random() < (tf / 5);
+        let vf = `[0:v]trim=start=${seg.start}:duration=${seg.duration},setpts=PTS-STARTPTS`;
+        if (doZoom) vf += `,scale=${ZW}:${ZH},crop=${W}:${H}`;
+        if (doTint) vf += `,eq=saturation=1.6:gamma_r=1.25:gamma_b=0.85`;
+        parts.push(`${vf}[v${i}]`);
+        vLabels.push(`[v${i}]`);
+      });
+      parts.push(`${vLabels.join('')}concat=n=${N}:v=1:a=0[vout]`);
+
+      let audioOut = null;
+      if (hasAudio) {
+        segments.forEach((seg, i) => {
+          parts.push(`[0:a]atrim=start=${seg.start}:duration=${seg.duration},asetpts=PTS-STARTPTS[a${i}]`);
+          aLabels.push(`[a${i}]`);
+        });
+        parts.push(`${aLabels.join('')}concat=n=${N}:v=0:a=1[abase]`);
+
+        if (sfxEntries.length > 0) {
+          sfxEntries.forEach((sfx, i) => {
+            parts.push(`[${i + 1}:a]adelay=${sfx.delayMs}|${sfx.delayMs},volume=0.8[sfx${i}]`);
+          });
+          const sfxLabels = sfxEntries.map((_, i) => `[sfx${i}]`).join('');
+          parts.push(`[abase]${sfxLabels}amix=inputs=${sfxEntries.length + 1}:duration=first:dropout_transition=0[aout]`);
+          audioOut = '[aout]';
+        } else {
+          audioOut = '[abase]';
+        }
+      }
+
+      return { fc: parts.join(';'), audioOut };
+    }
+
+    // ── ffmpeg loader ──────────────────────────────────────────
+    async function loadFFmpeg() {
+      if (ffmpegLoaded) return ffmpegInst;
+      const { FFmpeg }     = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm/index.js');
+      const { toBlobURL }  = await import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js');
+      const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      ffmpegInst = new FFmpeg();
+      ffmpegInst.on('log', ({ message }) => {
+        if (/frame=|time=|speed=/.test(message)) setProgressLog(message.trim().slice(0, 90));
+      });
+      await ffmpegInst.load({
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   'text/javascript'),
+        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+      ffmpegLoaded = true;
+      return ffmpegInst;
+    }
+
+    async function fetchBuf(input) {
+      if (input instanceof File || input instanceof Blob) return new Uint8Array(await input.arrayBuffer());
+      return new Uint8Array(await (await fetch(input)).arrayBuffer());
+    }
+
+    // ── generate ───────────────────────────────────────────────
+    async function generate() {
+      if (!selectedFile) return;
+      genBtn.disabled = true;
+      downloadBtn.style.display = 'none';
+      progressSection.style.display = 'block';
+      setProgress(0);
+
+      try {
+        // 1. Audio analysis
+        setProgressLog('Analyzing audio...');
+        const energies = await analyzeAudio(selectedFile);
+        hasAudio = energies !== null;
+        setProgress(5);
+
+        // 2. Segment selection
+        setProgressLog('Selecting best moments...');
+        const segments = selectSegments(energies, selectedDuration, videoDuration);
+        setProgress(10);
+
+        // 3. Build SFX entry list (one per cut, randomly picked from enabled)
+        const sfxDefs = [
+          { id: 'sfx-woosh1', path: 'sfx/woosh1.mp3' },
+          { id: 'sfx-woosh2', path: 'sfx/woosh2.mp3' },
+          { id: 'sfx-woosh3', path: 'sfx/woosh3.mp3' },
+          { id: 'sfx-woosh4', path: 'sfx/woosh4.mp3' },
+          { id: 'sfx-woosh5', path: 'sfx/woosh5.mp3' },
+          { id: 'sfx-woosh6', path: 'sfx/woosh6.mp3' },
+          { id: 'sfx-ding',   path: 'sfx/ding.mp3'   },
+        ];
+        const enabledPaths = sfxDefs.filter(s => document.getElementById(s.id).checked).map(s => s.path);
+        const sfxEntries = [];
+        if (hasAudio && enabledPaths.length > 0) {
+          let accMs = 0;
+          segments.forEach(seg => {
+            const path = enabledPaths[Math.floor(Math.random() * enabledPaths.length)];
+            sfxEntries.push({ path, delayMs: accMs });
+            accMs += Math.round(seg.duration * 1000);
+          });
+        }
+
+        // 4. Load ffmpeg.wasm
+        setProgressLog('Loading ffmpeg.wasm — first load may take ~30s...');
+        const ffmpeg = await loadFFmpeg();
+        setProgress(28);
+
+        // 5. Write files to virtual FS
+        setProgressLog('Writing files...');
+        await ffmpeg.writeFile('input.mp4', await fetchBuf(selectedFile));
+        setProgress(38);
+
+        const sfxFsEntries = [];
+        for (let i = 0; i < sfxEntries.length; i++) {
+          const fsName = `sfx${i}.mp3`;
+          await ffmpeg.writeFile(fsName, await fetchBuf(sfxEntries[i].path));
+          sfxFsEntries.push({ ...sfxEntries[i], fsName });
+        }
+        setProgress(45);
+
+        // 6. Build filter graph and run
+        const { fc, audioOut } = buildFilterGraph(
+          segments, sfxFsEntries,
+          parseInt(zoomSlider.value), parseInt(tintSlider.value)
+        );
+
+        const args = ['-i', 'input.mp4'];
+        sfxFsEntries.forEach(sfx => args.push('-i', sfx.fsName));
+        args.push('-filter_complex', fc, '-map', '[vout]');
+        if (audioOut) args.push('-map', audioOut);
+        else          args.push('-an');
+        args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23');
+        if (audioOut) args.push('-c:a', 'aac', '-b:a', '128k');
+        args.push('output.mp4');
+
+        setProgressLog('Processing video — this will take several minutes, please wait...');
+        await ffmpeg.exec(args);
+        setProgress(95);
+
+        // 7. Read output and create download link
+        setProgressLog('Finalizing...');
+        const data = await ffmpeg.readFile('output.mp4');
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        downloadBtn.href     = URL.createObjectURL(blob);
+        downloadBtn.download = `clip_${selectedDuration}s.mp4`;
+        downloadBtn.style.display = 'block';
+
+        setProgress(100);
+        setProgressLog('Done.');
+        setStatus('Clip ready — click Download to save.', 'ok');
+        genBtn.disabled = false;
+
+      } catch (err) {
+        console.error(err);
+        setProgressLog('Error: ' + (err.message || String(err)));
+        setStatus('Processing failed — see browser console for details.', 'error');
+        genBtn.disabled = false;
+      }
+    }
+
+    genBtn.addEventListener('click', generate);
+
+    // ── helpers ────────────────────────────────────────────────
     function setStatus(msg, type = '') {
       statusBar.textContent = msg;
-      statusBar.className = 'status-bar' + (type ? ' ' + type : '');
+      statusBar.className   = 'status-bar' + (type ? ' ' + type : '');
     }
+    function setProgress(pct) { progressFill.style.width = pct + '%'; }
+    function setProgressLog(msg) { progressLog.textContent = msg; }
   </script>
 
 </body>
